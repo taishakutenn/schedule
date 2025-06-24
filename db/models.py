@@ -1,7 +1,7 @@
 '''File for database models'''
 
-from sqlalchemy import Column, String, Boolean, Integer, Numeric, ForeignKey, nullsfirst
-from sqlalchemy.orm import relationship, DeclarativeBase, Relationship
+from sqlalchemy import Column, String, Boolean, Integer, Numeric, ForeignKey,  Date
+from sqlalchemy.orm import relationship, DeclarativeBase
 
 
 class Base(DeclarativeBase):
@@ -26,6 +26,7 @@ class Group(Base):
         advisor: Relationship to access the advisor (Teacher) of the group
         speciality: Relationship to access the speciality of the group
         curriculums: Relationship to access the curriculum for this group
+        sessions: Relationship to access the sessions associated with the group
     """
     __tablename__ = "groups"
 
@@ -40,6 +41,7 @@ class Group(Base):
     advisor = relationship("Teacher", back_populates="advisory_group", uselist=False)  # uselist for one to one
     speciality = relationship("Speciality", back_populates="groups")
     curriculums = relationship("Curriculum", back_populates="group")
+    sessions = relationship("Session", back_populates="group")
 
 
 class Speciality(Base):
@@ -70,6 +72,7 @@ class Teacher(Base):
         phone_number: Phone number to contact the teacher
         email: Work email address to contact the teacher (optional)
         advisory_group: Relationship to access the group in which the teacher is an advisory
+        sessions: Relationship to access the sessions associated with the teacher
     """
     __tablename__ = "teachers"
 
@@ -82,6 +85,7 @@ class Teacher(Base):
 
     # Relationships
     advisory_group = relationship("Group", back_populates="advisor")
+    sessions = relationship("Session", back_populates="teacher")
 
 
 class Subject(Base):
@@ -92,6 +96,7 @@ class Subject(Base):
         subject_code: Stores the subject code in the general structure of the college
         name: Human-readable name of the item
         curriculum: Relationship to access the curriculum which use this subject
+        sessions: Relationship to access the sessions associated with the subject
     """
     __tablename__ = "subjects"
 
@@ -100,6 +105,7 @@ class Subject(Base):
 
     # Relationships
     curriculums = relationship("Curriculum", back_populates="subject")
+    sessions = relationship("Session", back_populates="subject")
 
 
 class Curriculum(Base):
@@ -145,6 +151,7 @@ class Cabinet(Base):
         cabinet_state: The current state of the cabinet (e.g., "Equipped with PC", "Repair")
         building_number: This is the foreign key of the building where the cabinet is located
         building: Relationship for access building where the cabinet is located
+        sessions: Relationship to access the sessions associated with the cabinet
     """
     __tablename__ = "cabinets"
 
@@ -157,6 +164,7 @@ class Cabinet(Base):
 
     # Relationships
     building = relationship("Building", back_populates="cabinets")
+    sessions = relationship("Session", back_populates="cabinet")
 
 
 class Building(Base):
@@ -177,3 +185,39 @@ class Building(Base):
 
     # Relationships
     cabinets = relationship("Cabinet", back_populates="building")
+
+
+class Session(Base):
+    """
+    Represents a one learn session in the database
+
+    Fields:
+        session_number: This is what number the session is on that day (Primary Key)
+        date: This is the date of the session (Primary Key)
+        session_type: This is the type of the session (e.g. "lecture" or "laboratory")
+        group_name: Foreign key field for linking to the groups table (Primary Key)
+        subject_code: Foreign key field for linking to the subjects table
+        teacher_id: Foreign key field for linking to the teachers table
+        cabinet_number: Foreign key field for linking to the cabinets table
+        group: Relationship to access the group for which it was created session
+        subject: Relationship to access the subject for which it was created session
+        teacher: Relationship to access the teacher for which it was created session
+        cabinet: Relationship to access the cabinet associated with this session
+    """
+    __tablename__ = "sessions"
+
+    session_number = Column(Integer, primary_key=True, nullable=False)
+    date = Column(Date, primary_key=True, nullable=False)
+    session_type = Column(String, nullable=False)
+
+    # Foreign keys
+    group_name = Column(String, ForeignKey("groups.group_name"), primary_key=True)
+    subject_code = Column(String, ForeignKey("subjects.subject_code"))
+    teacher_id = Column(Integer, ForeignKey("teachers.id"))
+    cabinet_number = Column(Integer, ForeignKey("cabinets.cabinet_number"))
+
+    # Relationships
+    group = relationship("Group", back_populates="sessions")
+    subject = relationship("Subject", back_populates="sessions")
+    teacher = relationship("Teacher", back_populates="sessions")
+    cabinet = relationship("Cabinet", back_populates="sessions")

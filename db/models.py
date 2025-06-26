@@ -1,6 +1,6 @@
 '''File for database models'''
 
-from sqlalchemy import Column, String, Boolean, Integer, Numeric, ForeignKey,  Date
+from sqlalchemy import Column, String, Boolean, Integer, Numeric, ForeignKey, Date
 from sqlalchemy.orm import relationship, DeclarativeBase
 
 
@@ -27,6 +27,7 @@ class Group(Base):
         speciality: Relationship to access the speciality of the group
         curriculums: Relationship to access the curriculum for this group
         sessions: Relationship to access the sessions associated with the group
+        requests: Relationship to access the teacher requests for sessions associated with the group
     """
     __tablename__ = "groups"
 
@@ -42,6 +43,7 @@ class Group(Base):
     speciality = relationship("Speciality", back_populates="groups")
     curriculums = relationship("Curriculum", back_populates="group")
     sessions = relationship("Session", back_populates="group")
+    requests = relationship("TeacherRequest", back_populates="group")
 
 
 class Speciality(Base):
@@ -73,6 +75,8 @@ class Teacher(Base):
         email: Work email address to contact the teacher (optional)
         advisory_group: Relationship to access the group in which the teacher is an advisory
         sessions: Relationship to access the sessions associated with the teacher
+        employments: Relationship to access the employments associated with the teacher
+        requests: Relationship to access the teacher requests for sessions associated with the teacher
     """
     __tablename__ = "teachers"
 
@@ -86,6 +90,8 @@ class Teacher(Base):
     # Relationships
     advisory_group = relationship("Group", back_populates="advisor")
     sessions = relationship("Session", back_populates="teacher")
+    employments = relationship("EmploymentTeacher", back_populates="teacher")
+    requests = relationship("RequestTeacher", back_populates="teacher")
 
 
 class Subject(Base):
@@ -97,6 +103,7 @@ class Subject(Base):
         name: Human-readable name of the item
         curriculum: Relationship to access the curriculum which use this subject
         sessions: Relationship to access the sessions associated with the subject
+        requests: Relationship to access the teacher requests for sessions associated with the subject
     """
     __tablename__ = "subjects"
 
@@ -106,6 +113,7 @@ class Subject(Base):
     # Relationships
     curriculums = relationship("Curriculum", back_populates="subject")
     sessions = relationship("Session", back_populates="subject")
+    requests = relationship("RequestTeacher", back_populates="subject")
 
 
 class Curriculum(Base):
@@ -221,3 +229,71 @@ class Session(Base):
     subject = relationship("Subject", back_populates="sessions")
     teacher = relationship("Teacher", back_populates="sessions")
     cabinet = relationship("Cabinet", back_populates="sessions")
+
+
+class EmploymentTeacher(Base):
+    """
+    Represents an employment teacher in the database
+
+    Fields:
+        date_start_period: This field stores the beginning of the period in which the teacher indicates his employment (Primary Key)
+        date_end_period: This field stores the ending of the period in which the teacher indicates his employment (Primary Key)
+        monday, tuesday, wednesday, thursday, friday, saturday: All fields with names of working days of the week -
+            store the value of how much the teacher can work on this day.
+            Also, it can take the value null - in this case it will be considered that in this period,
+            on this day, the teacher will not be able to work
+        teacher_id: Foreign key field for linking to the teachers table
+        teacher: Relationship to access the teacher associated with this employment teacher
+    """
+    __tablename__ = "employment_teachers"
+
+    date_start_period = Column(Date, primary_key=True, nullable=False)
+    date_end_period = Column(Date, primary_key=True, nullable=False)
+    monday = Column(String, nullable=True, default="8:30")
+    tuesday = Column(String, nullable=True, default="8:30")
+    wednesday = Column(String, nullable=True, default="8:30")
+    thursday = Column(String, nullable=True, default="8:30")
+    friday = Column(String, nullable=True, default="8:30")
+    saturday = Column(String, nullable=True, default="8:30")
+
+    # Foreign keys
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), primary_key=True)
+
+    # Relationships
+    teacher = relationship("Teacher", back_populates="employments")
+
+
+class TeacherRequest(Base):
+    """
+    Represents a teacher request in the database
+
+    Fields:
+        date_request: This field stores the day that the teacher selects and the whole week will be counted from it.
+            Thus, indicating the beginning of the week - the whole week is indicated
+            and the teacher's request goes for the whole week (Primary Key)
+        lectures_hours: Field storing the number of hours in request for lectures
+        laboratory_hours: Field storing the number of hours in request  for laboratories
+        practice_hours: Field storing the number of hours in request  for practices
+        teacher_id: Foreign key field for linking to the teachers table
+        subject_code: Foreign key field for linking to the subjects table
+        group_name: Foreign key field for linking to the groups table
+        teacher: Relationship to access the teacher associated with this request
+        subject: Relationship to access the subject for which it was created session
+        group: Relationship to access the group for which it was created session
+    """
+    __tablename__ = "teacher_requests"
+
+    date_request = Column(Date, primary_key=True, nullable=False)
+    lectures_hours = Column(Numeric(5, 2), nullable=False, default=0)
+    laboratory_hours = Column(Numeric(5, 2), nullable=False, default=0)
+    practice_hours = Column(Numeric(5, 2), nullable=False, default=0)
+
+    # Foreign keys
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), primary_key=True)
+    subject_code = Column(String, ForeignKey("subjects.subject_code"), primary_key=True)
+    group_name = Column(String, ForeignKey("groups.group_name"), primary_key=True)
+
+    # Relationships
+    teacher = relationship("Teacher", back_populates="requests")
+    subject = relationship("Subject", back_populates="requests")
+    group = relationship("Group", back_populates="requests")

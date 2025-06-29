@@ -6,5 +6,5 @@ env = Env()
 
 REAL_DATABASE_URL = env.str(
     "REAL_DATABASE_URL",
-    default="postgressql+asyncpg://schedule_db:postgres@0.0.0.0:5432/postgres"
+    default="postgresql+asyncpg://postgres:123456@0.0.0.0:5432/schedule_db"
 )   # connect string for the database

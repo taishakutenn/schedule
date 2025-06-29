@@ -10,3 +10,10 @@ services:
       - POSTGRES_DB=schedule_db
     ports:
       - "5432:5432"
+    networks:
+      - custom
+    volumes:
+      - ./db_data:/var/lib/postgresql/data
+networks:
+  custom:
+    driver: bridge

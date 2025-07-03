@@ -10,7 +10,7 @@ from typing import Union, Tuple, Optional
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Teacher, Group, Cabinet
+from models import Teacher, Group, Cabinet, Building
 from config.logging_config import configure_logging
 
 # Создаём объект логгера
@@ -18,9 +18,9 @@ logger = configure_logging()
 
 
 '''
-=================
-DAL's for Teacher
-=================
+================
+DAL for Teacher
+================
 '''
 
 class TeacherDAL:
@@ -98,9 +98,85 @@ class TeacherDAL:
 
 
 '''
-===============
-DAL's for Group
-===============
+================
+DAL for Building
+================
+'''
+
+class BuildingDAL:
+    """Data Access Layer for operating building info"""
+
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    async def create_building(
+            self, building_number: int, city: str, building_address: int, cabinets: int
+    ) -> Building:
+        new_building = Building(
+            building_number=building_number,
+            city=city,
+            building_address=building_address,
+            cabinets=cabinets,
+        )
+
+        # Add building in session
+        self.db_session.add(new_building)
+
+        # Add changes to the database, but do not commit them strictly
+        await self.db_session.flush()
+        logger.info("Новое здание успешно добавлено в бд")
+        return new_building
+    
+    async def delete_group(self, building_number: int) -> bool:
+        query = delete(Building).where(Building.building_number == building_number).returning(Building.building_number)
+        res = await self.db_session.execute(query)
+        deleted_building = res.fetchone()
+        if not deleted_building:  # if there aren't deleted records
+            logger.warning(f"Не было найдено ни одного здания с таким номером: {building_number}")
+            return False
+        logger.info(f"Здание с номером: {building_number} было успешно удалено из бд")
+        return True
+    
+    async def get_building_by_number(self, building_number: int) -> Union[int, None]:
+        query = select(Building).where(Building.building_number == building_number)
+        res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a group
+        building_row = res.scalar()  # return object Group or None
+        if building_row is not None:
+            logger.info(f"Здание с номером: {building_number} было успешно найдено")
+            return building_row.building_number
+        logger.warning(f"Не было найдено ни одного здания с номером: {building_number}")
+        return None
+    
+    async def get_building_by_addres(self, building_addres: str) -> Union[str, None]:
+        query = select(Building).where(Building.building_addres == building_addres)
+        res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a group
+        building_row = res.scalar()  # return object Group or None
+        if building_row is not None:
+            logger.info(f"Здание по адресу: {building_addres} было успешно найдено")
+            return building_row.building_number
+        logger.warning(f"Не было найдено ни одного здания по адресу: {building_addres}")
+        return None
+    
+    async def update(self, building_number: int, **kwargs) -> Optional[int]:
+        query = (
+            update(Building).
+            where(Building.building_number == building_number).
+            values(**kwargs).
+            returning(Building.building_number)
+        )
+        res = await self.db_session.execute(query)
+        update_building = res.scalar()  # return Group name or None
+        if update_building is not None:
+            logger.info(f"Для здания с номером: {building_number}. Были успешно обновлены поля: {" - ".join(kwargs.keys())}")
+            return update_building.group_name
+        logger.warning(f"Не было найдено ни однго здания под номером: {building_number}")
+        return None
+
+
+'''
+==============
+DAL for Group
+==============
 '''
 
 class GroupDAL:
@@ -164,9 +240,9 @@ class GroupDAL:
     
 
 '''
-=================
-DAL's for Cabinet
-=================
+================
+DAL for Cabinet
+================
 '''
 
 class CabinetDAL:

@@ -91,7 +91,7 @@ class Teacher(Base):
     advisory_group = relationship("Group", back_populates="advisor")
     sessions = relationship("Session", back_populates="teacher")
     employments = relationship("EmploymentTeacher", back_populates="teacher")
-    requests = relationship("RequestTeacher", back_populates="teacher")
+    requests = relationship("TeacherRequest", back_populates="teacher")
 
 
 class Subject(Base):
@@ -113,7 +113,7 @@ class Subject(Base):
     # Relationships
     curriculums = relationship("Curriculum", back_populates="subject")
     sessions = relationship("Session", back_populates="subject")
-    requests = relationship("RequestTeacher", back_populates="subject")
+    requests = relationship("TeacherRequest", back_populates="subject")
 
 
 class Curriculum(Base):

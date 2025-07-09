@@ -10,7 +10,7 @@ from typing import Union, Tuple, Optional
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Teacher
+from db.models import Teacher
 from config.logging_config import configure_logging
 
 # Создаём объект логгера

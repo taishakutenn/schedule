@@ -20,7 +20,7 @@ def configure_logging():
     console_handler.setLevel(logging.INFO)
 
     # Handler for write in file
-    file_handler = logging.FileHandler("logs/shedule.log")
+    file_handler = logging.FileHandler("loggs/shedule.log")
     file_handler.setLevel(logging.DEBUG)
 
     # Formatter

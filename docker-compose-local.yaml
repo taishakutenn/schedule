@@ -5,16 +5,16 @@ services:
     image: postgres:17.5
     restart: always
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=123456
+      - POSTGRES_USER=shedule
+      - POSTGRES_PASSWORD=shedule
       - POSTGRES_DB=schedule_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - custom
     volumes:
-      - ./db_data:/var/lib/postgresql/db_data
-      
+      - ./db_data:/var/lib/postgresql/data
+
 networks:
   custom:
     driver: bridge

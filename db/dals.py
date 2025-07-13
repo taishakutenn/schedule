@@ -14,7 +14,7 @@ from api.models import ShowTeacher
 from db.models import Teacher, Group, Cabinet, Building
 from config.logging_config import configure_logging
 
-# Создаём объект логгера
+# Сreate logger object
 logger = configure_logging()
 
 
@@ -46,7 +46,7 @@ class TeacherDAL:
 
         # Add changes to the database, but do not commit them strictly
         await self.db_session.flush()
-        logger.info("Новый учитель успешно добавлен в бд")
+        logger.info(f"Новый учитель успешно добавлен в бд")
         return new_teacher
 
     async def delete_teacher(self, id: int) -> ShowTeacher | None:
@@ -140,19 +140,18 @@ class TeacherDAL:
         logger.warning(f"Не было найдено ни одного учителя с таким ФИ: {name} - {surname}")
         return None
 
-    async def update(self, id, **kwargs) -> Optional[int]:
-        # kwargs - it is the fields which we want to update
+    async def update_teacher(self, id, **kwargs) -> Optional[Teacher]:
         query = (
-            update(Teacher).
-            where(Teacher.id == id).
-            values(**kwargs).
-            returning(Teacher.id)
+            update(Teacher)
+            .where(Teacher.id == id)
+            .values(**kwargs)
+            .returning(Teacher)
         )
         res = await self.db_session.execute(query)
-        updated_teacher = res.scalar()  # return Teacher id or None (because returning == Teacher.id)
-        if updated_teacher is not None:
-            logger.info(f"У учителя с id: {id} были успешно обновлены поля: {" - ".join(kwargs.keys())}")
-            return updated_teacher.id
+        updated_teacher = res.scalar()
+        if updated_teacher:
+            logger.info(f"У учителя с id: {id} были успешно обновлены поля: {{{', '.join(kwargs.keys())}}}")
+            return updated_teacher
         logger.warning(f"Не было найдено ни одного учителя с таким id: {id}")
         return None
 

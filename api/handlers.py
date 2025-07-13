@@ -7,9 +7,13 @@ from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 
-from api.models import ShowTeacher, CreateTeacher, QueryParams
+from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher
 from db.dals import TeacherDAL
 from db.session import get_db
+
+from config.logging_config import configure_logging
+# Сreate logger object
+logger = configure_logging()
 
 teacher_router = APIRouter()  # Create router for teachers
 
@@ -89,6 +93,37 @@ async def _delete_teacher(teacher_id: int, db) -> ShowTeacher | list:
                 return teacher
             return []
 
+async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher | list:
+    async with db as session:
+        try:
+            await session.begin()
+            # exclusion of None-fields from the transmitted data
+            update_data = {
+                key: value for key, value in body.dict().items() if value is not None  and key != "teacher_id"
+            }
+
+            # change data
+            teacher_dal = TeacherDAL(session)
+            teacher = await teacher_dal.update_teacher( 
+                id=body.teacher_id,
+                **update_data
+            )
+            
+            # save changed data
+            await session.commit()
+
+            return ShowTeacher(
+                name=teacher.name,
+                surname=teacher.surname,
+                phone_number=teacher.phone_number,
+                email=teacher.email,
+                fathername=teacher.fathername
+            )
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных об учителе отменено (Ошибка: {e})")
+            raise e
+
 
 @teacher_router.post("/create", response_model=ShowTeacher)
 async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)):
@@ -124,5 +159,5 @@ async def delete_teacher(teacher_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @teacher_router.put("/update/{teacher_id}", response_model=ShowTeacher)
-async def update_teacher():
-    pass
+async def update_teacher(body: UpdateTeacher, db: AsyncSession = Depends(get_db)):
+    return await _update_teacher(body, db)

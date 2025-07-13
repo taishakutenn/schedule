@@ -41,3 +41,10 @@ class CreateTeacher(TunedModel):
     fathername: str | None = None
 
 
+class UpdateTeacher(TunedModel):
+    teacher_id: int
+    name: str | None = None
+    surname: str | None = None
+    phone_number: str | None = None
+    email: EmailStr | None = None
+    fathername: str | None = None

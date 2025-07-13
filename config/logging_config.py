@@ -12,7 +12,7 @@ def configure_logging():
     e.g. logger = logging.getLogger("schedule.db") -  logger for database
     """
     # Create main logger
-    logger = logging.getLogger("shedule")
+    logger = logging.getLogger("schedule")
     logger.setLevel(logging.DEBUG)
 
     # Handler for output in console
@@ -20,7 +20,7 @@ def configure_logging():
     console_handler.setLevel(logging.INFO)
 
     # Handler for write in file
-    file_handler = logging.FileHandler("loggs/shedule.log", encoding="utf-8")
+    file_handler = logging.FileHandler("loggs/schedule.log", encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
 
     # Formatter

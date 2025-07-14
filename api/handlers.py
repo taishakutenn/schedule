@@ -12,6 +12,7 @@ from db.dals import TeacherDAL
 from db.session import get_db
 
 from config.logging_config import configure_logging
+
 # Сreate logger object
 logger = configure_logging()
 
@@ -84,6 +85,7 @@ async def _get_all_teachers(page: int, limit: int, db) -> list[ShowTeacher]:
                 return teachers
             return []
 
+
 async def _delete_teacher(teacher_id: int, db) -> ShowTeacher | list:
     async with db as session:
         async with await session.begin():
@@ -93,22 +95,23 @@ async def _delete_teacher(teacher_id: int, db) -> ShowTeacher | list:
                 return teacher
             return []
 
+
 async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher | list:
     async with db as session:
         try:
             await session.begin()
             # exclusion of None-fields from the transmitted data
             update_data = {
-                key: value for key, value in body.dict().items() if value is not None  and key != "teacher_id"
+                key: value for key, value in body.dict().items() if value is not None and key != "teacher_id"
             }
 
             # change data
             teacher_dal = TeacherDAL(session)
-            teacher = await teacher_dal.update_teacher( 
+            teacher = await teacher_dal.update_teacher(
                 id=body.teacher_id,
                 **update_data
             )
-            
+
             # save changed data
             await session.commit()
 

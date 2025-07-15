@@ -9,11 +9,15 @@ def configure_logging():
     it should be called when the application starts.
     Child loggers are created in the same function and added to the main logger,
     and then you can communicate with them
-    e.g. logger = logging.getLogger("schedule.db") -  logger for database
+    e.g. logger = logging.getLogger("schedule.db") - logger for database
     """
     # Create main logger
     logger = logging.getLogger("schedule")
     logger.setLevel(logging.DEBUG)
+
+    # Check logger to logger does not exist
+    if logger.hasHandlers():
+        return logger
 
     # Handler for output in console
     console_handler = logging.StreamHandler()

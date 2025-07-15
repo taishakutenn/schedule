@@ -10,7 +10,7 @@ from typing import Optional
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.models import ShowTeacher
+from api.models import ShowTeacher, ShowBuilding
 from db.models import Teacher, Group, Cabinet, Building
 from config.logging_config import configure_logging
 
@@ -169,13 +169,12 @@ class BuildingDAL:
         self.db_session = db_session
 
     async def create_building(
-            self, building_number: int, city: str, building_address: int, cabinets: int
+            self, building_number: int, city: str, building_address: str
     ) -> Building:
         new_building = Building(
             building_number=building_number,
             city=city,
-            building_address=building_address,
-            cabinets=cabinets,
+            building_address=building_address
         )
 
         # Add building in session
@@ -186,7 +185,7 @@ class BuildingDAL:
         logger.info("Новое здание успешно добавлено в бд")
         return new_building
     
-    async def delete_group(self, building_number: int) -> bool:
+    async def delete_building(self, building_number: int) -> bool:
         query = delete(Building).where(Building.building_number == building_number).returning(Building.building_number)
         res = await self.db_session.execute(query)
         deleted_building = res.fetchone()
@@ -196,6 +195,36 @@ class BuildingDAL:
         logger.info(f"Здание с номером: {building_number} было успешно удалено из бд")
         return True
     
+    async def get_all_buildings(self, page: int, limit: int) -> list[ShowBuilding] | None:
+        # Calculate first and end selection element.
+        # Based on the received page and elements on it
+        # If the page is zero - then select all elements
+
+        if page == 0:
+            query = select(Building).order_by(Building.building_number.asc())
+        else:
+            query = (
+                select(Building)
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
+
+        result = await self.db_session.execute(query)
+        buildings = result.scalars().all()
+
+        if buildings:
+            logger.info(f"Найдено зданий: {len(buildings)}")
+            return [
+                ShowBuilding(
+                    building_number=b.building_number,
+                    city=b.city,
+                    building_address=b.building_address
+                ) for b in buildings
+            ]
+        else:
+            logger.warning("Не было найдено ни одного здания")
+            return None
+
     async def get_building_by_number(self, building_number: int) -> Building | None:
         query = select(Building).where(Building.building_number == building_number)
         res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a building
@@ -205,25 +234,23 @@ class BuildingDAL:
             return Building(
                 building_number=building_row.building_number,
                 city=building_row.city,
-                building_address=building_row.building_address,
-                cabinets=building_row.cabinets
+                building_address=building_row.building_address
             )
         logger.warning(f"Не было найдено ни одного здания с номером: {building_number}")
         return None
     
-    async def get_building_by_addres(self, building_addres: str) -> Building | None:
-        query = select(Building).where(Building.building_addres == building_addres)
+    async def get_building_by_address(self, building_address: str) -> Building | None:
+        query = select(Building).where(Building.building_address == building_address)
         res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a building
         building_row = res.scalar()  # return object Building or None
         if building_row is not None:
-            logger.info(f"Здание по адресу: {building_addres} было успешно найдено")
+            logger.info(f"Здание по адресу: {building_address} было успешно найдено")
             return Building(
                 building_number=building_row.building_number,
                 city=building_row.city,
-                building_address=building_row.building_address,
-                cabinets=building_row.cabinets
+                building_address=building_row.building_address
             )
-        logger.warning(f"Не было найдено ни одного здания по адресу: {building_addres}")
+        logger.warning(f"Не было найдено ни одного здания по адресу: {building_address}")
         return None
 
     async def update(self, building_number: int, **kwargs) -> Optional[int]:
@@ -239,6 +266,21 @@ class BuildingDAL:
             logger.info(f"Для здания с номером: {building_number}. Были успешно обновлены поля: {" - ".join(kwargs.keys())}")
             return update_building.group_name
         logger.warning(f"Не было найдено ни однго здания под номером: {building_number}")
+        return None
+    
+    async def update_building(self, building_number, **kwargs) -> Optional[Building]:
+        query = (
+            update(Building)
+            .where(Building.building_number == building_number)
+            .values(**kwargs)
+            .returning(Building)
+        )
+        res = await self.db_session.execute(query)
+        updated_building = res.scalar()
+        if updated_building:
+            logger.info(f"У здания с номером: {building_number} были успешно обновлены поля: {{{', '.join(kwargs.keys())}}}")
+            return updated_building
+        logger.warning(f"Не было найдено ни одного здания с номером: {building_number}")
         return None
 
 

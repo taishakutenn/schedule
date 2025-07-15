@@ -24,6 +24,11 @@ class QueryParams(TunedModel):
     limit: int = Field(default=10, ge=1, le=100)
 
 
+'''
+========
+Teachers
+========
+'''
 class ShowTeacher(TunedModel):
     """Class for get teacher info"""
     name: str
@@ -48,3 +53,29 @@ class UpdateTeacher(TunedModel):
     phone_number: str | None = None
     email: EmailStr | None = None
     fathername: str | None = None
+
+
+'''
+=========
+Buildings
+=========
+'''
+class ShowBuilding(TunedModel):
+    """Class for get building info"""
+    building_number: int
+    city: str
+    building_address: str
+
+
+class CreateBuilding(TunedModel):
+    building_number: int
+    city: str
+    building_address: str
+
+
+class UpdateBuilding(TunedModel):
+    building_number: int
+    city: str | None = None
+    building_address: str | None = None
+
+

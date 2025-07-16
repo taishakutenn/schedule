@@ -79,3 +79,14 @@ class UpdateBuilding(TunedModel):
     building_address: str | None = None
 
 
+'''
+=======
+Cabinet
+=======
+'''
+class ShowCabinet(TunedModel):
+    """Class for get cabinet info"""
+    cabinet_number: int
+    capacity: int | None = None
+    cabinet_state: str | None = None
+    building_number: int

@@ -2,7 +2,7 @@
 file for handlers
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
@@ -47,7 +47,7 @@ async def _create_new_teacher(body: CreateTeacher, db) -> ShowTeacher:
             )
 
 
-async def _get_teacher_by_id(id, db) -> ShowTeacher | list:
+async def _get_teacher_by_id(id, db) -> ShowTeacher | None:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
@@ -62,10 +62,10 @@ async def _get_teacher_by_id(id, db) -> ShowTeacher | list:
                     email=teacher.email,
                     fathername=teacher.fathername
                 )
-            return []
+            return None
 
 
-async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher | list:
+async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher | None:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
@@ -81,30 +81,42 @@ async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher | l
                     fathername=teacher.fathername
                 )
 
-            return []
+            return None
 
 
-async def _get_all_teachers(page: int, limit: int, db) -> list[ShowTeacher]:
+async def _get_all_teachers(page: int, limit: int, db) -> list[ShowTeacher] | None:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
             teachers = await teacher_dal.get_all_teachers(page, limit)
             if teachers:
                 return teachers
-            return []
+            
+            return None
 
 
-async def _delete_teacher(teacher_id: int, db) -> ShowTeacher | list:
+async def _delete_teacher(teacher_id: int, db) -> ShowTeacher | None:
     async with db as session:
-        async with await session.begin():
+        try:
+            await session.begin()
             teacher_dal = TeacherDAL(session)
             teacher = await teacher_dal.delete_teacher(teacher_id)
+
+            # save changed data
+            await session.commit()
+
             if teacher:
                 return teacher
-            return []
+            
+            return None
+        
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных об учителе отменено (Ошибка: {e})")
+            raise e
 
 
-async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher | list:
+async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher | None:
     async with db as session:
         try:
             await session.begin()
@@ -131,7 +143,8 @@ async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher | list:
                     email=teacher.email,
                     fathername=teacher.fathername
                 )
-            return []
+            
+            return None
 
         except Exception as e:
             await session.rollback()
@@ -144,17 +157,24 @@ async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)
     return await _create_new_teacher(body, db)
 
 
-@teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacher)
+@teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
 async def get_teacher_by_id(teacher_id: int, db: AsyncSession = Depends(get_db)):
-    return await _get_teacher_by_id(teacher_id, db)
+    teacher = await _get_teacher_by_id(teacher_id, db)
+    if teacher is None:
+        raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
+    return teacher
 
 
-@teacher_router.get("/search/by_humanity", response_model=ShowTeacher)
+@teacher_router.get("/search/by_humanity", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
 async def get_teacher_by_name_and_surname(name: str, surname: str, db: AsyncSession = Depends(get_db)):
-    return await _get_teacher_by_name_and_surname(name, surname, db)
+    teacher = await _get_teacher_by_name_and_surname(name, surname, db)
+    if teacher is None:
+        raise HTTPException(status_code=404, detail=f"Учитель {name, surname} не найден")
+    return teacher
 
 
-@teacher_router.get("/search", response_model=list[ShowTeacher])
+
+@teacher_router.get("/search", response_model=list[ShowTeacher], responses={404: {"description": "Учителя не найдены"}})
 async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     """
     query_param set via Annotated so that fastapi understands
@@ -164,17 +184,26 @@ async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], db: A
     it is better to use this pydantic model, so as not to manually enter these parameters each time.
     Link to documentation: https://fastapi.tiangolo.com/ru/tutorial/query-param-models/
     """
-    return await _get_all_teachers(query_param.page, query_param.limit, db)
+    teachers = await _get_all_teachers(query_param.page, query_param.limit, db)
+    if teachers is None:
+        raise HTTPException(status_code=404, detail=f"Учителя не найдены")
+    return teachers
 
 
-@teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacher)
+@teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
 async def delete_teacher(teacher_id: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_teacher(teacher_id, db)
+    teacher = await _delete_teacher(teacher_id, db)
+    if teacher is None:
+        raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найдены")
+    return teacher
 
 
-@teacher_router.put("/update/{teacher_id}", response_model=ShowTeacher)
+@teacher_router.put("/update", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
 async def update_teacher(body: UpdateTeacher, db: AsyncSession = Depends(get_db)):
-    return await _update_teacher(body, db)
+    teacher = await _update_teacher(body, db)
+    if teacher is None:
+        raise HTTPException(status_code=404, detail=f"Учитель с id: {body.teacher_id} не найдены")
+    return teacher
 
 
 
@@ -199,7 +228,7 @@ async def _create_new_building(body: CreateBuilding, db) -> ShowBuilding:
             )
 
 
-async def _get_building_by_number(number, db) -> ShowBuilding | list:
+async def _get_building_by_number(number, db) -> ShowBuilding | None:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
@@ -212,10 +241,11 @@ async def _get_building_by_number(number, db) -> ShowBuilding | list:
                     city=building.city,
                     building_address=building.building_address
                 )
-            return []
+            
+            return None
 
 
-async def _get_building_by_address(address, db) -> ShowBuilding | list:
+async def _get_building_by_address(address, db) -> ShowBuilding | None:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
@@ -228,21 +258,23 @@ async def _get_building_by_address(address, db) -> ShowBuilding | list:
                     city=building.city,
                     building_address=building.building_address
                 )
-            return 
+            
+            return None
         
 
 
-async def _get_all_buildings(page: int, limit: int, db) -> list[ShowBuilding]:
+async def _get_all_buildings(page: int, limit: int, db) -> list[ShowBuilding] | None:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
             building = await building_dal.get_all_buildings(page, limit)
             if building:
                 return building
-            return []
+            
+            return None
 
 
-async def _delete_building(building_number: int, db) -> ShowBuilding | list:
+async def _delete_building(building_number: int, db) -> bool | None:
     async with db as session:
         try:
             await session.begin()
@@ -253,14 +285,18 @@ async def _delete_building(building_number: int, db) -> ShowBuilding | list:
             # save changed data
             await session.commit()
 
-            return building
+            if building:
+                return building
+
+            return None
+        
         except Exception as e:
             await session.rollback()
             logger.warning(f"Удаление данных о здании отменено (Ошибка: {e})")
             raise e
 
 
-async def _update_building(body: UpdateBuilding, db) -> ShowBuilding | list:
+async def _update_building(body: UpdateBuilding, db) -> ShowBuilding | None:
     async with db as session:
         try:
             await session.begin()
@@ -285,7 +321,7 @@ async def _update_building(body: UpdateBuilding, db) -> ShowBuilding | list:
                         city=building.city,
                         building_address=building.building_address
                     )
-            return []
+            return None
         
         except Exception as e:
             await session.rollback()
@@ -298,17 +334,23 @@ async def create_building(body: CreateBuilding, db: AsyncSession = Depends(get_d
     return await _create_new_building(body, db)
 
 
-@building_router.get("/search/by_number/{building_number}", response_model=ShowBuilding)
+@building_router.get("/search/by_number/{building_number}", response_model=ShowBuilding, responses={404: {"description": "Зданение не найдено"}})
 async def get_building_by_number(building_number: int, db: AsyncSession = Depends(get_db)):
-    return await _get_building_by_number(building_number, db)
+    building = await _get_building_by_number(building_number, db)
+    if building is None:
+        raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
+    return building
 
 
-@building_router.get("/search/by_address/{address}", response_model=ShowBuilding)
+@building_router.get("/search/by_address/{address}", response_model=ShowBuilding, responses={404: {"description": "Зданение не найдено"}})
 async def get_building_by_address(address: str, db: AsyncSession = Depends(get_db)):
-    return await _get_building_by_address(address, db)
+    building = await _get_building_by_address(address, db)
+    if building is None:
+        raise HTTPException(status_code=404, detail=f"Здание по адресу: {address} не найдено")
+    return building
 
 
-@building_router.get("/search", response_model=list[ShowBuilding])
+@building_router.get("/search", response_model=list[ShowBuilding], responses={404: {"description": "Зданения не найдены"}})
 async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     """
     query_param set via Annotated so that fastapi understands
@@ -318,14 +360,23 @@ async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], db: 
     it is better to use this pydantic model, so as not to manually enter these parameters each time.
     Link to documentation: https://fastapi.tiangolo.com/ru/tutorial/query-param-models/
     """
-    return await _get_all_buildings(query_param.page, query_param.limit, db)
+    building = await _get_all_buildings(query_param.page, query_param.limit, db)
+    if building is None:
+        raise HTTPException(status_code=404, detail=f"Зданий не найдено")
+    return building
 
 
-@building_router.put("/delete/{building_number}", response_model=bool)
+@building_router.put("/delete/{building_number}", response_model=bool, responses={404: {"description": "Зданение не найдено"}})
 async def delete_building(building_number: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_building(building_number, db)
+    building = await _delete_building(building_number, db)
+    if building is None:
+        raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
+    return building
 
 
-@building_router.put("/update/{building_number}", response_model=ShowBuilding)
+@building_router.put("/update", response_model=ShowBuilding, responses={404: {"description": "Зданение не найдено"}})
 async def update_building(body: UpdateBuilding, db: AsyncSession = Depends(get_db)):
-    return await _update_building(body, db)
+    building = await _update_building(body, db)
+    if building is None:
+        raise HTTPException(status_code=404, detail=f"Здание с номером: {body.building_number} не найдено")
+    return building

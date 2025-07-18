@@ -415,11 +415,13 @@ class SpecialityDAL:
         return new_speciality
     
     async def delete_speciality(self, speciality_code: str) -> ShowSpeciality | None:
-        # Сначала находим специальность по speciality_code
         query_select = select(Speciality).where(Speciality.speciality_code == speciality_code)
         res = await self.db_session.execute(query_select)
+        speciality = res.scalar_one_or_none()
 
-        # Удаляем специальность
+        if speciality is None:
+            return None
+
         query_delete = delete(Speciality).where(Speciality.speciality_code == speciality_code)
         await self.db_session.execute(query_delete)
 

@@ -7,26 +7,27 @@ from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 
-from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher
+from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
 from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
-from db.dals import TeacherDAL, BuildingDAL
+from db.dals import TeacherDAL, BuildingDAL, CabinetDAL
 from db.session import get_db
 
 from config.logging_config import configure_logging
-
 
 # Сreate logger object
 logger = configure_logging()
 
 teacher_router = APIRouter()  # Create router for teachers
 building_router = APIRouter()  # Create router for buildings
-
+cabinet_router = APIRouter()  # Create route for cabinets
 
 '''
 ============================
 CRUD operations for teachers
 ============================
 '''
+
+
 async def _create_new_teacher(body: CreateTeacher, db) -> ShowTeacher:
     async with db as session:
         async with session.begin():
@@ -91,7 +92,7 @@ async def _get_all_teachers(page: int, limit: int, db) -> list[ShowTeacher] | No
             teachers = await teacher_dal.get_all_teachers(page, limit)
             if teachers:
                 return teachers
-            
+
             return None
 
 
@@ -107,9 +108,9 @@ async def _delete_teacher(teacher_id: int, db) -> ShowTeacher | None:
 
             if teacher:
                 return teacher
-            
+
             return None
-        
+
         except Exception as e:
             await session.rollback()
             logger.warning(f"Изменение данных об учителе отменено (Ошибка: {e})")
@@ -122,16 +123,16 @@ async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher | None:
             await session.begin()
             # exclusion of None-fields from the transmitted data
             update_data = {
-                key: value for key, value in body.dict().items() if value is not None  and key != "teacher_id"
+                key: value for key, value in body.dict().items() if value is not None and key != "teacher_id"
             }
 
             # change data
             teacher_dal = TeacherDAL(session)
-            teacher = await teacher_dal.update_teacher( 
+            teacher = await teacher_dal.update_teacher(
                 id=body.teacher_id,
                 **update_data
             )
-            
+
             # save changed data
             await session.commit()
 
@@ -143,7 +144,7 @@ async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher | None:
                     email=teacher.email,
                     fathername=teacher.fathername
                 )
-            
+
             return None
 
         except Exception as e:
@@ -157,7 +158,8 @@ async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)
     return await _create_new_teacher(body, db)
 
 
-@teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
+@teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacher,
+                    responses={404: {"description": "Учитель не найден"}})
 async def get_teacher_by_id(teacher_id: int, db: AsyncSession = Depends(get_db)):
     teacher = await _get_teacher_by_id(teacher_id, db)
     if teacher is None:
@@ -165,13 +167,13 @@ async def get_teacher_by_id(teacher_id: int, db: AsyncSession = Depends(get_db))
     return teacher
 
 
-@teacher_router.get("/search/by_humanity", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
+@teacher_router.get("/search/by_humanity", response_model=ShowTeacher,
+                    responses={404: {"description": "Учитель не найден"}})
 async def get_teacher_by_name_and_surname(name: str, surname: str, db: AsyncSession = Depends(get_db)):
     teacher = await _get_teacher_by_name_and_surname(name, surname, db)
     if teacher is None:
         raise HTTPException(status_code=404, detail=f"Учитель {name, surname} не найден")
     return teacher
-
 
 
 @teacher_router.get("/search", response_model=list[ShowTeacher], responses={404: {"description": "Учителя не найдены"}})
@@ -190,7 +192,8 @@ async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], db: A
     return teachers
 
 
-@teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
+@teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacher,
+                    responses={404: {"description": "Учитель не найден"}})
 async def delete_teacher(teacher_id: int, db: AsyncSession = Depends(get_db)):
     teacher = await _delete_teacher(teacher_id, db)
     if teacher is None:
@@ -206,12 +209,13 @@ async def update_teacher(body: UpdateTeacher, db: AsyncSession = Depends(get_db)
     return teacher
 
 
-
 '''
 =============================
 CRUD operations for buildings
 =============================
 '''
+
+
 async def _create_new_building(body: CreateBuilding, db) -> ShowBuilding:
     async with db as session:
         async with session.begin():
@@ -241,7 +245,7 @@ async def _get_building_by_number(number, db) -> ShowBuilding | None:
                     city=building.city,
                     building_address=building.building_address
                 )
-            
+
             return None
 
 
@@ -258,9 +262,8 @@ async def _get_building_by_address(address, db) -> ShowBuilding | None:
                     city=building.city,
                     building_address=building.building_address
                 )
-            
+
             return None
-        
 
 
 async def _get_all_buildings(page: int, limit: int, db) -> list[ShowBuilding] | None:
@@ -270,7 +273,7 @@ async def _get_all_buildings(page: int, limit: int, db) -> list[ShowBuilding] | 
             building = await building_dal.get_all_buildings(page, limit)
             if building:
                 return building
-            
+
             return None
 
 
@@ -281,7 +284,7 @@ async def _delete_building(building_number: int, db) -> bool | None:
 
             building_dal = BuildingDAL(session)
             building = await building_dal.delete_building(building_number)
-            
+
             # save changed data
             await session.commit()
 
@@ -289,7 +292,7 @@ async def _delete_building(building_number: int, db) -> bool | None:
                 return building
 
             return None
-        
+
         except Exception as e:
             await session.rollback()
             logger.warning(f"Удаление данных о здании отменено (Ошибка: {e})")
@@ -307,22 +310,22 @@ async def _update_building(body: UpdateBuilding, db) -> ShowBuilding | None:
 
             # change data
             building_dal = BuildingDAL(session)
-            building = await building_dal.update_building( 
+            building = await building_dal.update_building(
                 building_number=body.building_number,
                 **update_data
             )
-            
+
             # save changed data
             await session.commit()
 
             if building is not None:
                 return ShowBuilding(
-                        building_number=building.building_number,
-                        city=building.city,
-                        building_address=building.building_address
-                    )
+                    building_number=building.building_number,
+                    city=building.city,
+                    building_address=building.building_address
+                )
             return None
-        
+
         except Exception as e:
             await session.rollback()
             logger.warning(f"Изменение данных о здании отменено (Ошибка: {e})")
@@ -334,7 +337,8 @@ async def create_building(body: CreateBuilding, db: AsyncSession = Depends(get_d
     return await _create_new_building(body, db)
 
 
-@building_router.get("/search/by_number/{building_number}", response_model=ShowBuilding, responses={404: {"description": "Зданение не найдено"}})
+@building_router.get("/search/by_number/{building_number}", response_model=ShowBuilding,
+                     responses={404: {"description": "Зданение не найдено"}})
 async def get_building_by_number(building_number: int, db: AsyncSession = Depends(get_db)):
     building = await _get_building_by_number(building_number, db)
     if building is None:
@@ -342,7 +346,8 @@ async def get_building_by_number(building_number: int, db: AsyncSession = Depend
     return building
 
 
-@building_router.get("/search/by_address/{address}", response_model=ShowBuilding, responses={404: {"description": "Зданение не найдено"}})
+@building_router.get("/search/by_address/{address}", response_model=ShowBuilding,
+                     responses={404: {"description": "Зданение не найдено"}})
 async def get_building_by_address(address: str, db: AsyncSession = Depends(get_db)):
     building = await _get_building_by_address(address, db)
     if building is None:
@@ -350,7 +355,8 @@ async def get_building_by_address(address: str, db: AsyncSession = Depends(get_d
     return building
 
 
-@building_router.get("/search", response_model=list[ShowBuilding], responses={404: {"description": "Зданения не найдены"}})
+@building_router.get("/search", response_model=list[ShowBuilding],
+                     responses={404: {"description": "Зданения не найдены"}})
 async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     """
     query_param set via Annotated so that fastapi understands
@@ -366,7 +372,8 @@ async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], db: 
     return building
 
 
-@building_router.put("/delete/{building_number}", response_model=bool, responses={404: {"description": "Зданение не найдено"}})
+@building_router.put("/delete/{building_number}", response_model=bool,
+                     responses={404: {"description": "Зданение не найдено"}})
 async def delete_building(building_number: int, db: AsyncSession = Depends(get_db)):
     building = await _delete_building(building_number, db)
     if building is None:
@@ -380,3 +387,118 @@ async def update_building(body: UpdateBuilding, db: AsyncSession = Depends(get_d
     if building is None:
         raise HTTPException(status_code=404, detail=f"Здание с номером: {body.building_number} не найдено")
     return building
+
+
+'''
+============================
+CRUD operations for teachers
+============================
+'''
+
+
+async def _create_cabinet(body: CreateCabinet, db) -> ShowCabinet:
+    async with db as session:
+        async with session.begin():
+            building_dal = BuildingDAL(session)
+            cabinet_dal = CabinetDAL(session)
+
+            # Check that the building exists
+            building = await building_dal.get_building_by_number(body.building_number)
+            if not building:
+                logger.error(f"Здание с номером {body.building_number} не найдено")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Здание с номером {body.building_number} не найдено"
+                )
+
+            # Check that the cabinet is unique
+            cabinet = await cabinet_dal.get_cabinet_by_number_and_building(
+                body.cabinet_number,
+                body.building_number
+            )
+            if cabinet:
+                logger.error(
+                    f"В здание с номером {body.building_number} уже есть кабинет с номером {body.cabinet_number}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Кабинет {body.cabinet_number} уже существует в здании {body.building_number}"
+                )
+
+            # Create cabinet
+            new_cabinet = await cabinet_dal.create_cabinet(
+                cabinet_number=body.cabinet_number,
+                building_number=body.building_number,
+                capacity=body.capacity,
+                cabinet_state=body.cabinet_state
+            )
+
+            return ShowCabinet(
+                cabinet_number=new_cabinet.cabinet_number,
+                building_number=new_cabinet.building_number,
+                capacity=new_cabinet.capacity,
+                cabinet_state=new_cabinet.cabinet_state
+            )
+
+
+async def _get_all_cabinets(page: int, limit: int, db) -> list[ShowCabinet]:
+    async with db as session:
+        async with session.begin():
+            cabinet_dal = CabinetDAL(session)
+            cabinets = cabinet_dal.get_all_cabinets(page, limit)
+
+            if not cabinets:
+                logger.error("Не было найдено ни одного кабинета")
+                raise HTTPException(status_code=404, detail=f"Нет ещё ни одного кабинета")
+
+            return await cabinets
+
+
+async def _get_cabinets_by_building():
+    pass
+
+
+async def _get_cabinet_by_building_and_number():
+    pass
+
+
+async def _delete_cabinet():
+    pass
+
+
+async def _update_cabinet():
+    pass
+
+
+@cabinet_router.post("/create", response_model=ShowCabinet)
+async def create_cabinet(body: CreateCabinet, db: AsyncSession = Depends(get_db)):
+    return await _create_cabinet(body, db)
+
+
+@cabinet_router.get("/search", response_model=list[ShowCabinet])
+async def get_all_cabinets(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_cabinets(query_param.page, query_param.limit, db)
+
+
+@cabinet_router.get("/search/by_building/{building_number}", response_model=list[ShowCabinet])
+async def get_cabinets_by_building(building_number: int,
+                                   query_param: Annotated[QueryParams, Depends()],
+                                   db: AsyncSession = Depends(get_db)):
+    pass
+
+
+@cabinet_router.get("/search/by_building_and_number", response_model=list[ShowCabinet])
+async def get_cabinet_by_building_and_number(building_number: int,
+                                             cabinet_number: int,
+                                             query_param: Annotated[QueryParams, Depends()],
+                                             db: AsyncSession = Depends(get_db)):
+    pass
+
+
+@cabinet_router.put("/delete/{building_number}/{cabinet_number}", response_model=ShowCabinet)
+async def delete_cabinet(building_number: int, cabinet_number: int, db: AsyncSession = Depends(get_db)):
+    pass
+
+
+@cabinet_router.put("/update", response_model=ShowCabinet)
+async def update_cabinet(body: UpdateCabinet, db: AsyncSession = Depends(get_db)):
+    pass

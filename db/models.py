@@ -1,7 +1,7 @@
 '''File for database models'''
 
-from sqlalchemy import Column, String, Boolean, Integer, Numeric, ForeignKey, Date
-from sqlalchemy.orm import relationship, DeclarativeBase
+from sqlalchemy import Column, String, Boolean, Integer, Numeric, ForeignKey, Date, ForeignKeyConstraint, and_, Table
+from sqlalchemy.orm import relationship, DeclarativeBase, foreign
 
 
 class Base(DeclarativeBase):
@@ -60,6 +60,13 @@ class Speciality(Base):
 
     # Relationships
     groups = relationship("Group", back_populates="speciality")
+
+
+# Create many-to-many table for bind teachers and his subjects
+teacher_subject = Table("teacher_subject", Base.metadata,
+                        Column("teacher_id", Integer(), ForeignKey("teachers.id")),
+                        Column("subject_code", String(), ForeignKey("subjects.subject_code"))
+                        )
 
 
 class Teacher(Base):
@@ -168,7 +175,7 @@ class Cabinet(Base):
     cabinet_state = Column(String, nullable=True)
 
     # Foreign keys
-    building_number = Column(Integer, ForeignKey("buildings.building_number"))
+    building_number = Column(Integer, ForeignKey("buildings.building_number"), primary_key=True)
 
     # Relationships
     building = relationship("Building", back_populates="cabinets")
@@ -207,6 +214,7 @@ class Session(Base):
         subject_code: Foreign key field for linking to the subjects table
         teacher_id: Foreign key field for linking to the teachers table
         cabinet_number: Foreign key field for linking to the cabinets table
+        building_number: Second foreign key field for linking to the building number
         group: Relationship to access the group for which it was created session
         subject: Relationship to access the subject for which it was created session
         teacher: Relationship to access the teacher for which it was created session
@@ -222,13 +230,31 @@ class Session(Base):
     group_name = Column(String, ForeignKey("groups.group_name"), primary_key=True)
     subject_code = Column(String, ForeignKey("subjects.subject_code"))
     teacher_id = Column(Integer, ForeignKey("teachers.id"))
-    cabinet_number = Column(Integer, ForeignKey("cabinets.cabinet_number"))
+    cabinet_number = Column(Integer, nullable=False)
+    building_number = Column(Integer, nullable=False)
+
+    # For a composite primary key
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['cabinet_number', 'building_number'],
+            ['cabinets.cabinet_number', 'cabinets.building_number']
+        ),
+    )
 
     # Relationships
     group = relationship("Group", back_populates="sessions")
     subject = relationship("Subject", back_populates="sessions")
     teacher = relationship("Teacher", back_populates="sessions")
-    cabinet = relationship("Cabinet", back_populates="sessions")
+    # We specify it through primaryjoin, because we have multiple foreign keys for a building
+    cabinet = relationship(
+        "Cabinet",
+        back_populates="sessions",
+        primaryjoin=and_(
+            cabinet_number == foreign(Cabinet.cabinet_number),
+            building_number == foreign(Cabinet.building_number)
+        ),
+        foreign_keys=[cabinet_number, building_number]
+    )
 
 
 class EmploymentTeacher(Base):

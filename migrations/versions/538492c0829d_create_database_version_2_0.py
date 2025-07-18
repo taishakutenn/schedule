@@ -1,8 +1,8 @@
-"""create all tables
+"""Create database version 2.0
 
-Revision ID: c05dca968b30
+Revision ID: 538492c0829d
 Revises: 
-Create Date: 2025-06-29 12:33:09.919700
+Create Date: 2025-07-18 11:18:25.391184
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'c05dca968b30'
+revision: str = '538492c0829d'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -52,9 +52,9 @@ def upgrade() -> None:
     sa.Column('cabinet_number', sa.Integer(), nullable=False),
     sa.Column('capacity', sa.Integer(), nullable=True),
     sa.Column('cabinet_state', sa.String(), nullable=True),
-    sa.Column('building_number', sa.Integer(), nullable=True),
+    sa.Column('building_number', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['building_number'], ['buildings.building_number'], ),
-    sa.PrimaryKeyConstraint('cabinet_number')
+    sa.PrimaryKeyConstraint('cabinet_number', 'building_number')
     )
     op.create_table('employment_teachers',
     sa.Column('date_start_period', sa.Date(), nullable=False),
@@ -79,6 +79,12 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('group_name'),
     sa.UniqueConstraint('group_name')
     )
+    op.create_table('teacher_subject',
+    sa.Column('teacher_id', sa.Integer(), nullable=True),
+    sa.Column('subject_code', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['subject_code'], ['subjects.subject_code'], ),
+    sa.ForeignKeyConstraint(['teacher_id'], ['teachers.id'], )
+    )
     op.create_table('curriculums',
     sa.Column('semester_number', sa.Integer(), nullable=False),
     sa.Column('lectures_hours', sa.Numeric(precision=5, scale=2), nullable=True),
@@ -97,8 +103,9 @@ def upgrade() -> None:
     sa.Column('group_name', sa.String(), nullable=False),
     sa.Column('subject_code', sa.String(), nullable=True),
     sa.Column('teacher_id', sa.Integer(), nullable=True),
-    sa.Column('cabinet_number', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['cabinet_number'], ['cabinets.cabinet_number'], ),
+    sa.Column('cabinet_number', sa.Integer(), nullable=False),
+    sa.Column('building_number', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['cabinet_number', 'building_number'], ['cabinets.cabinet_number', 'cabinets.building_number'], ),
     sa.ForeignKeyConstraint(['group_name'], ['groups.group_name'], ),
     sa.ForeignKeyConstraint(['subject_code'], ['subjects.subject_code'], ),
     sa.ForeignKeyConstraint(['teacher_id'], ['teachers.id'], ),
@@ -126,6 +133,7 @@ def downgrade() -> None:
     op.drop_table('teacher_requests')
     op.drop_table('sessions')
     op.drop_table('curriculums')
+    op.drop_table('teacher_subject')
     op.drop_table('groups')
     op.drop_table('employment_teachers')
     op.drop_table('cabinets')

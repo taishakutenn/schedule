@@ -29,6 +29,8 @@ class QueryParams(TunedModel):
 Teachers
 ========
 '''
+
+
 class ShowTeacher(TunedModel):
     """Class for get teacher info"""
     name: str
@@ -60,6 +62,8 @@ class UpdateTeacher(TunedModel):
 Buildings
 =========
 '''
+
+
 class ShowBuilding(TunedModel):
     """Class for get building info"""
     building_number: int
@@ -84,9 +88,27 @@ class UpdateBuilding(TunedModel):
 Cabinet
 =======
 '''
+
+
 class ShowCabinet(TunedModel):
     """Class for get cabinet info"""
     cabinet_number: int
+    capacity: int | None = None
+    cabinet_state: str | None = None
+    building_number: int
+
+
+class CreateCabinet(TunedModel):
+    """Class for add new cabinet in db"""
+    cabinet_number: int
+    capacity: int | None = None
+    cabinet_state: str | None = None
+    building_number: int
+
+
+class UpdateCabinet(TunedModel):
+    cabinet_number: int
+    new_cabinet_number: int | None = None
     capacity: int | None = None
     cabinet_state: str | None = None
     building_number: int

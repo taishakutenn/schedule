@@ -291,7 +291,7 @@ DAL for Cabinet
 '''
 
 class CabinetDAL:
-    """Data Access Layer for operating group info"""
+    """Data Access Layer for operating cabinet info"""
 
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
@@ -299,14 +299,6 @@ class CabinetDAL:
     async def create_cabinet(
             self, cabinet_number: int, building_number: int, capacity: int = None, cabinet_state: str = None, 
     ) -> Cabinet:
-        
-        if building_number is not None:
-            query = select(Building).where(Building.building_number == building_number)
-            res = await self.db_session.execute(query)
-            building = res.scalar()
-            if not building:
-                logger.warning(f"Здание с номером {building_number} не найдено")
-                raise ValueError(f"Здание с номером {building_number} не существует")
 
         new_cabinet = Cabinet(
             cabinet_number=cabinet_number,
@@ -342,7 +334,15 @@ class CabinetDAL:
             return cabinet_row.id
         logger.warning(f"Не было найдено ни одного кабинета с номером: {cabinet_number}")
         return None
-    
+
+    async def get_cabinet_by_number_and_building(self, cabinet_number: int, building_number: int) -> Cabinet | None:
+        query = select(Cabinet).where(
+            (Cabinet.cabinet_number == cabinet_number) &
+            (Cabinet.building_number == building_number)
+        )
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()
+
     async def get_all_cabinets(self, page: int, limit: int) -> list[ShowCabinet] | None:
         # Calculate first and end selection element.
         # Based on the received page and elements on it
@@ -361,7 +361,7 @@ class CabinetDAL:
         cabinets = result.scalars().all()
 
         if cabinets:
-            logger.info(f"Найдено зданий: {len(cabinets)}")
+            logger.info(f"Найдено кабинетов: {len(cabinets)}")
             return [
                 ShowCabinet(
                     cabinet_number=c.cabinet_number,

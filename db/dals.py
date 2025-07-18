@@ -10,8 +10,8 @@ from typing import Optional
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.models import ShowTeacher, ShowBuilding, ShowCabinet
-from db.models import Teacher, Group, Cabinet, Building
+from api.models import ShowTeacher, ShowBuilding, ShowCabinet, ShowSpeciality
+from db.models import Teacher, Group, Cabinet, Building, Speciality
 from config.logging_config import configure_logging
 
 # Сreate logger object
@@ -387,6 +387,94 @@ class CabinetDAL:
             logger.info(f"Для кабнета с номером: {cabinet_number}. Были успешно обновлены поля: {" - ".join(kwargs.keys())}")
             return update_cabinet.group_name
         logger.warning(f"Не было найдено ни одного кабинета с таким номером: {cabinet_number}")
+        return None
+
+
+'''
+==================
+DAL for Speciality
+==================
+'''
+
+class SpecialityDAL:
+    """Data Access Layer for operating speciality info"""
+
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    async def create_speciality(self, speciality_code: str) -> Cabinet:
+
+        new_speciality = Speciality(speciality_code)
+
+        # Add speciality in session
+        self.db_session.add(new_speciality)
+
+        # Add changes to the database, but do not commit them strictly
+        await self.db_session.flush()
+        logger.info("Новая сециальность добавлена в бд")
+        return new_speciality
+    
+    async def delete_speciality(self, speciality_code: str) -> ShowSpeciality | None:
+        # Сначала находим специальность по speciality_code
+        query_select = select(Speciality).where(Speciality.speciality_code == speciality_code)
+        res = await self.db_session.execute(query_select)
+
+        # Удаляем специальность
+        query_delete = delete(Speciality).where(Speciality.speciality_code == speciality_code)
+        await self.db_session.execute(query_delete)
+
+        logger.info(f"Специальность с кодом: {speciality_code} была успешно удаена из бд")
+
+        return ShowSpeciality(speciality_code=speciality_code)
+
+    async def get_all_speciality(self, page: int, limit: int) -> list[ShowSpeciality] | None:
+        # Calculate first and end selection element.
+        # Based on the received page and elements on it
+        # If the page is zero - then select all elements
+
+        if page == 0:
+            query = select(Speciality).order_by(Speciality.speciality_code.asc())
+        else:
+            query = (
+                select(Speciality)
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
+
+        result = await self.db_session.execute(query)
+        specialities = result.scalars().all()
+
+        if specialities:
+            logger.info(f"Найдено специальностей: {len(specialities)}")
+            return [
+                ShowSpeciality(speciality_code=sp.speciality_code) for sp in specialities
+            ]
+        
+        return None
+
+    async def get_speciality_by_code(self, speciality_code) -> ShowSpeciality | None:
+        query = select(Speciality).where(Speciality.speciality_code == speciality_code)
+        res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a speciality
+        speciality_row = res.scalar()  # return object Speciality or None
+        if speciality_row is not None:
+            logger.info(f"специальность с кодом: {speciality_code} была успешно найдена")
+            return ShowSpeciality(speciality_code=speciality_row.speciality_code)
+
+        return None
+
+    async def update_speciality(self, speciality_code, new_speciality_code) -> Optional[Speciality]:
+        query = (
+            update(Speciality)
+            .where(Speciality.speciality_code == speciality_code)
+            .values(new_speciality_code)
+            .returning(Speciality)
+        )
+        res = await self.db_session.execute(query)
+        update_speciality = res.scalar()
+        if update_speciality:
+            logger.info(f"У специальности с кодом: {speciality_code} был успешно изменён код:  {new_speciality_code}")
+            return update_speciality
+        
         return None
 
 

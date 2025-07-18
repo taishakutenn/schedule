@@ -112,3 +112,23 @@ class UpdateCabinet(TunedModel):
     capacity: int | None = None
     cabinet_state: str | None = None
     building_number: int
+
+
+'''
+==========
+Speciality
+==========
+'''
+
+
+class ShowSpeciality(TunedModel):
+    """Class for get speciality info"""
+    speciality_code: str
+
+
+class CreateSpeciality(TunedModel):
+    specality_code: str
+
+
+class UpdateSpeciality(TunedModel):
+    speciality_code: str

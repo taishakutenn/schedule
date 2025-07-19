@@ -391,7 +391,7 @@ async def update_building(body: UpdateBuilding, db: AsyncSession = Depends(get_d
 
 '''
 ============================
-CRUD operations for teachers
+CRUD operations for cabinets
 ============================
 '''
 

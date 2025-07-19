@@ -112,3 +112,55 @@ class UpdateCabinet(TunedModel):
     capacity: int | None = None
     cabinet_state: str | None = None
     building_number: int
+
+
+'''
+==========
+Speciality
+==========
+'''
+
+
+class ShowSpeciality(TunedModel):
+    """Class for get speciality info"""
+    speciality_code: str
+
+
+class CreateSpeciality(TunedModel):
+    specality_code: str
+
+
+class UpdateSpeciality(TunedModel):
+    speciality_code: str
+
+
+'''
+=====
+GROUP
+=====
+'''
+
+
+class ShowGroup(TunedModel):
+    """Class for get group info"""
+    group_name: str
+    speciality_code: str
+    quantity_students: int
+    group_advisor_id: int
+
+
+'''
+==========
+Curriculum
+==========
+''' 
+
+
+class ShowCurriculum(TunedModel):
+    """Class for get curriculum info"""
+    semester_number: int
+    group_name: str
+    subject_code: str
+    lectures_hours: float
+    laboratory_hours: float
+    practical_hours: float

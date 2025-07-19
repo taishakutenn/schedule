@@ -132,3 +132,21 @@ class CreateSpeciality(TunedModel):
 
 class UpdateSpeciality(TunedModel):
     speciality_code: str
+
+
+'''
+=====
+GROUP
+=====
+'''
+
+
+class ShowGroup(TunedModel):
+    """Class for get group info"""
+    group_name: str
+    speciality_code: str
+    quantity_students: int
+    group_advisor_id: int
+
+
+ 

@@ -17,12 +17,12 @@ from config.logging_config import configure_logging
 # Сreate logger object
 logger = configure_logging()
 
-
 '''
 ================
 DAL for Teacher
 ================
 '''
+
 
 class TeacherDAL:
     """Data Access Layer for operating teacher info"""
@@ -162,6 +162,7 @@ DAL for Building
 ================
 '''
 
+
 class BuildingDAL:
     """Data Access Layer for operating building info"""
 
@@ -184,7 +185,7 @@ class BuildingDAL:
         await self.db_session.flush()
         logger.info("Новое здание успешно добавлено в бд")
         return new_building
-    
+
     async def delete_building(self, building_number: int) -> bool:
         query = delete(Building).where(Building.building_number == building_number).returning(Building.building_number)
         res = await self.db_session.execute(query)
@@ -194,7 +195,7 @@ class BuildingDAL:
             return False
         logger.info(f"Здание с номером: {building_number} было успешно удалено из бд")
         return True
-    
+
     async def get_all_buildings(self, page: int, limit: int) -> list[ShowBuilding] | None:
         # Calculate first and end selection element.
         # Based on the received page and elements on it
@@ -227,7 +228,8 @@ class BuildingDAL:
 
     async def get_building_by_number(self, building_number: int) -> Building | None:
         query = select(Building).where(Building.building_number == building_number)
-        res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a building
+        res = await self.db_session.execute(
+            query)  # Make an asynchronous query to the database to search for a building
         building_row = res.scalar()  # return object Building or None
         if building_row is not None:
             logger.info(f"Здание с номером: {building_number} было успешно найдено")
@@ -238,10 +240,11 @@ class BuildingDAL:
             )
         logger.warning(f"Не было найдено ни одного здания с номером: {building_number}")
         return None
-    
+
     async def get_building_by_address(self, building_address: str) -> Building | None:
         query = select(Building).where(Building.building_address == building_address)
-        res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a building
+        res = await self.db_session.execute(
+            query)  # Make an asynchronous query to the database to search for a building
         building_row = res.scalar()  # return object Building or None
         if building_row is not None:
             logger.info(f"Здание по адресу: {building_address} было успешно найдено")
@@ -263,11 +266,12 @@ class BuildingDAL:
         res = await self.db_session.execute(query)
         update_building = res.scalar()  # return Group name or None
         if update_building is not None:
-            logger.info(f"Для здания с номером: {building_number}. Были успешно обновлены поля: {" - ".join(kwargs.keys())}")
+            logger.info(
+                f"Для здания с номером: {building_number}. Были успешно обновлены поля: {" - ".join(kwargs.keys())}")
             return update_building.group_name
         logger.warning(f"Не было найдено ни однго здания под номером: {building_number}")
         return None
-    
+
     async def update_building(self, building_number, **kwargs) -> Optional[Building]:
         query = (
             update(Building)
@@ -278,7 +282,8 @@ class BuildingDAL:
         res = await self.db_session.execute(query)
         updated_building = res.scalar()
         if updated_building:
-            logger.info(f"У здания с номером: {building_number} были успешно обновлены поля: {{{', '.join(kwargs.keys())}}}")
+            logger.info(
+                f"У здания с номером: {building_number} были успешно обновлены поля: {{{', '.join(kwargs.keys())}}}")
             return updated_building
         logger.warning(f"Не было найдено ни одного здания с номером: {building_number}")
         return None
@@ -290,6 +295,7 @@ DAL for Cabinet
 ===============
 '''
 
+
 class CabinetDAL:
     """Data Access Layer for operating cabinet info"""
 
@@ -297,7 +303,7 @@ class CabinetDAL:
         self.db_session = db_session
 
     async def create_cabinet(
-            self, cabinet_number: int, building_number: int, capacity: int = None, cabinet_state: str = None, 
+            self, cabinet_number: int, building_number: int, capacity: int = None, cabinet_state: str = None,
     ) -> Cabinet:
 
         new_cabinet = Cabinet(
@@ -314,17 +320,20 @@ class CabinetDAL:
         await self.db_session.flush()
         logger.info("Новый кабинет успешно добавлен в бд")
         return new_cabinet
-    
-    async def delete_cabinet(self, cabinet_number: int) -> bool:
-        query = delete(Cabinet).where(Cabinet.cabinet_number == cabinet_number).returning(Cabinet.cabinet_number)
+
+    async def delete_cabinet(self, building_number: int, cabinet_number: int) -> Cabinet | False:
+        query = delete(Cabinet).where(
+            (Cabinet.cabinet_number == cabinet_number) & (Cabinet.building_number == building_number)).returning(
+            Cabinet)
         res = await self.db_session.execute(query)
         deleted_cabinet = res.fetchone()
         if not deleted_cabinet:  # if there aren't deleted records
             logger.warning(f"Не было найдено ни одного кабинета с таким номером: {cabinet_number}")
             return False
-        logger.info(f"Кабинет с номером: {cabinet_number} был успешно удален из бд")
-        return True
-    
+
+        logger.info(f"Кабинет с номером: {cabinet_number} в здании: {building_number} - был успешно удален из бд")
+        return deleted_cabinet
+
     async def get_cabinet(self, cabinet_number: int) -> Optional[Cabinet]:
         query = select(Cabinet).where(Cabinet.cabinet_number == cabinet_number)
         res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a cabinet
@@ -335,13 +344,19 @@ class CabinetDAL:
         logger.warning(f"Не было найдено ни одного кабинета с номером: {cabinet_number}")
         return None
 
-    async def get_cabinet_by_number_and_building(self, cabinet_number: int, building_number: int) -> Cabinet | None:
+    async def get_cabinet_by_number_and_building(self, building_number: int, cabinet_number: int) -> Cabinet | None:
         query = select(Cabinet).where(
             (Cabinet.cabinet_number == cabinet_number) &
             (Cabinet.building_number == building_number)
         )
         res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
+
+        cabinet = res.scalar_one_or_none()
+        if not cabinet:
+            logger.error(f"Кабинет с номером: {cabinet_number} в здании с номером: {building_number} - не найден")
+            return None
+
+        return cabinet
 
     async def get_all_cabinets(self, page: int, limit: int) -> list[ShowCabinet] | None:
         # Calculate first and end selection element.
@@ -371,9 +386,40 @@ class CabinetDAL:
                 ) for c in cabinets
             ]
         else:
-            logger.warning("Не было найдено ни одного кабинета")
+            logger.error("Не было найдено ни одного кабинета")
             return None
-    
+
+    async def get_cabinets_by_building(self, building_number: int,
+                                       page: int,
+                                       limit: int) -> list[ShowCabinet] | None:
+        if page == 0:
+            query = select(Cabinet).where(Cabinet.building_number == building_number).order_by(
+                Cabinet.cabinet_number.asc())
+        else:
+            query = (
+                select(Cabinet)
+                .where(Cabinet.building_number == building_number)
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
+
+        result = await self.db_session.execute(query)
+        cabinets = result.scalars().all()
+
+        if cabinets:
+            logger.info(f"Найдено кабинетов: {len(cabinets)}")
+            return [
+                ShowCabinet(
+                    cabinet_number=c.cabinet_number,
+                    capacity=c.capacity,
+                    cabinet_state=c.cabinet_state,
+                    building_number=c.building_number
+                ) for c in cabinets
+            ]
+        else:
+            logger.warning(f"Не было найдено ни одного кабинета в здании с номером: {building_number}")
+            return None
+
     async def update(self, cabinet_number: int, **kwargs) -> Optional[int]:
         query = (
             update(Cabinet).
@@ -384,11 +430,11 @@ class CabinetDAL:
         res = await self.db_session.execute(query)
         update_cabinet = res.scalar()  # return Cabinet name or None
         if update_cabinet is not None:
-            logger.info(f"Для кабнета с номером: {cabinet_number}. Были успешно обновлены поля: {" - ".join(kwargs.keys())}")
+            logger.info(
+                f"Для кабнета с номером: {cabinet_number}. Были успешно обновлены поля: {" - ".join(kwargs.keys())}")
             return update_cabinet.group_name
         logger.warning(f"Не было найдено ни одного кабинета с таким номером: {cabinet_number}")
         return None
-
 
 # '''
 # ==============
@@ -419,7 +465,7 @@ class CabinetDAL:
 #         await self.db_session.flush()
 #         logger.info("Новая группа успешно добавлена в бд")
 #         return new_group
-    
+
 #     async def delete_group(self, group_name: str) -> bool:
 #         query = delete(Group).where(Group.group_name == group_name).returning(Group.group_name)
 #         res = await self.db_session.execute(query)
@@ -429,7 +475,7 @@ class CabinetDAL:
 #             return False
 #         logger.info(f"Группа с названием: '{group_name}' была успешно удалена из бд")
 #         return True
-    
+
 #     async def get_group(self, group_name: str) -> Union[str, None]:
 #         query = select(Group).where(Group.group_name == group_name)
 #         res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a group
@@ -439,7 +485,7 @@ class CabinetDAL:
 #             return group_row.id
 #         logger.warning(f"Не было найдено ни одной группы с названием: '{group_name}'")
 #         return None
-    
+
 #     async def update(self, group_name: str, **kwargs) -> Optional[str]:
 #         query = (
 #             update(Group).
@@ -454,5 +500,3 @@ class CabinetDAL:
 #             return update_group.group_name
 #         logger.warning(f"Не было найдено ни одной группы с таким названием: '{group_name}'")
 #         return None
-    
-

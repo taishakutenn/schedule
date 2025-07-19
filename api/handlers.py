@@ -447,22 +447,58 @@ async def _get_all_cabinets(page: int, limit: int, db) -> list[ShowCabinet]:
             cabinets = cabinet_dal.get_all_cabinets(page, limit)
 
             if not cabinets:
-                logger.error("Не было найдено ни одного кабинета")
                 raise HTTPException(status_code=404, detail=f"Нет ещё ни одного кабинета")
 
             return await cabinets
 
 
-async def _get_cabinets_by_building():
-    pass
+async def _get_cabinets_by_building(building_number: int, page: int, limit: int, db) -> list[ShowCabinet]:
+    async with db as session:
+        async with session.begin():
+            cabinet_dal = CabinetDAL(session)
+            cabinets = cabinet_dal.get_cabinets_by_building(building_number, page, limit)
+
+            if not cabinets:
+                raise HTTPException(status_code=404,
+                                    detail=f"В здании с номером {building_number} не было найдено кабинетов")
+
+            return await cabinets
 
 
-async def _get_cabinet_by_building_and_number():
-    pass
+async def _get_cabinet_by_building_and_number(building_number: int, cabinet_number: int, db) -> ShowCabinet:
+    async with db as session:
+        async with session.begin():
+            cabinet_dal = CabinetDAL(session)
+            cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
+
+            if not cabinet:
+                raise HTTPException(status_code=404,
+                                    detail=f"Кабинет с номером: {cabinet_number} в здании с номером: {building_number} - не найден")
+
+            return ShowCabinet(
+                cabinet_number=cabinet.cabinet_number,
+                capacity=cabinet.capacity,
+                cabinet_state=cabinet.cabinet_state,
+                building_number=cabinet.building_number
+            )
 
 
-async def _delete_cabinet():
-    pass
+async def _delete_cabinet(building_number: int, cabinet_number: int, db) -> ShowCabinet:
+    async with db as session:
+        async with session.begin():
+            cabinet_dal = CabinetDAL(session)
+            cabinet = await cabinet_dal.delete_cabinet(building_number, cabinet_number)
+
+            if not cabinet:
+                raise HTTPException(status_code=404,
+                                    detail=f"Кабинет с номером: {cabinet_number} в здании {building_number} не может быть удалён, т.к. не найден")
+
+            return ShowCabinet(
+            cabinet_number=cabinet.cabinet_number,
+            capacity=cabinet.capacity,
+            cabinet_state=cabinet.cabinet_state,
+            building_number=cabinet.building_number
+        )
 
 
 async def _update_cabinet():
@@ -483,20 +519,19 @@ async def get_all_cabinets(query_param: Annotated[QueryParams, Depends()], db: A
 async def get_cabinets_by_building(building_number: int,
                                    query_param: Annotated[QueryParams, Depends()],
                                    db: AsyncSession = Depends(get_db)):
-    pass
+    return await _get_cabinets_by_building(building_number, query_param.page, query_param.limit, db)
 
 
 @cabinet_router.get("/search/by_building_and_number", response_model=list[ShowCabinet])
 async def get_cabinet_by_building_and_number(building_number: int,
                                              cabinet_number: int,
-                                             query_param: Annotated[QueryParams, Depends()],
                                              db: AsyncSession = Depends(get_db)):
-    pass
+    return await _get_cabinet_by_building_and_number(building_number, cabinet_number, db)
 
 
 @cabinet_router.put("/delete/{building_number}/{cabinet_number}", response_model=ShowCabinet)
 async def delete_cabinet(building_number: int, cabinet_number: int, db: AsyncSession = Depends(get_db)):
-    pass
+    return await _delete_cabinet(building_number, cabinet_number, db)
 
 
 @cabinet_router.put("/update", response_model=ShowCabinet)

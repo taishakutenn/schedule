@@ -149,4 +149,18 @@ class ShowGroup(TunedModel):
     group_advisor_id: int
 
 
- 
+'''
+==========
+Curriculum
+==========
+''' 
+
+
+class ShowCurriculum(TunedModel):
+    """Class for get curriculum info"""
+    semester_number: int
+    group_name: str
+    subject_code: str
+    lectures_hours: float
+    laboratory_hours: float
+    practical_hours: float

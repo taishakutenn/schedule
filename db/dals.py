@@ -10,8 +10,8 @@ from typing import Optional
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.models import ShowTeacher, ShowBuilding, ShowCabinet, ShowSpeciality, ShowGroup
-from db.models import Teacher, Group, Cabinet, Building, Speciality
+from api.models import ShowTeacher, ShowBuilding, ShowCabinet, ShowSpeciality, ShowGroup, ShowCurriculum
+from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum
 from config.logging_config import configure_logging
 
 # Сreate logger object
@@ -556,6 +556,38 @@ class GroupDAL:
         return None
     
 
+    async def get_all_group(self, page: int, limit: int) -> list[ShowGroup] | None:
+        # Calculate first and end selection element.
+        # Based on the received page and elements on it
+        # If the page is zero - then select all elements
+
+        if page == 0:
+            query = select(Group).order_by(Group.group_name.asc())
+        else:
+            query = (
+                select(Group)
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
+
+        result = await self.db_session.execute(query)
+        groups = result.scalars().all()
+
+        if groups:
+            logger.info(f"Найдено групп: {len(groups)}")
+            return [
+                ShowGroup(
+                    group_name=gr.group_name,
+                    speciality_code=gr.speciality_code,
+                    quantity_students=gr.quantity_students,
+                    group_advisor_id=gr.group_advisor_id
+                ) for gr in groups
+            ]
+        
+        logger.warning("Не было найдено ни однй группы")
+        return None
+    
+
     async def update(self, group_name: str, **kwargs) -> Group | None:
         query = (
             update(Group).
@@ -573,3 +605,148 @@ class GroupDAL:
         return None
     
 
+'''
+==========
+Curriculum
+==========
+'''
+
+
+class CurriculumDAL:
+    """Data Access Layer for operating curriculum info"""
+
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+
+    async def create_curriculum(
+            self, semester_number: int, group_name: str, subject_code: str,
+                  lectures_hours: float = None, laboratory_hours: float = None, practical_hours: float = None
+    ) -> Curriculum:
+        new_curriculum = Curriculum(
+            semester_number=semester_number,
+            group_name=group_name,
+            subject_code=subject_code,
+            lectures_hours=lectures_hours,
+            laboratory_hours=laboratory_hours,
+            practical_hours=practical_hours
+        )
+
+        # Add teacher in session
+        self.db_session.add(new_curriculum)
+
+        # Add changes to the database, but do not commit them strictly
+        await self.db_session.flush()
+
+        logger.info(f"Новый уч.план успешно добавлен в бд")
+        return new_curriculum
+
+
+    async def delete_curriculum(self, semester_number: int, group_name: str, subject_code: str) -> ShowCurriculum | None:
+        query_select = (
+        select(Curriculum)
+        .where(
+            Curriculum.semester_number == semester_number,
+            Curriculum.group_name == group_name,
+            Curriculum.subject_code == subject_code
+        )
+    )
+        res = await self.db_session.execute(query_select)
+        curriculum = res.scalar_one_or_none()
+
+        if curriculum is None:
+            logger.warning(f"Не было найдено ни одного уч.плана с такими номером семестра: {semester_number}, именем группы: {group_name}, кодом предмета: {subject_code}")
+            return None
+
+        # Удаляем учителя
+        query_delete = delete(Curriculum).where(
+            Curriculum.semester_number == semester_number,
+            Curriculum.group_name == group_name,
+            Curriculum.subject_code == subject_code
+        )
+        await self.db_session.execute(query_delete)
+
+        logger.info(f"Уч.плана с такими номером семестра: {semester_number}, именем группы: {group_name}, кодом предмета: {subject_code} был успешно удалён из бд")
+
+        return ShowCurriculum(
+            semester_number=curriculum.semester_number,
+            group_name=curriculum.group_name,
+            subject_code=curriculum.subject_code,
+            lectures_hours=curriculum.lectures_hours,
+            laboratory_hours=curriculum.laboratory_hours,
+            practical_hours=curriculum.practical_hours
+        )
+
+
+    async def get_all_curriculums(self, page: int, limit: int) -> list[ShowCurriculum] | None:
+        # Calculate first and end selection element.
+        # Based on the received page and elements on it
+        # If the page is zero - then select all elements
+
+        if page == 0:
+            query = select(Curriculum).order_by(Curriculum.semester_number.asc())
+        else:
+            query = (
+                select(Curriculum)
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
+
+        result = await self.db_session.execute(query)
+        curriculums = result.scalars().all()
+
+        if curriculums:
+            logger.info(f"Найдено уч.планов: {len(curriculums)}")
+            return [
+                ShowCurriculum(
+                    semester_number=c.semester_number,
+                    group_name=c.group_name,
+                    subject_code=c.subject_code,
+                    lectures_hours=c.lectures_hours,
+                    laboratory_hours=c.laboratory_hours,
+                    practical_hours=c.practical_hours
+                ) for c in curriculums
+            ]
+        
+        logger.warning("Не было найдено ни одного уч.плана")
+        return None
+
+
+    async def get_curriculum(self, semester_number: int, group_name: str, subject_code: str) -> Curriculum | None:
+        query = select(Curriculum).where(
+            Curriculum.semester_number == semester_number,
+            Curriculum.group_name == group_name,
+            Curriculum.subject_code == subject_code
+        )
+        res = await self.db_session.execute(query)  # Make an asynchronous query to the database to search for a teacher
+        curriculum_row = res.scalar()  # return object Teacher or None
+        if curriculum_row is not None:
+            logger.info(f"Учитель с id: {id} был успешно найден")
+            return Curriculum(
+                semester_number=curriculum_row.semester_number,
+                group_name=curriculum_row.group_name,
+                subject_code=curriculum_row.subject_code,
+                lectures_hours=curriculum_row.lectures_hours,
+                laboratory_hours=curriculum_row.laboratory_hours,
+                practical_hours=curriculum_row.practical_hours
+            )
+
+        logger.warning(f"Не было найдено ни одного учителя с таким id: {id}")
+        return None
+
+    
+    # async def update_teacher(self, id, **kwargs) -> Optional[Teacher]:
+    #     query = (
+    #         update(Teacher)
+    #         .where(Teacher.id == id)
+    #         .values(**kwargs)
+    #         .returning(Teacher)
+    #     )
+    #     res = await self.db_session.execute(query)
+    #     updated_teacher = res.scalar()
+    #     if updated_teacher:
+    #         logger.info(f"У учителя с id: {id} были успешно обновлены поля: {{{', '.join(kwargs.keys())}}}")
+    #         return updated_teacher
+        
+    #     logger.warning(f"Не было найдено ни одного учителя с таким id: {id}")
+    #     return None

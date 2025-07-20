@@ -112,6 +112,7 @@ class UpdateCabinet(TunedModel):
     capacity: int | None = None
     cabinet_state: str | None = None
     building_number: int
+    new_building_number: int | None = None
 
 
 '''

@@ -494,15 +494,48 @@ async def _delete_cabinet(building_number: int, cabinet_number: int, db) -> Show
                                     detail=f"Кабинет с номером: {cabinet_number} в здании {building_number} не может быть удалён, т.к. не найден")
 
             return ShowCabinet(
-            cabinet_number=cabinet.cabinet_number,
-            capacity=cabinet.capacity,
-            cabinet_state=cabinet.cabinet_state,
-            building_number=cabinet.building_number
-        )
+                cabinet_number=cabinet.cabinet_number,
+                capacity=cabinet.capacity,
+                cabinet_state=cabinet.cabinet_state,
+                building_number=cabinet.building_number
+            )
 
 
-async def _update_cabinet():
-    pass
+async def _update_cabinet(body: UpdateCabinet, db) -> ShowCabinet:
+    async with db as session:
+        try:
+            async with session.begin():
+                # exclusion of None-fields from the transmitted data
+                update_data = {
+                    key: value for key, value in body.dict().items() if
+                    value is not None and key not in ["building_number", "cabinet_number"]
+                }
+
+                # Rename the fields new_cabinet_number and new_building_number to cabinet_number and building_number
+                if "new_building_number" in update_data:
+                    update_data["building_number"] = update_data.pop("new_building_number")
+
+                if "new_cabinet_number" in update_data:
+                    update_data["cabinet_number"] = update_data.pop("new_cabinet_number")
+
+                # Change data
+                cabinet_dal = CabinetDAL(session)
+                updated_cabinet = await cabinet_dal.update(body.building_number, body.cabinet_number, **update_data)
+
+                if not updated_cabinet:
+                    raise HTTPException(status_code=404, detail="Кабинет не был обновлёен")
+
+                return ShowCabinet(
+                    cabinet_number=updated_cabinet.cabinet_number,
+                    capacity=updated_cabinet.capacity,
+                    cabinet_state=updated_cabinet.cabinet_state,
+                    building_number=updated_cabinet.building_number,
+                )
+
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о кабинете отменено (Ошибка: {e})")
+            raise HTTPException(status_code=500, detail="Произошла непредвиденная ошибка")
 
 
 @cabinet_router.post("/create", response_model=ShowCabinet)
@@ -536,4 +569,4 @@ async def delete_cabinet(building_number: int, cabinet_number: int, db: AsyncSes
 
 @cabinet_router.put("/update", response_model=ShowCabinet)
 async def update_cabinet(body: UpdateCabinet, db: AsyncSession = Depends(get_db)):
-    pass
+    return await _update_cabinet(body, db)

@@ -12,6 +12,7 @@ DAL for Teacher
 ================
 '''
 
+
 class TeacherDAL:
     """Data Access Layer for operating teacher info"""
 
@@ -31,80 +32,46 @@ class TeacherDAL:
         )
         self.db_session.add(new_teacher)
         await self.db_session.flush()
-        return new_teacher
+        return new_teacher  # Return real orm object
 
     @log_exceptions
-    async def delete_teacher(self, id: int) -> ShowTeacher | None:
+    async def delete_teacher(self, id: int) -> Teacher | None:
         query_select = select(Teacher).where(Teacher.id == id)
         res = await self.db_session.execute(query_select)
         teacher = res.scalar_one_or_none()
-        if teacher is None:
+        if not teacher:
             return None
-        query_delete = delete(Teacher).where(Teacher.id == id)
-        await self.db_session.execute(query_delete)
-        return ShowTeacher(
-            name=teacher.name,
-            surname=teacher.surname,
-            phone_number=teacher.phone_number,
-            email=teacher.email,
-            fathername=teacher.fathername
-        )
+
+        await self.db_session.execute(delete(Teacher).where(Teacher.id == id))
+        return teacher  # Return orm object which was in the database
 
     @log_exceptions
-    async def get_all_teachers(self, page: int, limit: int) -> list[ShowTeacher] | None:
-        if page == 0:
-            query = select(Teacher).order_by(Teacher.surname.asc())
-        else:
-            query = select(Teacher).offset((page - 1) * limit).limit(limit)
+    async def get_all_teachers(self, page: int, limit: int) -> list[Teacher] | None:
+        query = select(Teacher).order_by(Teacher.surname.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
         result = await self.db_session.execute(query)
-        teachers = result.scalars().all()
-        if teachers:
-            return [
-                ShowTeacher(
-                    name=t.name,
-                    surname=t.surname,
-                    email=t.email,
-                    phone_number=t.phone_number,
-                    fathername=t.fathername
-                ) for t in teachers
-            ]
-        return None
+        return list(result.scalars().all())
 
     @log_exceptions
-    async def get_teacher_by_id(self, id) -> Teacher | None:
-        query = select(Teacher).where(Teacher.id == id)
-        res = await self.db_session.execute(query)
-        teacher_row = res.scalar()
-        if teacher_row is not None:
-            return Teacher(
-                name=teacher_row.name,
-                surname=teacher_row.surname,
-                phone_number=teacher_row.phone_number,
-                email=teacher_row.email,
-                fathername=teacher_row.fathername
-            )
-        return None
+    async def get_teacher_by_id(self, id: int) -> Teacher | None:
+        result = await self.db_session.execute(select(Teacher).where(Teacher.id == id))
+        return result.scalar_one_or_none()  # Don't build new orm object
 
     @log_exceptions
     async def get_teacher_by_name_surname(self, name: str, surname: str) -> Teacher | None:
-        query = select(Teacher).where((Teacher.name == name) & (Teacher.surname == surname))
-        res = await self.db_session.execute(query)
-        teacher_row = res.scalar()
-        if teacher_row is not None:
-            return Teacher(
-                name=teacher_row.name,
-                surname=teacher_row.surname,
-                phone_number=teacher_row.phone_number,
-                email=teacher_row.email,
-                fathername=teacher_row.fathername
-            )
-        return None
+        result = await self.db_session.execute(
+            select(Teacher).where((Teacher.name == name) & (Teacher.surname == surname))
+        )
+        return result.scalar_one_or_none()
 
     @log_exceptions
-    async def update_teacher(self, id, **kwargs) -> Optional[Teacher]:
-        query = update(Teacher).where(Teacher.id == id).values(**kwargs).returning(Teacher)
-        res = await self.db_session.execute(query)
-        return res.scalar()
+    async def update_teacher(self, id: int, **kwargs) -> Teacher | None:
+        result = await self.db_session.execute(
+            update(Teacher).where(Teacher.id == id).values(**kwargs).returning(Teacher)
+        )
+        return result.scalar_one_or_none()
 
 
 '''
@@ -112,6 +79,7 @@ class TeacherDAL:
 DAL for Building
 ================
 '''
+
 
 class BuildingDAL:
     """Data Access Layer for operating building info"""
@@ -196,6 +164,7 @@ DAL for Cabinet
 ===============
 '''
 
+
 class CabinetDAL:
     """Data Access Layer for operating cabinet info"""
 
@@ -262,9 +231,11 @@ class CabinetDAL:
     @log_exceptions
     async def get_cabinets_by_building(self, building_number: int, page: int, limit: int) -> list[ShowCabinet] | None:
         if page == 0:
-            query = select(Cabinet).where(Cabinet.building_number == building_number).order_by(Cabinet.cabinet_number.asc())
+            query = select(Cabinet).where(Cabinet.building_number == building_number).order_by(
+                Cabinet.cabinet_number.asc())
         else:
-            query = select(Cabinet).where(Cabinet.building_number == building_number).offset((page - 1) * limit).limit(limit)
+            query = select(Cabinet).where(Cabinet.building_number == building_number).offset((page - 1) * limit).limit(
+                limit)
         result = await self.db_session.execute(query)
         cabinets = result.scalars().all()
         if cabinets:
@@ -292,6 +263,7 @@ class CabinetDAL:
 DAL for Speciality
 ==================
 '''
+
 
 class SpecialityDAL:
     """Data Access Layer for operating speciality info"""
@@ -352,6 +324,7 @@ class SpecialityDAL:
 DAL for Group
 ==============
 '''
+
 
 class GroupDAL:
     """Data Access Layer for operating group info"""
@@ -422,6 +395,7 @@ Curriculum
 ==========
 '''
 
+
 class CurriculumDAL:
     """Data Access Layer for operating curriculum info"""
 
@@ -446,7 +420,8 @@ class CurriculumDAL:
         return new_curriculum
 
     @log_exceptions
-    async def delete_curriculum(self, semester_number: int, group_name: str, subject_code: str) -> ShowCurriculum | None:
+    async def delete_curriculum(self, semester_number: int, group_name: str,
+                                subject_code: str) -> ShowCurriculum | None:
         query_select = (
             select(Curriculum)
             .where(

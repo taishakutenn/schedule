@@ -39,118 +39,92 @@ async def _create_new_teacher(body: CreateTeacher, db) -> ShowTeacher:
                 email=str(body.email),
                 fathername=body.fathername
             )
-            return ShowTeacher(
-                name=teacher.name,
-                surname=teacher.surname,
-                phone_number=teacher.phone_number,
-                email=teacher.email,
-                fathername=teacher.fathername
-            )
+            return ShowTeacher.from_orm(teacher)
 
 
-async def _get_teacher_by_id(id, db) -> ShowTeacher | None:
+async def _get_teacher_by_id(teacher_id, db) -> ShowTeacher:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
-            teacher = await teacher_dal.get_teacher_by_id(id)
+            teacher = await teacher_dal.get_teacher_by_id(teacher_id)
 
-            # if teacher exist
-            if teacher is not None:
-                return ShowTeacher(
-                    name=teacher.name,
-                    surname=teacher.surname,
-                    phone_number=teacher.phone_number,
-                    email=teacher.email,
-                    fathername=teacher.fathername
-                )
-            return None
+            # if teacher doesn't exist
+            if not teacher:
+                raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
+
+            return ShowTeacher.from_orm(teacher)
 
 
-async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher | None:
+async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
             teacher = await teacher_dal.get_teacher_by_name_surname(name, surname)
 
             # if teacher exist
-            if teacher is not None:
-                return ShowTeacher(
-                    name=teacher.name,
-                    surname=teacher.surname,
-                    phone_number=teacher.phone_number,
-                    email=teacher.email,
-                    fathername=teacher.fathername
-                )
+            if not teacher:
+                raise HTTPException(status_code=404, detail=f"Учитель {name, surname} не найден")
 
-            return None
+            return ShowTeacher.from_orm(teacher)
 
 
-async def _get_all_teachers(page: int, limit: int, db) -> list[ShowTeacher] | None:
+async def _get_all_teachers(page: int, limit: int, db) -> list[ShowTeacher]:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
             teachers = await teacher_dal.get_all_teachers(page, limit)
-            if teachers:
-                return teachers
+            if not teachers:
+                raise HTTPException(status_code=404, detail=f"Учителя не найдены")
 
-            return None
+            return [ShowTeacher.from_orm(teacher) for teacher in teachers]
 
 
-async def _delete_teacher(teacher_id: int, db) -> ShowTeacher | None:
+async def _delete_teacher(teacher_id: int, db) -> ShowTeacher:
+    """
+    Use the async with, because it will automatically close the session with the database if an error occurs
+    And apply the changes
+    """
     async with db as session:
         try:
-            await session.begin()
-            teacher_dal = TeacherDAL(session)
-            teacher = await teacher_dal.delete_teacher(teacher_id)
+            async with session.begin():
+                teacher_dal = TeacherDAL(session)
+                teacher = await teacher_dal.delete_teacher(teacher_id)
 
-            # save changed data
-            await session.commit()
+                if not teacher:
+                    raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
 
-            if teacher:
-                return teacher
-
-            return None
+            return ShowTeacher.from_orm(teacher)
 
         except Exception as e:
-            await session.rollback()
-            logger.warning(f"Изменение данных об учителе отменено (Ошибка: {e})")
-            raise e
+            logger.warning(f"Удаление учителя отменено (Ошибка: {e})")
+            raise
 
 
-async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher | None:
+async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher:
+    """Use it for the same reasons as for the delete operation"""
     async with db as session:
         try:
-            await session.begin()
-            # exclusion of None-fields from the transmitted data
-            update_data = {
-                key: value for key, value in body.dict().items() if value is not None and key != "teacher_id"
-            }
+            async with session.begin():
+                # exclusion of None-fields from the transmitted data
+                update_data = {
+                    key: value for key, value in body.dict().items() if value is not None and key != "teacher_id"
+                }
 
-            # change data
-            teacher_dal = TeacherDAL(session)
-            teacher = await teacher_dal.update_teacher(
-                id=body.teacher_id,
-                **update_data
-            )
-
-            # save changed data
-            await session.commit()
-
-            if teacher is not None:
-                return ShowTeacher(
-                    name=teacher.name,
-                    surname=teacher.surname,
-                    phone_number=teacher.phone_number,
-                    email=teacher.email,
-                    fathername=teacher.fathername
+                # change data
+                teacher_dal = TeacherDAL(session)
+                teacher = await teacher_dal.update_teacher(
+                    id=body.teacher_id,
+                    **update_data
                 )
 
-            return None
+                if not teacher:
+                    raise HTTPException(status_code=404, detail=f"Учитель с id: {body.teacher_id} не найден")
+
+            return ShowTeacher.from_orm(teacher)
 
         except Exception as e:
-            await session.rollback()
             logger.warning(f"Изменение данных об учителе отменено (Ошибка: {e})")
-            raise e
+            raise
 
 
 @teacher_router.post("/create", response_model=ShowTeacher)
@@ -161,19 +135,13 @@ async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)
 @teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacher,
                     responses={404: {"description": "Учитель не найден"}})
 async def get_teacher_by_id(teacher_id: int, db: AsyncSession = Depends(get_db)):
-    teacher = await _get_teacher_by_id(teacher_id, db)
-    if teacher is None:
-        raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
-    return teacher
+    return await _get_teacher_by_id(teacher_id, db)
 
 
 @teacher_router.get("/search/by_humanity", response_model=ShowTeacher,
                     responses={404: {"description": "Учитель не найден"}})
 async def get_teacher_by_name_and_surname(name: str, surname: str, db: AsyncSession = Depends(get_db)):
-    teacher = await _get_teacher_by_name_and_surname(name, surname, db)
-    if teacher is None:
-        raise HTTPException(status_code=404, detail=f"Учитель {name, surname} не найден")
-    return teacher
+    return await _get_teacher_by_name_and_surname(name, surname, db)
 
 
 @teacher_router.get("/search", response_model=list[ShowTeacher], responses={404: {"description": "Учителя не найдены"}})
@@ -186,27 +154,18 @@ async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], db: A
     it is better to use this pydantic model, so as not to manually enter these parameters each time.
     Link to documentation: https://fastapi.tiangolo.com/ru/tutorial/query-param-models/
     """
-    teachers = await _get_all_teachers(query_param.page, query_param.limit, db)
-    if teachers is None:
-        raise HTTPException(status_code=404, detail=f"Учителя не найдены")
-    return teachers
+    return await _get_all_teachers(query_param.page, query_param.limit, db)
 
 
 @teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacher,
                     responses={404: {"description": "Учитель не найден"}})
 async def delete_teacher(teacher_id: int, db: AsyncSession = Depends(get_db)):
-    teacher = await _delete_teacher(teacher_id, db)
-    if teacher is None:
-        raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найдены")
-    return teacher
+    return await _delete_teacher(teacher_id, db)
 
 
 @teacher_router.put("/update", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
 async def update_teacher(body: UpdateTeacher, db: AsyncSession = Depends(get_db)):
-    teacher = await _update_teacher(body, db)
-    if teacher is None:
-        raise HTTPException(status_code=404, detail=f"Учитель с id: {body.teacher_id} не найдены")
-    return teacher
+    return await _update_teacher(body, db)
 
 
 '''

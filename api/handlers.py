@@ -438,7 +438,7 @@ async def _update_cabinet(body: UpdateCabinet, db) -> ShowCabinet:
                         )
 
                 # Change data
-                updated_cabinet = await cabinet_dal.update(body.building_number, body.cabinet_number, **update_data)
+                updated_cabinet = await cabinet_dal.update_cabinet(body.building_number, body.cabinet_number, **update_data)
 
                 if not updated_cabinet:
                     raise HTTPException(status_code=404, detail="Кабинет не был обновлёен")

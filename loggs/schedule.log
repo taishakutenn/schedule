@@ -13,3 +13,61 @@
 2025-07-16 00:11:57,812 - schedule - INFO - Найдено учителей: 1
 2025-07-16 00:13:24,936 - schedule - INFO - Найдено учителей: 1
 2025-07-16 00:15:33,649 - schedule - INFO - Найдено учителей тест: 1
+2025-07-24 15:27:27,497 - schedule - INFO - → Вызов: TeacherDAL.get_all_teachers с аргументами {}
+2025-07-24 15:27:27,697 - schedule - INFO - ✓ TeacherDAL.get_all_teachers завершён успешно
+2025-07-24 15:27:43,506 - schedule - INFO - → Вызов: TeacherDAL.create_teacher с аргументами {'name': 'string', 'surname': 'string', 'phone_number': 'string', 'email': 'user@example.com', 'fathername': 'string'}
+2025-07-24 15:27:43,639 - schedule - INFO - ✓ TeacherDAL.create_teacher завершён успешно
+2025-07-24 15:27:56,427 - schedule - INFO - → Вызов: TeacherDAL.get_all_teachers с аргументами {}
+2025-07-24 15:27:56,429 - schedule - INFO - ✓ TeacherDAL.get_all_teachers завершён успешно
+2025-07-24 15:28:08,186 - schedule - INFO - → Вызов: TeacherDAL.delete_teacher с аргументами {}
+2025-07-24 15:28:08,349 - schedule - INFO - ✓ TeacherDAL.delete_teacher завершён успешно
+2025-07-24 15:29:45,529 - schedule - INFO - → Вызов: TeacherDAL.delete_teacher с аргументами {}
+2025-07-24 15:29:45,615 - schedule - INFO - ✓ TeacherDAL.delete_teacher завершён успешно
+2025-07-24 15:29:45,616 - schedule - WARNING - Удаление учителя отменено (Ошибка: 404: Учитель с id: 1 не найден)
+2025-07-24 15:30:15,168 - schedule - INFO - → Вызов: TeacherDAL.create_teacher с аргументами {'name': 'string', 'surname': 'string', 'phone_number': 'string', 'email': 'user@example.com', 'fathername': 'string'}
+2025-07-24 15:30:15,208 - schedule - INFO - ✓ TeacherDAL.create_teacher завершён успешно
+2025-07-24 15:30:23,470 - schedule - INFO - → Вызов: TeacherDAL.delete_teacher с аргументами {}
+2025-07-24 15:30:23,474 - schedule - INFO - ✓ TeacherDAL.delete_teacher завершён успешно
+2025-07-24 15:30:23,474 - schedule - WARNING - Удаление учителя отменено (Ошибка: 404: Учитель с id: 1 не найден)
+2025-07-24 15:30:42,513 - schedule - INFO - → Вызов: TeacherDAL.get_all_teachers с аргументами {}
+2025-07-24 15:30:42,518 - schedule - INFO - ✓ TeacherDAL.get_all_teachers завершён успешно
+2025-07-24 15:30:44,245 - schedule - INFO - → Вызов: TeacherDAL.get_all_teachers с аргументами {}
+2025-07-24 15:30:44,247 - schedule - INFO - ✓ TeacherDAL.get_all_teachers завершён успешно
+2025-07-24 15:30:55,154 - schedule - INFO - → Вызов: TeacherDAL.delete_teacher с аргументами {}
+2025-07-24 15:30:55,205 - schedule - INFO - ✓ TeacherDAL.delete_teacher завершён успешно
+2025-07-24 15:31:44,374 - schedule - INFO - → Вызов: TeacherDAL.create_teacher с аргументами {'name': 'string', 'surname': 'string', 'phone_number': 'string', 'email': 'user@example.com', 'fathername': 'string'}
+2025-07-24 15:31:44,427 - schedule - INFO - ✓ TeacherDAL.create_teacher завершён успешно
+2025-07-24 15:31:48,517 - schedule - INFO - → Вызов: TeacherDAL.get_all_teachers с аргументами {}
+2025-07-24 15:31:48,520 - schedule - INFO - ✓ TeacherDAL.get_all_teachers завершён успешно
+2025-07-24 15:31:53,772 - schedule - INFO - → Вызов: TeacherDAL.create_teacher с аргументами {'name': 'string', 'surname': 'string', 'phone_number': 'string', 'email': 'user@example.com', 'fathername': 'string'}
+2025-07-24 15:31:53,801 - schedule - INFO - ✓ TeacherDAL.create_teacher завершён успешно
+2025-07-24 15:31:56,166 - schedule - INFO - → Вызов: TeacherDAL.get_all_teachers с аргументами {}
+2025-07-24 15:31:56,168 - schedule - INFO - ✓ TeacherDAL.get_all_teachers завершён успешно
+2025-07-24 15:32:02,757 - schedule - INFO - → Вызов: TeacherDAL.delete_teacher с аргументами {}
+2025-07-24 15:32:02,761 - schedule - INFO - ✓ TeacherDAL.delete_teacher завершён успешно
+2025-07-24 15:32:02,761 - schedule - WARNING - Удаление учителя отменено (Ошибка: 404: Учитель с id: 1 не найден)
+2025-07-24 15:32:04,991 - schedule - INFO - → Вызов: TeacherDAL.delete_teacher с аргументами {}
+2025-07-24 15:32:04,995 - schedule - INFO - ✓ TeacherDAL.delete_teacher завершён успешно
+2025-07-24 15:32:04,996 - schedule - WARNING - Удаление учителя отменено (Ошибка: 404: Учитель с id: 2 не найден)
+2025-07-24 15:32:06,960 - schedule - INFO - → Вызов: TeacherDAL.delete_teacher с аргументами {}
+2025-07-24 15:32:06,983 - schedule - INFO - ✓ TeacherDAL.delete_teacher завершён успешно
+2025-07-24 15:32:08,735 - schedule - INFO - → Вызов: TeacherDAL.delete_teacher с аргументами {}
+2025-07-24 15:32:08,766 - schedule - INFO - ✓ TeacherDAL.delete_teacher завершён успешно
+2025-07-24 15:33:58,405 - schedule - INFO - → Вызов: BuildingDAL.get_building_by_number с аргументами {}
+2025-07-24 15:33:58,424 - schedule - INFO - ✓ BuildingDAL.get_building_by_number завершён успешно
+2025-07-24 15:34:05,559 - schedule - INFO - → Вызов: BuildingDAL.get_all_buildings с аргументами {}
+2025-07-24 15:34:05,562 - schedule - INFO - ✓ BuildingDAL.get_all_buildings завершён успешно
+2025-07-24 15:34:12,903 - schedule - INFO - → Вызов: BuildingDAL.create_building с аргументами {'building_number': 0, 'city': 'string', 'building_address': 'string'}
+2025-07-24 15:34:12,946 - schedule - INFO - ✓ BuildingDAL.create_building завершён успешно
+2025-07-24 15:34:22,322 - schedule - INFO - → Вызов: BuildingDAL.get_building_by_number с аргументами {}
+2025-07-24 15:34:22,324 - schedule - INFO - ✓ BuildingDAL.get_building_by_number завершён успешно
+2025-07-24 15:34:24,536 - schedule - INFO - → Вызов: BuildingDAL.get_building_by_number с аргументами {}
+2025-07-24 15:34:24,539 - schedule - INFO - ✓ BuildingDAL.get_building_by_number завершён успешно
+2025-07-24 15:35:16,262 - schedule - INFO - → Вызов: BuildingDAL.get_building_by_number с аргументами {}
+2025-07-24 15:35:16,349 - schedule - INFO - ✓ BuildingDAL.get_building_by_number завершён успешно
+2025-07-24 15:35:19,711 - schedule - INFO - → Вызов: BuildingDAL.get_building_by_number с аргументами {}
+2025-07-24 15:35:19,714 - schedule - INFO - ✓ BuildingDAL.get_building_by_number завершён успешно
+2025-07-24 15:38:03,839 - schedule - INFO - → Вызов: BuildingDAL.get_building_by_number с аргументами {}
+2025-07-24 15:38:03,936 - schedule - INFO - ✓ BuildingDAL.get_building_by_number завершён успешно
+2025-07-24 15:38:09,992 - schedule - INFO - → Вызов: BuildingDAL.get_building_by_number с аргументами {}
+2025-07-24 15:38:09,994 - schedule - INFO - ✓ BuildingDAL.get_building_by_number завершён успешно

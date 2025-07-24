@@ -39,8 +39,6 @@ class TeacherDAL:
         query_select = select(Teacher).where(Teacher.id == id)
         res = await self.db_session.execute(query_select)
         teacher = res.scalar_one_or_none()
-        if not teacher:
-            return None
 
         await self.db_session.execute(delete(Teacher).where(Teacher.id == id))
         return teacher  # Return orm object which was in the database
@@ -120,20 +118,13 @@ class BuildingDAL:
     async def get_building_by_number(self, building_number: int) -> Building | None:
         query = select(Building).where(Building.building_number == building_number)
         res = await self.db_session.execute(query)
-        building_row = res.scalar()
-        if not building_row:
-            return None
-
-        return building_row
+        return res.scalar_one_or_none()
 
     @log_exceptions
     async def get_building_by_address(self, building_address: str) -> Building | None:
         query = select(Building).where(Building.building_address == building_address)
         res = await self.db_session.execute(query)
-        building_row = res.scalar()
-        if not building_row:
-            return None
-
+        building_row = res.scalar_one_or_none()
         return building_row
 
     @log_exceptions
@@ -210,7 +201,7 @@ class CabinetDAL:
         return cabinets
 
     @log_exceptions
-    async def update(self, search_building_number: int, search_cabinet_number: int, **kwargs) -> Cabinet | None:
+    async def update_cabinet(self, search_building_number: int, search_cabinet_number: int, **kwargs) -> Cabinet | None:
         """
         We use that names for the variables we are searching for because
         in **kwargs there are already variables with names: building_number and cabinet_number
@@ -244,32 +235,29 @@ class SpecialityDAL:
 
     @log_exceptions
     async def delete_speciality(self, speciality_code: str) -> Speciality | None:
-        query_select = select(Speciality).where(Speciality.speciality_code == speciality_code)
-        res = await self.db_session.execute(query_select)
-        speciality = res.scalar_one_or_none()
-        if speciality is None:
-            return None
-        query_delete = delete(Speciality).where(Speciality.speciality_code == speciality_code)
-        await self.db_session.execute(query_delete)
-        return speciality
+        query = delete(Speciality).where(Speciality.speciality_code == speciality_code).returning(Speciality)
+        res = await self.db_session.execute(query)
+        return res.fetchone() or None
 
     @log_exceptions
-    async def get_all_speciality(self, page: int, limit: int) -> list[ShowSpeciality] | None:
+    async def get_all_speciality(self, page: int, limit: int) -> list[Speciality] | None:
         if page == 0:
             query = select(Speciality).order_by(Speciality.speciality_code.asc())
         else:
             query = select(Speciality).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
-        specialities = result.scalars().all()
-        if specialities:
-            return [ShowSpeciality(speciality_code=sp.speciality_code) for sp in specialities]
-        return None
+        specialities = list(result.scalar().all())
+        return specialities
 
     @log_exceptions
-    async def get_speciality_by_code(self, speciality_code) -> ShowSpeciality | None:
+    async def get_speciality_by_code(self, speciality_code) -> Speciality | None:
         query = select(Speciality).where(Speciality.speciality_code == speciality_code)
         res = await self.db_session.execute(query)
-        return res.scalar()
+        speciality = res.scalar()
+        if not speciality:
+            return None
+        
+        return speciality
 
     @log_exceptions
     async def update_speciality(self, speciality_code, new_speciality_code) -> Speciality | None:
@@ -314,35 +302,26 @@ class GroupDAL:
     async def delete_group(self, group_name: str) -> Group | None:
         query = delete(Group).where(Group.group_name == group_name).returning(Group.group_name)
         res = await self.db_session.execute(query)
-        return res.fetchone()
+        return res.fetchone() or None
 
     @log_exceptions
     async def get_group(self, group_name: str) -> Group | None:
         query = select(Group).where(Group.group_name == group_name)
         res = await self.db_session.execute(query)
-        return res.scalar()
+        return res.scalar_one_or_none()
 
     @log_exceptions
-    async def get_all_group(self, page: int, limit: int) -> list[ShowGroup] | None:
+    async def get_all_group(self, page: int, limit: int) -> list[Group] | None:
         if page == 0:
             query = select(Group).order_by(Group.group_name.asc())
         else:
             query = select(Group).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
-        groups = result.scalars().all()
-        if groups:
-            return [
-                ShowGroup(
-                    group_name=gr.group_name,
-                    speciality_code=gr.speciality_code,
-                    quantity_students=gr.quantity_students,
-                    group_advisor_id=gr.group_advisor_id
-                ) for gr in groups
-            ]
-        return None
+        groups = list(result.scalars().all())
+        return groups
 
     @log_exceptions
-    async def update(self, group_name: str, **kwargs) -> Group | None:
+    async def update_group(self, group_name: str, **kwargs) -> Group | None:
         query = (
             update(Group)
             .where(Group.group_name == group_name)
@@ -385,54 +364,27 @@ class CurriculumDAL:
 
     @log_exceptions
     async def delete_curriculum(self, semester_number: int, group_name: str,
-                                subject_code: str) -> ShowCurriculum | None:
-        query_select = (
-            select(Curriculum)
+                                subject_code: str) -> Curriculum | None:
+        query = (
+            delete(Curriculum)
             .where(
                 Curriculum.semester_number == semester_number,
                 Curriculum.group_name == group_name,
                 Curriculum.subject_code == subject_code
             )
         )
-        res = await self.db_session.execute(query_select)
-        curriculum = res.scalar_one_or_none()
-        if curriculum is None:
-            return None
-        query_delete = delete(Curriculum).where(
-            Curriculum.semester_number == semester_number,
-            Curriculum.group_name == group_name,
-            Curriculum.subject_code == subject_code
-        )
-        await self.db_session.execute(query_delete)
-        return ShowCurriculum(
-            semester_number=curriculum.semester_number,
-            group_name=curriculum.group_name,
-            subject_code=curriculum.subject_code,
-            lectures_hours=curriculum.lectures_hours,
-            laboratory_hours=curriculum.laboratory_hours,
-            practical_hours=curriculum.practical_hours
-        )
+        res = await self.db_session.execute(query)
+        return res.fetchone() or None
 
     @log_exceptions
-    async def get_all_curriculums(self, page: int, limit: int) -> list[ShowCurriculum] | None:
+    async def get_all_curriculums(self, page: int, limit: int) -> list[Curriculum] | None:
         if page == 0:
             query = select(Curriculum).order_by(Curriculum.semester_number.asc())
         else:
             query = select(Curriculum).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
-        curriculums = result.scalars().all()
-        if curriculums:
-            return [
-                ShowCurriculum(
-                    semester_number=c.semester_number,
-                    group_name=c.group_name,
-                    subject_code=c.subject_code,
-                    lectures_hours=c.lectures_hours,
-                    laboratory_hours=c.laboratory_hours,
-                    practical_hours=c.practical_hours
-                ) for c in curriculums
-            ]
-        return None
+        curriculums = list(result.scalars().all())
+        return curriculums
 
     @log_exceptions
     async def get_curriculum(self, semester_number: int, group_name: str, subject_code: str) -> Curriculum | None:
@@ -442,14 +394,9 @@ class CurriculumDAL:
             Curriculum.subject_code == subject_code
         )
         res = await self.db_session.execute(query)
-        curriculum_row = res.scalar()
-        if curriculum_row is not None:
-            return Curriculum(
-                semester_number=curriculum_row.semester_number,
-                group_name=curriculum_row.group_name,
-                subject_code=curriculum_row.subject_code,
-                lectures_hours=curriculum_row.lectures_hours,
-                laboratory_hours=curriculum_row.laboratory_hours,
-                practical_hours=curriculum_row.practical_hours
-            )
-        return None
+        return res.scalar_one_or_none()
+    
+    async def get_group(self, group_name: str) -> Group | None:
+        query = select(Group).where(Group.group_name == group_name)
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()

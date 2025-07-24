@@ -46,7 +46,7 @@ class TeacherDAL:
         return teacher  # Return orm object which was in the database
 
     @log_exceptions
-    async def get_all_teachers(self, page: int, limit: int) -> list[Teacher] | None:
+    async def get_all_teachers(self, page: int, limit: int) -> list[Teacher]:
         query = select(Teacher).order_by(Teacher.surname.asc())
         if page > 0:
             query = query.offset((page - 1) * limit).limit(limit)
@@ -101,61 +101,46 @@ class BuildingDAL:
         return new_building
 
     @log_exceptions
-    async def delete_building(self, building_number: int) -> bool:
-        query = delete(Building).where(Building.building_number == building_number).returning(Building.building_number)
+    async def delete_building(self, building_number: int) -> Building | None:
+        query = delete(Building).where(Building.building_number == building_number).returning(Building)
         res = await self.db_session.execute(query)
-        deleted_building = res.fetchone()
-        return bool(deleted_building)
+        deleted_building = res.scalar_one_or_none()
+        return deleted_building
 
     @log_exceptions
-    async def get_all_buildings(self, page: int, limit: int) -> list[ShowBuilding] | None:
+    async def get_all_buildings(self, page: int, limit: int) -> list[Building]:
         if page == 0:
             query = select(Building).order_by(Building.building_number.asc())
         else:
             query = select(Building).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
-        buildings = result.scalars().all()
-        if buildings:
-            return [
-                ShowBuilding(
-                    building_number=b.building_number,
-                    city=b.city,
-                    building_address=b.building_address
-                ) for b in buildings
-            ]
-        return None
+        return list(result.scalars().all())
 
     @log_exceptions
     async def get_building_by_number(self, building_number: int) -> Building | None:
         query = select(Building).where(Building.building_number == building_number)
         res = await self.db_session.execute(query)
         building_row = res.scalar()
-        if building_row is not None:
-            return Building(
-                building_number=building_row.building_number,
-                city=building_row.city,
-                building_address=building_row.building_address
-            )
-        return None
+        if not building_row:
+            return None
+
+        return building_row
 
     @log_exceptions
     async def get_building_by_address(self, building_address: str) -> Building | None:
         query = select(Building).where(Building.building_address == building_address)
         res = await self.db_session.execute(query)
         building_row = res.scalar()
-        if building_row is not None:
-            return Building(
-                building_number=building_row.building_number,
-                city=building_row.city,
-                building_address=building_row.building_address
-            )
-        return None
+        if not building_row:
+            return None
+
+        return building_row
 
     @log_exceptions
-    async def update_building(self, building_number, **kwargs) -> Building | None:
-        query = update(Building).where(Building.building_number == building_number).values(**kwargs).returning(Building)
+    async def update_building(self, target_number, **kwargs) -> Building | None:
+        query = update(Building).where(Building.building_number == target_number).values(**kwargs).returning(Building)
         res = await self.db_session.execute(query)
-        return res.scalar()
+        return res.scalar_one_or_none()
 
 
 '''
@@ -186,19 +171,12 @@ class CabinetDAL:
         return new_cabinet
 
     @log_exceptions
-    async def delete_cabinet(self, building_number: int, cabinet_number: int) -> Cabinet | False:
+    async def delete_cabinet(self, building_number: int, cabinet_number: int) -> Cabinet | None:
         query = delete(Cabinet).where(
             (Cabinet.cabinet_number == cabinet_number) & (Cabinet.building_number == building_number)
         ).returning(Cabinet)
         res = await self.db_session.execute(query)
-        return res.fetchone() or False
-
-    @log_exceptions
-    async def get_cabinet(self, cabinet_number: int) -> Optional[Cabinet]:
-        query = select(Cabinet).where(Cabinet.cabinet_number == cabinet_number)
-        res = await self.db_session.execute(query)
-        cabinet_row = res.scalar()
-        return cabinet_row.id if cabinet_row else None
+        return res.fetchone() or None
 
     @log_exceptions
     async def get_cabinet_by_number_and_building(self, building_number: int, cabinet_number: int) -> Cabinet | None:
@@ -210,26 +188,17 @@ class CabinetDAL:
         return res.scalar_one_or_none()
 
     @log_exceptions
-    async def get_all_cabinets(self, page: int, limit: int) -> list[ShowCabinet] | None:
+    async def get_all_cabinets(self, page: int, limit: int) -> list[Cabinet]:
         if page == 0:
             query = select(Cabinet).order_by(Cabinet.cabinet_number.asc())
         else:
             query = select(Cabinet).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
-        cabinets = result.scalars().all()
-        if cabinets:
-            return [
-                ShowCabinet(
-                    cabinet_number=c.cabinet_number,
-                    capacity=c.capacity,
-                    cabinet_state=c.cabinet_state,
-                    building_number=c.building_number
-                ) for c in cabinets
-            ]
-        return None
+        cabinets = list(result.scalars().all())
+        return cabinets
 
     @log_exceptions
-    async def get_cabinets_by_building(self, building_number: int, page: int, limit: int) -> list[ShowCabinet] | None:
+    async def get_cabinets_by_building(self, building_number: int, page: int, limit: int) -> list[Cabinet]:
         if page == 0:
             query = select(Cabinet).where(Cabinet.building_number == building_number).order_by(
                 Cabinet.cabinet_number.asc())
@@ -237,22 +206,17 @@ class CabinetDAL:
             query = select(Cabinet).where(Cabinet.building_number == building_number).offset((page - 1) * limit).limit(
                 limit)
         result = await self.db_session.execute(query)
-        cabinets = result.scalars().all()
-        if cabinets:
-            return [
-                ShowCabinet(
-                    cabinet_number=c.cabinet_number,
-                    capacity=c.capacity,
-                    cabinet_state=c.cabinet_state,
-                    building_number=c.building_number
-                ) for c in cabinets
-            ]
-        return None
+        cabinets = list(result.scalars().all())
+        return cabinets
 
     @log_exceptions
-    async def update(self, building_number: int, cabinet_number: int, **kwargs) -> Cabinet | None:
+    async def update(self, search_building_number: int, search_cabinet_number: int, **kwargs) -> Cabinet | None:
+        """
+        We use that names for the variables we are searching for because
+        in **kwargs there are already variables with names: building_number and cabinet_number
+        """
         query = update(Cabinet).where(
-            (Cabinet.cabinet_number == cabinet_number) & (Cabinet.building_number == building_number)
+            (Cabinet.cabinet_number == search_cabinet_number) & (Cabinet.building_number == search_building_number)
         ).values(**kwargs).returning(Cabinet)
         res = await self.db_session.execute(query)
         return res.scalar()

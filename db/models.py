@@ -179,7 +179,7 @@ class Cabinet(Base):
 
     # Relationships
     building = relationship("Building", back_populates="cabinets")
-    sessions = relationship("Session", back_populates="cabinet")
+    # sessions = relationship("Session", back_populates="cabinet")
 
 
 class Building(Base):
@@ -245,16 +245,17 @@ class Session(Base):
     group = relationship("Group", back_populates="sessions")
     subject = relationship("Subject", back_populates="sessions")
     teacher = relationship("Teacher", back_populates="sessions")
-    # We specify it through primaryjoin, because we have multiple foreign keys for a building
-    cabinet = relationship(
-        "Cabinet",
-        back_populates="sessions",
-        primaryjoin=and_(
-            cabinet_number == foreign(Cabinet.cabinet_number),
-            building_number == foreign(Cabinet.building_number)
-        ),
-        foreign_keys=[cabinet_number, building_number]
-    )
+    # # We specify it through primaryjoin, because we have multiple foreign keys for a building
+    # cabinet = relationship(
+    #     "Cabinet",
+    #     back_populates="sessions",
+    #     primaryjoin=and_(
+    #         cabinet_number == foreign(Cabinet.cabinet_number),
+    #         building_number == foreign(Cabinet.building_number)
+    #     ),
+    #     foreign_keys=[cabinet_number, building_number],
+    #     uselist=False
+    # )
 
 
 class EmploymentTeacher(Base):

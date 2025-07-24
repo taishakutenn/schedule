@@ -13,6 +13,7 @@ class TunedModel(BaseModel):
         We'll get fed up with this class
         """
         orm_mode = True
+        from_attributes = True
 
 
 class QueryParams(TunedModel):
@@ -79,6 +80,7 @@ class CreateBuilding(TunedModel):
 
 class UpdateBuilding(TunedModel):
     building_number: int
+    new_building_number: int | None = None
     city: str | None = None
     building_address: str | None = None
 

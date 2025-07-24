@@ -1,5 +1,5 @@
 import functools
-from logging_config import configure_logging
+from config.logging_config import configure_logging
 
 logger = configure_logging()
 

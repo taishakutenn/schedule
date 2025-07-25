@@ -2,7 +2,7 @@ from typing import Optional
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session
+from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session, Subject
 from config.decorators import log_exceptions
 
 '''
@@ -209,7 +209,7 @@ class CabinetDAL:
             (Cabinet.cabinet_number == search_cabinet_number) & (Cabinet.building_number == search_building_number)
         ).values(**kwargs).returning(Cabinet)
         res = await self.db_session.execute(query)
-        return res.scalar()
+        return res.scalar_one_or_none()
 
 
 '''
@@ -227,7 +227,7 @@ class SpecialityDAL:
 
     @log_exceptions
     async def create_speciality(self, speciality_code: str) -> Speciality:
-        new_speciality = Speciality(speciality_code)
+        new_speciality = Speciality(speciality_code = speciality_code)
         self.db_session.add(new_speciality)
         await self.db_session.flush()
         return new_speciality
@@ -259,15 +259,15 @@ class SpecialityDAL:
         return speciality
 
     @log_exceptions
-    async def update_speciality(self, speciality_code, new_speciality_code) -> Speciality | None:
+    async def update_speciality(self, speciality_code: str, **kwargs) -> Speciality | None:
         query = (
             update(Speciality)
             .where(Speciality.speciality_code == speciality_code)
-            .values(new_speciality_code)
+            .values(**kwargs)
             .returning(Speciality)
         )
         res = await self.db_session.execute(query)
-        return res.scalar()
+        return res.scalar_one_or_none()
 
 
 '''
@@ -329,12 +329,23 @@ class GroupDAL:
         )
         res = await self.db_session.execute(query)
         return res.scalar()
+    
+    @log_exceptions
+    async def update_group(self, group_name: str, **kwargs) -> Group | None:
+        query = (
+            update(Group)
+            .where(Group.group_name == group_name)
+            .values(**kwargs)
+            .returning(Group)
+        )
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()
 
 
 '''
-==========
-Curriculum
-==========
+==================
+DAL for Curriculum
+==================
 '''
 
 
@@ -402,9 +413,9 @@ class CurriculumDAL:
 
 
 '''
-=================
-EmploymentTeacher
-=================
+=========================
+DAL for EmploymentTeacher
+=========================
 '''
 
 
@@ -485,11 +496,26 @@ class EmployTeacherDAL:
         employs = list(result.scalars().all())
         return employs
     
+    @log_exceptions
+    async def update_employTeacher(self, date_start_period: Date, date_end_period: Date, teacher_id: int, **kwargs) -> EmploymentTeacher | None:
+        query = (
+            update(EmploymentTeacher)
+            .where(
+                EmploymentTeacher.date_start_period == date_start_period,
+                EmploymentTeacher.date_end_period == date_end_period,
+                EmploymentTeacher.teacher_id == teacher_id
+            )
+            .values(**kwargs)
+            .returning(EmploymentTeacher)
+        )
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()
+    
 
 '''
-=======
-Session
-=======
+===============
+DAL for Session
+===============
 '''
 
 
@@ -581,3 +607,79 @@ class SessionDAL:
         result = await self.db_session.execute(query)
         sessions = list(result.scalars().all())
         return sessions
+    
+    @log_exceptions
+    async def update_session(self, session_number: int, date: Date, group_name: str, **kwargs) -> Session | None:
+        query = (
+            update(Session)
+            .where(
+                Session.session_number == session_number,
+                Session.date == date,
+                Session.group_name == group_name
+            )
+            .values(**kwargs)
+            .returning(Session)
+        )
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()
+    
+
+'''
+===============
+DAL for Subject
+===============
+'''
+
+
+class SubjectDAL:
+    """Data Access Layer for operating subject info"""
+
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_subject(self, subject_code: str, name: str = None) -> Subject:
+        new_subject = Subject(
+            subject_code=subject_code,
+            name = name
+        )
+        self.db_session.add(new_subject)
+        await self.db_session.flush()
+        return new_subject
+
+    @log_exceptions
+    async def delete_sbject(self, subject_code: str) -> Subject | None:
+        query = delete(Subject).where(Subject.subject_code == subject_code).returning(Subject)
+        res = await self.db_session.execute(query)
+        return res.fetchone() or None
+
+    @log_exceptions
+    async def get_all_subjects(self, page: int, limit: int) -> list[Subject] | None:
+        if page == 0:
+            query = select(Subject).order_by(Subject.subject_code.asc())
+        else:
+            query = select(Subject).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects = list(result.scalar().all())
+        return subjects
+
+    @log_exceptions
+    async def get_subjects_by_name(self, name: str, page: int, limit: int) -> list[Subject] | None:
+        if page == 0:
+            query = select(Subject).where(Subject.name == name).order_by(Subject.subject_code.asc())
+        else:
+            query = select(Subject).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects = list(result.scalar().all())
+        return subjects
+
+    @log_exceptions
+    async def update_subject(self, subject_code: int, **kwargs) -> Subject | None:
+        query = (
+            update(Subject)
+            .where(Subject.subject_code == subject_code)
+            .values(**kwargs)
+            .returning(Speciality)
+        )
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()

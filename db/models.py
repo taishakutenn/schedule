@@ -311,9 +311,9 @@ class TeacherRequest(Base):
     __tablename__ = "teacher_requests"
 
     date_request = Column(Date, primary_key=True, nullable=False)
-    lectures_hours = Column(Numeric(5, 2), nullable=False, default=0)
-    laboratory_hours = Column(Numeric(5, 2), nullable=False, default=0)
-    practice_hours = Column(Numeric(5, 2), nullable=False, default=0)
+    lectures_hours = Column(Integer, nullable=False, default=0)
+    laboratory_hours = Column(Integer, nullable=False, default=0)
+    practice_hours = Column(Integer, nullable=False, default=0)
 
     # Foreign keys
     teacher_id = Column(Integer, ForeignKey("teachers.id"), primary_key=True)

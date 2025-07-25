@@ -2,7 +2,7 @@ from typing import Optional
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session, Subject
+from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session, Subject, TeacherRequest
 from config.decorators import log_exceptions
 
 '''
@@ -683,3 +683,88 @@ class SubjectDAL:
         )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
+    
+
+'''
+======================
+DAL for TeacherRequest
+======================
+'''
+
+
+class TeacherRequestDAL:
+    """Data Access Layer for operating teachers requests info"""
+
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_teacherRequest(
+            self, date_request: Date, teacher_id: int, subject_code: str, group_name: str, 
+            lectures_hours: int, laboratory_hours: int, practice_hours: int, 
+    ) -> TeacherRequest:
+        new_teacherRequest = TeacherRequest(
+            date_request=date_request,
+            teacher_id=teacher_id,
+            subject_code=subject_code,
+            group_name=group_name,
+            lectures_hours=lectures_hours,
+            laboratory_hours=laboratory_hours,
+            practice_hours=practice_hours
+        )
+        self.db_session.add(new_teacherRequest)
+        await self.db_session.flush()
+        return new_teacherRequest
+
+    @log_exceptions
+    async def delete_teacherRequest(self, date_request: Date, teacher_id: int,
+                                    subject_code: str, group_name: str) -> TeacherRequest | None:
+        query_select = select(TeacherRequest).where(
+            TeacherRequest.date_request == date_request,
+            TeacherRequest.teacher_id == teacher_id,
+            TeacherRequest.subject_code == subject_code,
+            TeacherRequest.group_name == group_name
+            )
+        res = await self.db_session.execute(query_select)
+        teacherRequest = res.scalar_one_or_none()
+
+        await self.db_session.execute(delete(TeacherRequest).where(TeacherRequest.id == id))
+        return teacherRequest  # Return orm object which was in the database
+
+    @log_exceptions
+    async def get_all_teachersRequests(self, page: int, limit: int) -> list[TeacherRequest]:
+        query = select(TeacherRequest).order_by(TeacherRequest.date_request.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        return list(result.scalars().all())
+
+    @log_exceptions
+    async def get_teacherRequest(self, date_request: Date, teacher_id: int,
+                                subject_code: str, group_name: str) -> TeacherRequest | None:
+        result = await self.db_session.execute(select(TeacherRequest).where(TeacherRequest.id == id))
+        return result.scalar_one_or_none()
+    
+    @log_exceptions
+    async def get_all_requests_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherRequest]:
+        query = select(TeacherRequest).where(TeacherRequest.teacher_id == teacher_id
+                                            ).order_by(TeacherRequest.date_request.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        return list(result.scalars().all())
+
+    @log_exceptions
+    async def update_teacherRequest(self,date_request: Date, teacher_id: int,
+                                subject_code: str, group_name: str, **kwargs) -> TeacherRequest | None:
+        result = await self.db_session.execute(
+            update(Teacher).where(
+            TeacherRequest.date_request == date_request,
+            TeacherRequest.teacher_id == teacher_id,
+            TeacherRequest.subject_code == subject_code,
+            TeacherRequest.group_name == group_name
+            ).values(**kwargs).returning(Teacher)
+        )
+        return result.scalar_one_or_none()

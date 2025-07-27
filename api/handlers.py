@@ -7,10 +7,11 @@ from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated, Union
 
-from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
-from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
+# from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
+# from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
+from api.models import *
 from api.services_helpers import ensure_building_exists, ensure_cabinet_unique
-from db.dals import TeacherDAL, BuildingDAL, CabinetDAL
+from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL
 from db.session import get_db
 
 from config.logging_config import configure_logging
@@ -21,6 +22,7 @@ logger = configure_logging()
 teacher_router = APIRouter()  # Create router for teachers
 building_router = APIRouter()  # Create router for buildings
 cabinet_router = APIRouter()  # Create route for cabinets
+speciality_router = APIRouter() # Create router for speciality
 
 '''
 ============================
@@ -489,3 +491,113 @@ async def delete_cabinet(building_number: int, cabinet_number: int, db: AsyncSes
                     responses={404: {"description": "Кабинет не найден или нет возможности изменить его параметры"}})
 async def update_cabinet(body: UpdateCabinet, db: AsyncSession = Depends(get_db)):
     return await _update_cabinet(body, db)
+
+
+'''
+==============================
+CRUD operations for speciality
+==============================
+'''
+
+
+async def _create_speciality(body: CreateSpeciality, db) -> ShowSpeciality:
+    async with db as session:
+        async with session.begin():
+            speciality_dal = SpecialityDAL(session)
+            new_speciality = await speciality_dal.create_speciality(speciality_code=body.speciality_code)
+
+            return ShowSpeciality.from_orm(new_speciality)
+
+
+async def _get_all_specialties(page: int, limit: int, db) -> list[ShowSpeciality]:
+    async with db as session:
+        async with session.begin():
+            speciality_dal = SpecialityDAL(session)
+            specialities = await speciality_dal.get_all_specialties(page, limit)
+
+            return [ShowSpeciality.from_orm(speciality) for speciality in specialities]
+
+
+async def _get_speciality(speciality_code: str, db) -> list[ShowSpeciality]:
+    async with db as session:
+        async with session.begin():
+            speciality_dal = SpecialityDAL(session)
+            speciality = await speciality_dal.get_speciality(speciality_code)
+
+            # if speciality doesn't exist
+            if not speciality:
+                raise HTTPException(status_code=404, detail=f"Специальность с кодом: {speciality_code} не найдена")
+
+            return ShowSpeciality.from_orm(speciality)
+
+
+async def _delete_speciality(speciality_code: str, db) -> ShowSpeciality:
+    async with db as session:
+        async with session.begin():
+            speciality_dal = SpecialityDAL(session)
+            speciality = await speciality_dal.delete_speciality(speciality_code)
+
+            if not speciality:
+                raise HTTPException(status_code=404,
+                                    detail=f"Специальность с кодом: {speciality_code} не может быть удалена, т.к. не найдена")
+
+            return ShowSpeciality.from_orm(speciality)
+
+
+async def _update_speciality(body: UpdateSpeciality, db) -> ShowSpeciality:
+    async with db as session:
+        try:
+            async with session.begin():
+                # exclusion of None-fields from the transmitted data
+                update_data = {
+                    key: value for key, value in body.dict().items() if
+                    value is not None and key not in ["speciality_code"]
+                }
+
+                # Create dal
+                speciality_dal = SpecialityDAL(session)
+
+                # Change data
+                updated_speciality = await speciality_dal.update_speciality(body.speciality_code, **update_data)
+
+                if not updated_speciality:
+                    raise HTTPException(status_code=404, detail="Специальность не была обновлена")
+
+                return ShowSpeciality.from_orm(updated_speciality)
+
+        # Because "Exception" will catch and the api route will not return an error when updating
+        except HTTPException as e:
+            raise e
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о специальности отменено (Ошибка: {e})")
+            raise HTTPException(status_code=500, detail="Произошла непредвиденная ошибка")
+
+
+@speciality_router.post("/create", response_model=ShowSpeciality)
+async def create_speciality(body: CreateSpeciality, db: AsyncSession = Depends(get_db)):
+    return await _create_speciality(body, db)
+
+
+@speciality_router.get("/search", response_model=list[ShowSpeciality])
+async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_specialties(query_param.page, query_param.limit, db)
+
+
+@speciality_router.get("/search/by_speciality_code", response_model=ShowSpeciality,
+                    responses={404: {"description": "Специальность не найдена"}})
+async def get_speciality_by_code(speciality_code: str,
+                                             db: AsyncSession = Depends(get_db)):
+    return await _get_speciality(speciality_code, db)
+
+
+@speciality_router.put("/delete/{speciality_code}", response_model=ShowSpeciality,
+                    responses={404: {"description": "Не удаётся удалить специальность"}})
+async def delete_speciality(speciality_code: str, db: AsyncSession = Depends(get_db)):
+    return await _delete_speciality(speciality_code, db)
+
+
+@speciality_router.put("/update", response_model=ShowSpeciality,
+                    responses={404: {"description": "Специальность не найдена или нет возможности изменить её параметры"}})
+async def update_speciality(body: UpdateSpeciality, db: AsyncSession = Depends(get_db)):
+    return await _update_speciality(body, db)

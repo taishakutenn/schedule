@@ -130,11 +130,12 @@ class ShowSpeciality(TunedModel):
 
 
 class CreateSpeciality(TunedModel):
-    specality_code: str
+    speciality_code: str
 
 
 class UpdateSpeciality(TunedModel):
     speciality_code: str
+    new_speciality_code: str
 
 
 '''

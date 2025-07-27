@@ -236,20 +236,21 @@ class SpecialityDAL:
     async def delete_speciality(self, speciality_code: str) -> Speciality | None:
         query = delete(Speciality).where(Speciality.speciality_code == speciality_code).returning(Speciality)
         res = await self.db_session.execute(query)
-        return res.fetchone() or None
+        deleted_speciality = res.scalar_one_or_none()
+        return deleted_speciality
 
     @log_exceptions
-    async def get_all_speciality(self, page: int, limit: int) -> list[Speciality] | None:
+    async def get_all_specialties(self, page: int, limit: int) -> list[Speciality] | None:
         if page == 0:
             query = select(Speciality).order_by(Speciality.speciality_code.asc())
         else:
             query = select(Speciality).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
-        specialities = list(result.scalar().all())
+        specialities = list(result.scalars().all())
         return specialities
 
     @log_exceptions
-    async def get_speciality_by_code(self, speciality_code) -> Speciality | None:
+    async def get_speciality(self, speciality_code) -> Speciality | None:
         query = select(Speciality).where(Speciality.speciality_code == speciality_code)
         res = await self.db_session.execute(query)
         speciality = res.scalar()
@@ -406,10 +407,9 @@ class CurriculumDAL:
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
     
-    async def get_group(self, group_name: str) -> Group | None:
-        query = select(Group).where(Group.group_name == group_name)
-        res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
+    '''
+    NEED update
+    '''
 
 
 '''
@@ -437,7 +437,6 @@ class EmployTeacherDAL:
             teacher_id=teacher_id,
             monday=monday,
             tuesday=tuesday,
-            friday=friday,
             wednesday=wednesday,
             thursday=thursday,
             friday=friday,

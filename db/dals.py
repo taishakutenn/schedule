@@ -310,15 +310,23 @@ class GroupDAL:
         query = select(Group).where(Group.group_name == group_name)
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-    
-    '''
-    GET GROUP BY SPEC CODE
-    '''
 
     @log_exceptions
     async def get_all_groups(self, page: int, limit: int) -> list[Group] | None:
         if page == 0:
             query = select(Group).order_by(Group.group_name.asc())
+        else:
+            query = select(Group).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        groups = list(result.scalars().all())
+        return groups
+    
+    @log_exceptions
+    async def get_all_groups_by_speciality(self, speciality_code: str, page: int, limit: int) -> list[Group] | None:
+        if page == 0:
+            query = select(Group).where(
+                Group.speciality_code == speciality_code
+                ).order_by(Group.group_name.asc())
         else:
             query = select(Group).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)

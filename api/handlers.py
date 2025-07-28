@@ -679,6 +679,23 @@ async def _get_all_groups(page: int, limit: int, db) -> list[ShowGroup]:
             groups = await group_dal.get_all_groups(page, limit)
 
             return [ShowGroup.from_orm(group) for group in groups]
+        
+
+async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: int, db) -> list[ShowGroup]:
+    async with db as session:
+        async with session.begin():
+            group_dal = GroupDAL(session)
+            speciality_dal = SpecialityDAL(session)
+
+            if not await ensure_speciality_exists(speciality_dal, speciality_code):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Специальность с кодом {speciality_code} не найдена"
+                )
+
+            groups = await group_dal.get_all_groups_by_speciality(speciality_code, page, limit)
+
+            return [ShowGroup.from_orm(group) for group in groups]
 
 
 async def _delete_group(group_name: str, db) -> ShowGroup:
@@ -766,6 +783,11 @@ async def get_group_by_name(group_name: str, db: AsyncSession = Depends(get_db))
 @group_router.get("/search", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
 async def get_all_groups(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     return await _get_all_groups(query_param.page, query_param.limit, db)
+
+
+@group_router.get("/search/by_speciality/{speciality_code}", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
+async def get_all_groups_by_speciality(speciality_code: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_groups_by_speciality(speciality_code, query_param.page, query_param.limit, db)
 
 
 @group_router.put("/delete/{group_name}", response_model=ShowGroup,

@@ -10,8 +10,8 @@ from typing import Annotated, Union
 # from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
 # from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
 from api.models import *
-from api.services_helpers import ensure_building_exists, ensure_cabinet_unique
-from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL
+from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists
+from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL
 from db.session import get_db
 
 from config.logging_config import configure_logging
@@ -23,6 +23,7 @@ teacher_router = APIRouter()  # Create router for teachers
 building_router = APIRouter()  # Create router for buildings
 cabinet_router = APIRouter()  # Create route for cabinets
 speciality_router = APIRouter() # Create router for speciality
+group_router = APIRouter() # Create router for group
 
 '''
 ============================
@@ -551,14 +552,25 @@ async def _update_speciality(body: UpdateSpeciality, db) -> ShowSpeciality:
                 # exclusion of None-fields from the transmitted data
                 update_data = {
                     key: value for key, value in body.dict().items() if
-                    value is not None and key not in ["speciality_code"]
+                    value is not None and key != "speciality_code"
                 }
 
-                # Create dal
                 speciality_dal = SpecialityDAL(session)
 
+                # Rename field new_speciality_code to speciality_code
+                if "new_speciality_code" in update_data:
+                    update_data["speciality_code"] = update_data.pop("new_speciality_code")
+
+                '''CHANGE GROUP INFO CHECK'''
+
                 # Change data
-                updated_speciality = await speciality_dal.update_speciality(body.speciality_code, **update_data)
+                updated_speciality = await speciality_dal.update_speciality(
+                    target_code=body.speciality_code, 
+                    **update_data
+                    )
+                
+                # save changed data
+                await session.commit()
 
                 if not updated_speciality:
                     raise HTTPException(status_code=404, detail="Специальность не была обновлена")
@@ -601,3 +613,167 @@ async def delete_speciality(speciality_code: str, db: AsyncSession = Depends(get
                     responses={404: {"description": "Специальность не найдена или нет возможности изменить её параметры"}})
 async def update_speciality(body: UpdateSpeciality, db: AsyncSession = Depends(get_db)):
     return await _update_speciality(body, db)
+
+
+'''
+=========================
+CRUD operations for group
+=========================
+'''
+
+
+async def _create_new_group(body: CreateGroup, db) -> ShowGroup:
+    async with db as session:
+        async with session.begin():
+            group_dal = GroupDAL(session)
+            teacher_dal = TeacherDAL(session)
+            speciality_dal = SpecialityDAL(session)
+
+            # Check that the teacher and speciality exists
+            # Check that the group is unique
+            # By using helpers
+            if not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Специальность с кодом {body.speciality_code} не найдена"
+                )
+            
+            if not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Учитель с id {body.group_advisor_id} не найден"
+                )
+
+            if not await ensure_group_unique(group_dal, body.group_name):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Группа {body.group_name} уже существует"
+                )
+
+            group = await group_dal.create_group(
+                group_name=body.group_name,
+                speciality_code=body.speciality_code,
+                quantity_students=body.quantity_students,
+                group_advisor_id=body.group_advisor_id
+            )
+            return ShowGroup.from_orm(group)
+
+
+async def _get_group_by_name(group_name: str, db) -> ShowGroup:
+    async with db as session:
+        async with session.begin():
+            group_dal = GroupDAL(session)
+            group = await group_dal.get_group(group_name)
+
+            # if group doesn't exist
+            if not group:
+                raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
+
+            return ShowGroup.from_orm(group)
+
+
+async def _get_all_groups(page: int, limit: int, db) -> list[ShowGroup]:
+    async with db as session:
+        async with session.begin():
+            group_dal = GroupDAL(session)
+            groups = await group_dal.get_all_groups(page, limit)
+
+            return [ShowGroup.from_orm(group) for group in groups]
+
+
+async def _delete_group(group_name: str, db) -> ShowGroup:
+    async with db as session:
+        try:
+            async with session.begin():
+                group_dal = GroupDAL(session)
+                group = await group_dal.delete_group(group_name)
+
+                if not group:
+                    raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
+
+            return ShowGroup.from_orm(group)
+
+        except Exception as e:
+            logger.warning(f"Удаление группы отменено (Ошибка: {e})")
+            raise
+
+
+async def _update_group(body: UpdateGroup, db) -> ShowGroup:
+    async with db as session:
+        try:
+            async with session.begin():
+                # exclusion of None-fields from the transmitted data
+                update_data = {
+                    key: value for key, value in body.dict().items() if value is not None and key != "group_name"
+                }
+
+                group_dal = GroupDAL(session)
+                teacher_dal = TeacherDAL(session)
+                speciality_dal = SpecialityDAL(session)
+
+                # Rename field new_speciality_code to speciality_code
+                if "new_group_name" in update_data:
+                    update_data["group_name"] = update_data.pop("new_group_name")
+
+                if body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Специальность с кодом {body.speciality_code} не найдена"
+                    )
+                
+                if body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Учитель с id {body.group_advisor_id} не найден"
+                    )
+
+                if not await ensure_group_unique(group_dal, body.new_group_name):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Группа {body.new_group_name} уже существует"
+                    )
+
+                group = await group_dal.update_group(
+                    group_name=body.group_name,
+                    **update_data
+                )
+
+                # save changed data
+                await session.commit()
+
+                if not group:
+                    raise HTTPException(status_code=404, detail=f"Группа с названием: {body.group_name} не найдена")
+
+            return ShowGroup.from_orm(group)
+
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о группе отменено (Ошибка: {e})")
+            raise
+
+
+@group_router.post("/create", response_model=ShowGroup)
+async def create_group(body: CreateGroup, db: AsyncSession = Depends(get_db)):
+    return await _create_new_group(body, db)
+
+
+@group_router.get("/search/by_group_name/{group_name}", response_model=ShowGroup,
+                    responses={404: {"description": "Группа не найдена"}})
+async def get_group_by_name(group_name: str, db: AsyncSession = Depends(get_db)):
+    return await _get_group_by_name(group_name, db)
+
+
+@group_router.get("/search", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
+async def get_all_groups(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_groups(query_param.page, query_param.limit, db)
+
+
+@group_router.put("/delete/{group_name}", response_model=ShowGroup,
+                    responses={404: {"description": "Группа не найдена"}})
+async def delete_group(group_name: str, db: AsyncSession = Depends(get_db)):
+    return await _delete_group(group_name, db)
+
+
+@group_router.put("/update", response_model=ShowGroup, responses={404: {"description": "Группа не найдена"}})
+async def update_group(body: UpdateGroup, db: AsyncSession = Depends(get_db)):
+    return await _update_group(body, db)

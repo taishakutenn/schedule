@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.routing import APIRouter
 import uvicorn
 
-from api.handlers import teacher_router, building_router, cabinet_router, speciality_router
+from api.handlers import teacher_router, building_router, cabinet_router, speciality_router, group_router
 
 # Create fastapi app
 app = FastAPI(title="OGTIScheduleApi")
@@ -19,6 +19,7 @@ main_api_router.include_router(teacher_router, prefix="/teacher", tags=["teacher
 main_api_router.include_router(building_router, prefix="/building", tags=["building"])
 main_api_router.include_router(cabinet_router, prefix="/cabinet", tags=["cabinet"])
 main_api_router.include_router(speciality_router, prefix="/speciality", tags=["speciality"])
+main_api_router.include_router(group_router, prefix="/group", tags=["group"])
 
 # Add main api router into fastapi app
 app.include_router(main_api_router)

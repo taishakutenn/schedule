@@ -153,6 +153,21 @@ class ShowGroup(TunedModel):
     group_advisor_id: int
 
 
+class CreateGroup(TunedModel):
+    group_name: str
+    speciality_code: str
+    quantity_students: int | None = None
+    group_advisor_id: int | None = None
+
+
+class UpdateGroup(TunedModel):
+    group_name: str
+    new_group_name: str | None = None
+    speciality_code: str | None = None
+    quantity_students: int | None = None
+    group_advisor_id: int | None = None
+
+
 '''
 ==========
 Curriculum

@@ -302,7 +302,8 @@ class GroupDAL:
     async def delete_group(self, group_name: str) -> Group | None:
         query = delete(Group).where(Group.group_name == group_name).returning(Group.group_name)
         res = await self.db_session.execute(query)
-        return res.fetchone() or None
+        deleted_group = res.scalar_one_or_none()
+        return deleted_group
 
     @log_exceptions
     async def get_group(self, group_name: str) -> Group | None:
@@ -385,7 +386,8 @@ class CurriculumDAL:
             )
         )
         res = await self.db_session.execute(query)
-        return res.fetchone() or None
+        deleted_curriculum = res.scalar_one_or_none()
+        return deleted_curriculum
 
     @log_exceptions
     async def get_all_curriculums(self, page: int, limit: int) -> list[Curriculum] | None:
@@ -407,9 +409,20 @@ class CurriculumDAL:
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
     
-    '''
-    NEED update
-    '''
+    @log_exceptions
+    async def update_curriculum(self, semester_number: int, group_name: str, subject_code: str, **kwargs) -> Curriculum | None:
+        query = (
+            update(Curriculum)
+            .where(
+                Curriculum.semester_number == semester_number,
+                Curriculum.group_name == group_name,
+                Curriculum.subject_code == subject_code
+                )
+            .values(**kwargs)
+            .returning(Curriculum)
+        )
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()
 
 
 '''
@@ -458,7 +471,8 @@ class EmployTeacherDAL:
             )
         )
         res = await self.db_session.execute(query)
-        return res.fetchone() or None
+        deleted_emloyTeacher = res.scalar_one_or_none()
+        return deleted_emloyTeacher
 
     @log_exceptions
     async def get_all_employTeacher(self, page: int, limit: int) -> list[EmploymentTeacher] | None:
@@ -555,7 +569,8 @@ class SessionDAL:
             )
         )
         res = await self.db_session.execute(query)
-        return res.fetchone() or None
+        deleted_session = res.scalar_one_or_none()
+        return deleted_session
 
     @log_exceptions
     async def get_all_sessions(self, page: int, limit: int) -> list[Session] | None:
@@ -647,10 +662,11 @@ class SubjectDAL:
         return new_subject
 
     @log_exceptions
-    async def delete_sbject(self, subject_code: str) -> Subject | None:
+    async def delete_subject(self, subject_code: str) -> Subject | None:
         query = delete(Subject).where(Subject.subject_code == subject_code).returning(Subject)
         res = await self.db_session.execute(query)
-        return res.fetchone() or None
+        deleted_subject = res.scalar_one_or_none()
+        return deleted_subject
 
     @log_exceptions
     async def get_all_subjects(self, page: int, limit: int) -> list[Subject] | None:

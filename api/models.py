@@ -155,7 +155,7 @@ class ShowGroup(TunedModel):
 
 class CreateGroup(TunedModel):
     group_name: str
-    speciality_code: str
+    speciality_code: str | None = None
     quantity_students: int | None = None
     group_advisor_id: int | None = None
 

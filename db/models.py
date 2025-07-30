@@ -36,7 +36,9 @@ class Group(Base):
 
     # Foreign keys
     group_advisor_id = Column(Integer, ForeignKey("teachers.id"), nullable=True)
-    speciality_code = Column(String, ForeignKey("specialties.speciality_code"), nullable=False)
+    speciality_code = Column(String, 
+                            ForeignKey("specialties.speciality_code", onupdate="CASCADE", ondelete="SET NULL"), 
+                            nullable=True)
 
     # Relationships
     advisor = relationship("Teacher", back_populates="advisory_group", uselist=False)  # uselist for one to one

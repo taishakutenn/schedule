@@ -561,8 +561,6 @@ async def _update_speciality(body: UpdateSpeciality, db) -> ShowSpeciality:
                 if "new_speciality_code" in update_data:
                     update_data["speciality_code"] = update_data.pop("new_speciality_code")
 
-                '''CHANGE GROUP INFO CHECK'''
-
                 # Change data
                 updated_speciality = await speciality_dal.update_speciality(
                     target_code=body.speciality_code, 
@@ -632,13 +630,13 @@ async def _create_new_group(body: CreateGroup, db) -> ShowGroup:
             # Check that the teacher and speciality exists
             # Check that the group is unique
             # By using helpers
-            if not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+            if body.speciality_code != None or body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
                 raise HTTPException(
                     status_code=404,
                     detail=f"Специальность с кодом {body.speciality_code} не найдена"
                 )
             
-            if not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+            if body.group_advisor_id != None or body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
                 raise HTTPException(
                     status_code=404,
                     detail=f"Учитель с id {body.group_advisor_id} не найден"
@@ -721,7 +719,8 @@ async def _update_group(body: UpdateGroup, db) -> ShowGroup:
             async with session.begin():
                 # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() if value is not None and key != "group_name"
+                    key: value for key, value in body.dict().items() 
+                    if value is not None and key != "group_name"
                 }
 
                 group_dal = GroupDAL(session)
@@ -799,3 +798,5 @@ async def delete_group(group_name: str, db: AsyncSession = Depends(get_db)):
 @group_router.put("/update", response_model=ShowGroup, responses={404: {"description": "Группа не найдена"}})
 async def update_group(body: UpdateGroup, db: AsyncSession = Depends(get_db)):
     return await _update_group(body, db)
+
+

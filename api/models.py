@@ -148,9 +148,9 @@ GROUP
 class ShowGroup(TunedModel):
     """Class for get group info"""
     group_name: str
-    speciality_code: str
-    quantity_students: int
-    group_advisor_id: int
+    speciality_code: str | None = None
+    quantity_students: int | None = None
+    group_advisor_id: int | None = None
 
 
 class CreateGroup(TunedModel):

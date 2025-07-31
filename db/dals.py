@@ -300,7 +300,7 @@ class GroupDAL:
 
     @log_exceptions
     async def delete_group(self, group_name: str) -> Group | None:
-        query = delete(Group).where(Group.group_name == group_name).returning(Group.group_name)
+        query = delete(Group).where(Group.group_name == group_name).returning(Group)
         res = await self.db_session.execute(query)
         deleted_group = res.scalar_one_or_none()
         return deleted_group
@@ -334,10 +334,10 @@ class GroupDAL:
         return groups
     
     @log_exceptions
-    async def update_group(self, group_name: str, **kwargs) -> Group | None:
+    async def update_group(self, target_group: str, **kwargs) -> Group | None:
         query = (
             update(Group)
-            .where(Group.group_name == group_name)
+            .where(Group.group_name == target_group)
             .values(**kwargs)
             .returning(Group)
         )

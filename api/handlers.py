@@ -596,8 +596,7 @@ async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], d
 
 @speciality_router.get("/search/by_speciality_code", response_model=ShowSpeciality,
                     responses={404: {"description": "Специальность не найдена"}})
-async def get_speciality_by_code(speciality_code: str,
-                                             db: AsyncSession = Depends(get_db)):
+async def get_speciality_by_code(speciality_code: str, db: AsyncSession = Depends(get_db)):
     return await _get_speciality(speciality_code, db)
 
 
@@ -630,13 +629,13 @@ async def _create_new_group(body: CreateGroup, db) -> ShowGroup:
             # Check that the teacher and speciality exists
             # Check that the group is unique
             # By using helpers
-            if body.speciality_code != None or body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+            if body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
                 raise HTTPException(
                     status_code=404,
                     detail=f"Специальность с кодом {body.speciality_code} не найдена"
                 )
             
-            if body.group_advisor_id != None or body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+            if body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
                 raise HTTPException(
                     status_code=404,
                     detail=f"Учитель с id {body.group_advisor_id} не найден"
@@ -659,7 +658,7 @@ async def _create_new_group(body: CreateGroup, db) -> ShowGroup:
 
 async def _get_group_by_name(group_name: str, db) -> ShowGroup:
     async with db as session:
-        async with session.begin():
+        async with session.begin(): 
             group_dal = GroupDAL(session)
             group = await group_dal.get_group(group_name)
 
@@ -667,7 +666,7 @@ async def _get_group_by_name(group_name: str, db) -> ShowGroup:
             if not group:
                 raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
 
-            return ShowGroup.from_orm(group)
+            return ShowGroup.from_orm(group) 
 
 
 async def _get_all_groups(page: int, limit: int, db) -> list[ShowGroup]:
@@ -750,7 +749,7 @@ async def _update_group(body: UpdateGroup, db) -> ShowGroup:
                     )
 
                 group = await group_dal.update_group(
-                    group_name=body.group_name,
+                    target_group=body.group_name,
                     **update_data
                 )
 

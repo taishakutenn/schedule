@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL
+from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SubjectDAL, CurriculumDAL
 from config.logging_config import configure_logging
 
 logger = configure_logging()
@@ -43,3 +43,26 @@ async def ensure_speciality_exists(speciality_dal: SpecialityDAL, specilaity_cod
 async def ensure_group_unique(group_dal: GroupDAL, group_name: str):
     group = await group_dal.get_group(group_name)
     return group is None
+
+
+'''
+======================
+Helpers for curriculum
+======================
+'''
+
+
+async def ensure_group_exists(group_dal: GroupDAL, group_name: str):
+    group = await group_dal.get_group(group_name)
+    return group
+
+
+async def ensure_subject_exists(subject_dal: SubjectDAL, subject_code: str):
+    subject = await subject_dal.get_subject(subject_code)
+    return subject
+
+
+async def ensure_curriculum_unique(curriculum_dal: CurriculumDAL,
+                                   semester_number: int, group_name: str, subject_code: str):
+    curriculum = await curriculum_dal.get_curriculum(semester_number, group_name, subject_code)
+    return curriculum is None

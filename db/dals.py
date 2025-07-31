@@ -410,14 +410,15 @@ class CurriculumDAL:
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
     
+    # tg mean target
     @log_exceptions
-    async def update_curriculum(self, semester_number: int, group_name: str, subject_code: str, **kwargs) -> Curriculum | None:
+    async def update_curriculum(self, tg_semester_number: int, tg_group_name: str, tg_subject_code: str, **kwargs) -> Curriculum | None:
         query = (
             update(Curriculum)
             .where(
-                Curriculum.semester_number == semester_number,
-                Curriculum.group_name == group_name,
-                Curriculum.subject_code == subject_code
+                Curriculum.semester_number == tg_semester_number,
+                Curriculum.group_name == tg_group_name,
+                Curriculum.subject_code == tg_subject_code
                 )
             .values(**kwargs)
             .returning(Curriculum)
@@ -668,6 +669,14 @@ class SubjectDAL:
         res = await self.db_session.execute(query)
         deleted_subject = res.scalar_one_or_none()
         return deleted_subject
+    
+    @log_exceptions
+    async def get_subject(self, subject_code: str) -> Subject | None:
+        query = select(Subject).where(
+                Subject.subject_code == subject_code
+            )
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()
 
     @log_exceptions
     async def get_all_subjects(self, page: int, limit: int) -> list[Subject] | None:

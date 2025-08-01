@@ -16,7 +16,7 @@ from db.session import get_db
 
 from config.logging_config import configure_logging
 
-# Сreate logger object
+# Create logger object
 logger = configure_logging()
 
 teacher_router = APIRouter()  # Create router for teachers
@@ -291,13 +291,13 @@ async def create_building(body: CreateBuilding, db: AsyncSession = Depends(get_d
 
 
 @building_router.get("/search/by_number/{building_number}", response_model=ShowBuilding,
-                     responses={404: {"description": "Зданение не найдено"}})
+                     responses={404: {"description": "Здание не найдено"}})
 async def get_building_by_number(building_number: int, db: AsyncSession = Depends(get_db)):
     return await _get_building_by_number(building_number, db)
 
 
 @building_router.get("/search/by_address", response_model=ShowBuilding | None,
-                     responses={404: {"description": "Зданение не найдено"}})
+                     responses={404: {"description": "Здание не найдено"}})
 async def get_building_by_address(address: str, db: AsyncSession = Depends(get_db)):
     return await _get_building_by_address(address, db)
 
@@ -316,12 +316,12 @@ async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], db: 
 
 
 @building_router.put("/delete/{building_number}", response_model=ShowBuilding,
-                     responses={404: {"description": "Зданение не найдено"}})
+                     responses={404: {"description": "Здание не найдено"}})
 async def delete_building(building_number: int, db: AsyncSession = Depends(get_db)):
     return await _delete_building(building_number, db)
 
 
-@building_router.put("/update", response_model=ShowBuilding, responses={404: {"description": "Зданение не найдено"}})
+@building_router.put("/update", response_model=ShowBuilding, responses={404: {"description": "Здание не найдено"}})
 async def update_building(body: UpdateBuilding, db: AsyncSession = Depends(get_db)):
     return await _update_building(body, db)
 
@@ -446,7 +446,7 @@ async def _update_cabinet(body: UpdateCabinet, db) -> ShowCabinet:
                 updated_cabinet = await cabinet_dal.update_cabinet(body.building_number, body.cabinet_number, **update_data)
 
                 if not updated_cabinet:
-                    raise HTTPException(status_code=404, detail="Кабинет не был обновлёен")
+                    raise HTTPException(status_code=404, detail="Кабинет не был обновлён")
 
                 return ShowCabinet.from_orm(updated_cabinet)
 
@@ -847,144 +847,130 @@ async def _create_new_curriculum(body: CreateCurriculum, db) -> ShowCurriculum:
             return ShowCurriculum.from_orm(curriculum)
 
 
-async def _get_group_by_name(group_name: str, db) -> ShowGroup:
+async def _get_curriculum(semester_number: int, group_name: str, subject_code: str, db) -> ShowCurriculum:
     async with db as session:
         async with session.begin(): 
-            group_dal = GroupDAL(session)
-            group = await group_dal.get_group(group_name)
+            curriculum_dal = CurriculumDAL(session)
+            curriculum = await curriculum_dal.get_curriculum(semester_number, group_name, subject_code)
 
-            # if group doesn't exist
-            if not group:
-                raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
+            # if curriculum doesn't exist
+            if not curriculum:
+                raise HTTPException(status_code=404, detail=f"План для предмета: {subject_code} в группе: {group_name} на семестр: {semester_number} не найден")
 
-            return ShowGroup.from_orm(group) 
+            return ShowCurriculum.from_orm(curriculum) 
 
 
-async def _get_all_groups(page: int, limit: int, db) -> list[ShowGroup]:
+async def _get_all_curriculums(page: int, limit: int, db) -> list[ShowCurriculum]:
     async with db as session:
         async with session.begin():
-            group_dal = GroupDAL(session)
-            groups = await group_dal.get_all_groups(page, limit)
+            curriculum_dal = CurriculumDAL(session)
+            curriculums = await curriculum_dal.get_all_curriculums(page, limit)
 
-            return [ShowGroup.from_orm(group) for group in groups]
-        
-
-async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: int, db) -> list[ShowGroup]:
-    async with db as session:
-        async with session.begin():
-            group_dal = GroupDAL(session)
-            speciality_dal = SpecialityDAL(session)
-
-            if not await ensure_speciality_exists(speciality_dal, speciality_code):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Специальность с кодом {speciality_code} не найдена"
-                )
-
-            groups = await group_dal.get_all_groups_by_speciality(speciality_code, page, limit)
-
-            return [ShowGroup.from_orm(group) for group in groups]
+            return [ShowCurriculum.from_orm(curriculum) for curriculum in curriculums]
 
 
-async def _delete_group(group_name: str, db) -> ShowGroup:
+async def _delete_curriculum(semester_number: int, group_name: str, subject_code: str, db) -> ShowCurriculum:
     async with db as session:
         try:
             async with session.begin():
-                group_dal = GroupDAL(session)
-                group = await group_dal.delete_group(group_name)
+                curriculum_dal = CurriculumDAL(session)
+                curriculum = await curriculum_dal.delete_curriculum(semester_number, group_name, subject_code)
 
-                if not group:
-                    raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
+                if not curriculum:
+                    raise HTTPException(status_code=404, detail=f"План для предмета: {subject_code} в группе: {group_name} на семестр: {semester_number} не найден")
 
-            return ShowGroup.from_orm(group)
+            return ShowCurriculum.from_orm(curriculum)
 
         except Exception as e:
-            logger.warning(f"Удаление группы отменено (Ошибка: {e})")
+            logger.warning(f"Удаление плана отменено (Ошибка: {e})")
             raise
 
 
-async def _update_group(body: UpdateGroup, db) -> ShowGroup:
+async def _update_curriculum(body: UpdateCurriculum, db) -> ShowCurriculum:
     async with db as session:
         try:
             async with session.begin():
                 # exclusion of None-fields from the transmitted data
                 update_data = {
                     key: value for key, value in body.dict().items() 
-                    if value is not None and key != "group_name"
+                    if value is not None and key not in ["semester_number", "group_name", "subject_code"]
                 }
 
                 group_dal = GroupDAL(session)
-                teacher_dal = TeacherDAL(session)
-                speciality_dal = SpecialityDAL(session)
+                subject_dal = SubjectDAL(session)
+                curriculum_dal = CurriculumDAL(session)
 
-                # Rename field new_speciality_code to speciality_code
-                if "new_group_name" in update_data:
-                    update_data["group_name"] = update_data.pop("new_group_name")
-
-                if body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+                if body.group_name != None and not await ensure_group_exists(group_dal, body.group_name):
                     raise HTTPException(
                         status_code=404,
-                        detail=f"Специальность с кодом {body.speciality_code} не найдена"
+                        detail=f"Группа с названием {body.group_name} не найдена"
                     )
                 
-                if body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+                if body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
                     raise HTTPException(
                         status_code=404,
-                        detail=f"Учитель с id {body.group_advisor_id} не найден"
+                        detail=f"Предмет с кодом {body.subject_code} не найден"
                     )
 
-                if not await ensure_group_unique(group_dal, body.new_group_name):
+                if not await ensure_curriculum_unique(curriculum_dal, body.semester_number, body.group_name, body.subject_code):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Группа {body.new_group_name} уже существует"
+                        detail=f"План для предмета: {body.subject_code} в группе: {body.group_name} на семестр: {body.semester_number} уже существует"
                     )
 
-                group = await group_dal.update_group(
-                    target_group=body.group_name,
+                # Rename field new_semester_number to semester_number
+                if "new_semester_number" in update_data:
+                    update_data["semester_number"] = update_data.pop("new_semester_number")
+                # Rename field new_group_name to group_name
+                if "new_group_name" in update_data:
+                    update_data["group_name"] = update_data.pop("new_group_name")
+                # Rename field new_subject_code to subject_code
+                if "new_subject_code" in update_data:
+                    update_data["subject_code"] = update_data.pop("new_subject_code")
+
+                curriculum = await curriculum_dal.update_curriculum(
+                    tg_semester_number = body.semester_number,
+                    tg_group_name = body.group_name,
+                    tg_subject_code = body.subject_code,
                     **update_data
                 )
 
                 # save changed data
                 await session.commit()
 
-                if not group:
-                    raise HTTPException(status_code=404, detail=f"Группа с названием: {body.group_name} не найдена")
+                if not curriculum:
+                    raise HTTPException(status_code=404, detail=f"План для предмета: {body.subject_code} в группе: {body.group_name} на семестр: {body.semester_number} не найден")
 
-            return ShowGroup.from_orm(group)
+            return ShowCurriculum.from_orm(curriculum)
 
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Изменение данных о группе отменено (Ошибка: {e})")
+            logger.warning(f"Изменение данных о плане отменено (Ошибка: {e})")
             raise
 
 
-@group_router.post("/create", response_model=ShowGroup)
-async def create_group(body: CreateGroup, db: AsyncSession = Depends(get_db)):
-    return await _create_new_group(body, db)
+@curriculum_router.post("/create", response_model=ShowCurriculum)
+async def create_curriculum(body: CreateCurriculum, db: AsyncSession = Depends(get_db)):
+    return await _create_new_curriculum(body, db)
 
 
-@group_router.get("/search/by_group_name/{group_name}", response_model=ShowGroup,
-                    responses={404: {"description": "Группа не найдена"}})
-async def get_group_by_name(group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _get_group_by_name(group_name, db)
+@curriculum_router.get("/search/{group_name}/{subject_code}/{semester_number}", response_model=ShowCurriculum,
+                    responses={404: {"description": "План не найден"}})
+async def get_curriculum(semester_number: int, group_name: str, subject_code: str, db: AsyncSession = Depends(get_db)):
+    return await _get_curriculum(semester_number, group_name, subject_code, db)
 
 
-@group_router.get("/search", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
-async def get_all_groups(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_groups(query_param.page, query_param.limit, db)
+@curriculum_router.get("/search", response_model=list[ShowCurriculum], responses={404: {"description": "Планы не найдены"}})
+async def get_all_curriculums(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_curriculums(query_param.page, query_param.limit, db)
 
 
-@group_router.get("/search/by_speciality/{speciality_code}", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
-async def get_all_groups_by_speciality(speciality_code: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_groups_by_speciality(speciality_code, query_param.page, query_param.limit, db)
+@curriculum_router.put("/delete/{group_name}/{subject_code}/{semester_number}", response_model=ShowCurriculum,
+                    responses={404: {"description": "План не найден"}})
+async def delete_curriculum(semester_number: int, group_name: str, subject_code: str, db: AsyncSession = Depends(get_db)):
+    return await _delete_curriculum(semester_number, group_name, subject_code, db)
 
 
-@group_router.put("/delete/{group_name}", response_model=ShowGroup,
-                    responses={404: {"description": "Группа не найдена"}})
-async def delete_group(group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_group(group_name, db)
-
-
-@group_router.put("/update", response_model=ShowGroup, responses={404: {"description": "Группа не найдена"}})
-async def update_group(body: UpdateGroup, db: AsyncSession = Depends(get_db)):
-    return await _update_group(body, db)
+@curriculum_router.put("/update", response_model=ShowCurriculum, responses={404: {"description": "План не найден"}})
+async def update_curriculum(body: UpdateCurriculum, db: AsyncSession = Depends(get_db)):
+    return await _update_curriculum(body, db)

@@ -410,7 +410,7 @@ class CurriculumDAL:
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
     
-    # tg mean target
+    # tg_ mean target
     @log_exceptions
     async def update_curriculum(self, tg_semester_number: int, tg_group_name: str, tg_subject_code: str, **kwargs) -> Curriculum | None:
         query = (
@@ -435,7 +435,7 @@ DAL for EmploymentTeacher
 
 
 class EmployTeacherDAL:
-    """Data Access Layer for operating techer's employment info"""
+    """Data Access Layer for operating teacher's employment info"""
 
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session

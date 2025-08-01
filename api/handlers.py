@@ -10,7 +10,7 @@ from typing import Annotated, Union
 # from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
 # from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
 from api.models import *
-from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique
+from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique
 from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, CurriculumDAL, SubjectDAL
 from db.session import get_db
 
@@ -24,7 +24,8 @@ building_router = APIRouter()  # Create router for buildings
 cabinet_router = APIRouter()  # Create route for cabinets
 speciality_router = APIRouter() # Create router for speciality
 group_router = APIRouter() # Create router for group
-curriculum_router = APIRouter() # Create router for group
+curriculum_router = APIRouter() # Create router for curriculum
+subject_router = APIRouter() # Create router for subject
 
 
 '''
@@ -974,3 +975,151 @@ async def delete_curriculum(semester_number: int, group_name: str, subject_code:
 @curriculum_router.put("/update", response_model=ShowCurriculum, responses={404: {"description": "План не найден"}})
 async def update_curriculum(body: UpdateCurriculum, db: AsyncSession = Depends(get_db)):
     return await _update_curriculum(body, db)
+
+
+'''
+===========================
+CRUD operations for subject
+===========================
+'''
+
+
+async def _create_new_subject(body: CreateSubject, db) -> ShowSubject:
+    async with db as session:
+        async with session.begin():
+            subject_dal = SubjectDAL(session)
+
+            # Check that the subject is unique
+            # By using helpers
+            if not await ensure_subject_unique(subject_dal, body.subject_code):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Предмет {body.subject_code} уже существует"
+                )
+
+            subject = await subject_dal.create_subject(
+                subject_code=body.subject_code,
+                name=body.name
+            )
+            return ShowSubject.from_orm(subject)
+
+
+async def _get_subject(subject_code: str, db) -> ShowSubject:
+    async with db as session:
+        async with session.begin(): 
+            subject_dal = SubjectDAL(session)
+            subject = await subject_dal.get_subject(subject_code)
+
+            # if curriculum doesn't exist
+            if not subject:
+                raise HTTPException(status_code=404, detail=f"Предмет {subject_code} не найден")
+
+            return ShowSubject.from_orm(subject) 
+
+
+async def _get_all_subjects(page: int, limit: int, db) -> list[ShowSubject]:
+    async with db as session:
+        async with session.begin():
+            subject_dal = SubjectDAL(session)
+            subjects = await subject_dal.get_all_subjects(page, limit)
+
+            return [ShowSubject.from_orm(subject) for subject in subjects]
+
+
+async def _get_all_subjects_by_name(name: str, page: int, limit: int, db) -> list[ShowSubject]:
+    async with db as session:
+        async with session.begin():
+            subject_dal = SubjectDAL(session)
+            subjects = await subject_dal.get_all_subjects(name, page, limit)
+
+            return [ShowSubject.from_orm(subject) for subject in subjects]
+        
+
+async def _delete_subject(subject_code: str, db) -> ShowSubject:
+    async with db as session:
+        try:
+            async with session.begin():
+                subject_dal = SubjectDAL(session)
+                subject = await subject_dal.delete_subject(subject_code)
+
+                if not subject:
+                    raise HTTPException(status_code=404, detail=f"План: {subject_code} не найден")
+
+            return ShowSubject.from_orm(subject)
+
+        except Exception as e:
+            logger.warning(f"Удаление предмета отменено (Ошибка: {e})")
+            raise
+
+
+async def _update_subject(body: UpdateSubject, db) -> ShowSubject:
+    async with db as session:
+        try:
+            async with session.begin():
+                # exclusion of None-fields from the transmitted data
+                update_data = {
+                    key: value for key, value in body.dict().items() 
+                    if value is not None and key not in ["subject_code"]
+                }
+
+                subject_dal = SubjectDAL(session)
+
+                if not await ensure_subject_unique(subject_dal, body.subject_code):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Предмет: {body.subject_code} уже существует"
+                    )
+                
+                # Rename field new_subject_code to subject_code
+                if "new_subject_code" in update_data:
+                    update_data["subject_code"] = update_data.pop("new_subject_code")
+
+                subject = await subject_dal.update_subject(
+                    tg_subject_code = body.subject_code
+                    **update_data
+                )
+
+                # save changed data
+                await session.commit()
+
+                if not subject:
+                    raise HTTPException(status_code=404, detail=f"Предмет: {body.subject_code} не найден")
+
+            return ShowSubject.from_orm(subject)
+
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о предмете отменено (Ошибка: {e})")
+            raise
+
+
+@subject_router.post("/create", response_model=ShowSubject)
+async def create_subject(body: CreateSubject, db: AsyncSession = Depends(get_db)):
+    return await _create_new_subject(body, db)
+
+
+@subject_router.get("/search/{subject_code}", response_model=ShowSubject,
+                    responses={404: {"description": "Предмет не найден"}})
+async def get_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
+    return await _get_subject(subject_code, db)
+
+
+@subject_router.get("/search", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
+async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_subjects(query_param.page, query_param.limit, db)
+
+
+@subject_router.get("/search/by_name", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
+async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_subjects_by_name(query_param.name, query_param.page, query_param.limit, db)
+
+
+@subject_router.put("/delete/{subject_code}", response_model=ShowSubject,
+                    responses={404: {"description": "Предмет не найден"}})
+async def delete_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
+    return await _delete_subject(subject_code, db)
+
+
+@subject_router.put("/update", response_model=ShowSubject, responses={404: {"description": "Предмет не найден"}})
+async def update_subject(body: UpdateSubject, db: AsyncSession = Depends(get_db)):
+    return await _update_subject(body, db)

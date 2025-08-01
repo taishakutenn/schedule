@@ -66,3 +66,15 @@ async def ensure_curriculum_unique(curriculum_dal: CurriculumDAL,
                                    semester_number: int, group_name: str, subject_code: str):
     curriculum = await curriculum_dal.get_curriculum(semester_number, group_name, subject_code)
     return curriculum is None
+
+
+'''
+===================
+Helpers for subject
+===================
+'''
+
+
+async def ensure_subject_unique(subject_dal: SubjectDAL, subject_code: str):
+    subject = await subject_dal.get_subject(subject_code)
+    return subject is None

@@ -204,3 +204,27 @@ class UpdateCurriculum(TunedModel):
     lectures_hours: float | None = None
     laboratory_hours: float | None = None
     practical_hours: float | None = None
+
+
+'''
+=======
+Subject
+=======
+''' 
+
+
+class ShowSubject(TunedModel):
+    """Class for get subject info"""
+    subject_code: str
+    name: str | None = None
+
+
+class CreateSubject(TunedModel):
+    subject_code: str
+    name: str | None = None
+
+
+class UpdateSubject(TunedModel):
+    subject_code: str
+    new_subject_code: str | None = None 
+    name: str | None = None

@@ -698,11 +698,12 @@ class SubjectDAL:
         subjects = list(result.scalar().all())
         return subjects
 
+    # tg_ mean target
     @log_exceptions
-    async def update_subject(self, subject_code: int, **kwargs) -> Subject | None:
+    async def update_subject(self, tg_subject_code: int, **kwargs) -> Subject | None:
         query = (
             update(Subject)
-            .where(Subject.subject_code == subject_code)
+            .where(Subject.subject_code == tg_subject_code)
             .values(**kwargs)
             .returning(Speciality)
         )

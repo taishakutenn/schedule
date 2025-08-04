@@ -385,6 +385,7 @@ class CurriculumDAL:
                 Curriculum.group_name == group_name,
                 Curriculum.subject_code == subject_code
             )
+            .returning(Curriculum)
         )
         res = await self.db_session.execute(query)
         deleted_curriculum = res.scalar_one_or_none()
@@ -685,7 +686,7 @@ class SubjectDAL:
         else:
             query = select(Subject).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
-        subjects = list(result.scalar().all())
+        subjects = list(result.scalars().all())
         return subjects
 
     @log_exceptions
@@ -693,9 +694,9 @@ class SubjectDAL:
         if page == 0:
             query = select(Subject).where(Subject.name == name).order_by(Subject.subject_code.asc())
         else:
-            query = select(Subject).offset((page - 1) * limit).limit(limit)
+            query = select(Subject).where(Subject.name == name).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
-        subjects = list(result.scalar().all())
+        subjects = list(result.scalars().all())
         return subjects
 
     # tg_ mean target
@@ -705,7 +706,7 @@ class SubjectDAL:
             update(Subject)
             .where(Subject.subject_code == tg_subject_code)
             .values(**kwargs)
-            .returning(Speciality)
+            .returning(Subject)
         )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()

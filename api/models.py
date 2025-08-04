@@ -180,18 +180,18 @@ class ShowCurriculum(TunedModel):
     semester_number: int
     group_name: str
     subject_code: str
-    lectures_hours: float | None = None
-    laboratory_hours: float | None = None
-    practical_hours: float | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practical_hours: int | None = None
 
 
 class CreateCurriculum(TunedModel):
     semester_number: int
     group_name: str
     subject_code: str
-    lectures_hours: float | None = None
-    laboratory_hours: float | None = None
-    practical_hours: float | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practical_hours: int | None = None
 
 
 class UpdateCurriculum(TunedModel):
@@ -201,9 +201,9 @@ class UpdateCurriculum(TunedModel):
     new_semester_number: int | None = None
     new_group_name: str | None = None
     new_subject_code: str | None = None
-    lectures_hours: float | None = None
-    laboratory_hours: float | None = None
-    practical_hours: float | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practical_hours: int | None = None
 
 
 '''

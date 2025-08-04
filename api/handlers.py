@@ -834,7 +834,7 @@ async def _create_new_curriculum(body: CreateCurriculum, db) -> ShowCurriculum:
             if not await ensure_curriculum_unique(curriculum_dal, body.semester_number, body.group_name, body.subject_code):
                 raise HTTPException(
                     status_code=400,
-                    detail=f"План для предмета {body.subject_code} в группе {body.group_name} уже существует"
+                    detail=f"План для предмета {body.subject_code} в группе {body.group_name} на семестр {body.semester_number} уже существует"
                 )
 
             curriculum = await curriculum_dal.create_curriculum(
@@ -901,22 +901,22 @@ async def _update_curriculum(body: UpdateCurriculum, db) -> ShowCurriculum:
                 subject_dal = SubjectDAL(session)
                 curriculum_dal = CurriculumDAL(session)
 
-                if body.group_name != None and not await ensure_group_exists(group_dal, body.group_name):
+                if body.new_group_name != None and not await ensure_group_exists(group_dal, body.new_group_name):
                     raise HTTPException(
                         status_code=404,
-                        detail=f"Группа с названием {body.group_name} не найдена"
+                        detail=f"Группа с названием {body.new_group_name} не найдена"
                     )
                 
-                if body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
+                if body.new_subject_code != None and not await ensure_subject_exists(subject_dal, body.new_subject_code):
                     raise HTTPException(
                         status_code=404,
-                        detail=f"Предмет с кодом {body.subject_code} не найден"
+                        detail=f"Предмет с кодом {body.new_subject_code} не найден"
                     )
 
-                if not await ensure_curriculum_unique(curriculum_dal, body.semester_number, body.group_name, body.subject_code):
+                if not await ensure_curriculum_unique(curriculum_dal, body.new_semester_number, body.group_name, body.subject_code):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"План для предмета: {body.subject_code} в группе: {body.group_name} на семестр: {body.semester_number} уже существует"
+                        detail=f"План для предмета: {body.subject_code} в группе: {body.group_name} на семестр: {body.new_semester_number} уже существует"
                     )
 
                 # Rename field new_semester_number to semester_number
@@ -1030,7 +1030,7 @@ async def _get_all_subjects_by_name(name: str, page: int, limit: int, db) -> lis
     async with db as session:
         async with session.begin():
             subject_dal = SubjectDAL(session)
-            subjects = await subject_dal.get_all_subjects(name, page, limit)
+            subjects = await subject_dal.get_subjects_by_name(name, page, limit)
 
             return [ShowSubject.from_orm(subject) for subject in subjects]
         
@@ -1064,10 +1064,10 @@ async def _update_subject(body: UpdateSubject, db) -> ShowSubject:
 
                 subject_dal = SubjectDAL(session)
 
-                if not await ensure_subject_unique(subject_dal, body.subject_code):
+                if not await ensure_subject_unique(subject_dal, body.new_subject_code):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Предмет: {body.subject_code} уже существует"
+                        detail=f"Предмет: {body.new_subject_code} уже существует"
                     )
                 
                 # Rename field new_subject_code to subject_code
@@ -1075,7 +1075,7 @@ async def _update_subject(body: UpdateSubject, db) -> ShowSubject:
                     update_data["subject_code"] = update_data.pop("new_subject_code")
 
                 subject = await subject_dal.update_subject(
-                    tg_subject_code = body.subject_code
+                    tg_subject_code = body.subject_code,
                     **update_data
                 )
 
@@ -1109,9 +1109,9 @@ async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], db: A
     return await _get_all_subjects(query_param.page, query_param.limit, db)
 
 
-@subject_router.get("/search/by_name", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
-async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_subjects_by_name(query_param.name, query_param.page, query_param.limit, db)
+@subject_router.get("/search/by_name/{name}", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
+async def get_all_subjects(name: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_subjects_by_name(name, query_param.page, query_param.limit, db)
 
 
 @subject_router.put("/delete/{subject_code}", response_model=ShowSubject,

@@ -35,8 +35,8 @@ async def ensure_teacher_exists(teacher_dal: TeacherDAL, teacher_id: int):
     return teacher
 
 
-async def ensure_speciality_exists(speciality_dal: SpecialityDAL, specilaity_code: str):
-    speciality = await speciality_dal.get_speciality(specilaity_code)
+async def ensure_speciality_exists(speciality_dal: SpecialityDAL, speciality_code: str):
+    speciality = await speciality_dal.get_speciality(speciality_code)
     return speciality
 
 

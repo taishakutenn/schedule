@@ -150,8 +150,8 @@ class Curriculum(Base):
     practical_hours = Column(Numeric(5, 2), nullable=True)
 
     # Foreign keys
-    group_name = Column(String, ForeignKey("groups.group_name"), primary_key=True, nullable=False)
-    subject_code = Column(String, ForeignKey("subjects.subject_code"), primary_key=True, nullable=False)
+    group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True, nullable=False)
+    subject_code = Column(String, ForeignKey("subjects.subject_code", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True, nullable=False)
 
     # Relationships
     group = relationship("Group", back_populates="curriculums")

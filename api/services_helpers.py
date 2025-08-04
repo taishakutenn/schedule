@@ -1,7 +1,9 @@
 from fastapi import HTTPException
 
-from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SubjectDAL, CurriculumDAL
+from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SubjectDAL, CurriculumDAL, EmployTeacherDAL
 from config.logging_config import configure_logging
+
+from sqlalchemy import Date
 
 logger = configure_logging()
 
@@ -78,3 +80,16 @@ Helpers for subject
 async def ensure_subject_unique(subject_dal: SubjectDAL, subject_code: str):
     subject = await subject_dal.get_subject(subject_code)
     return subject is None
+
+
+'''
+=============================
+Helpers for EmploymentTeacher
+=============================
+'''
+
+
+async def ensure_employment_unique(employment_dal: EmployTeacherDAL, 
+                                   date_start_period: Date, date_end_period: Date, teacher_id: int):
+    employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
+    return employment is None

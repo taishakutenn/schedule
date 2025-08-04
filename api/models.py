@@ -4,6 +4,7 @@ File for creating validation models
 
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from sqlalchemy import Date
 
 
 class TunedModel(BaseModel):
@@ -228,3 +229,50 @@ class UpdateSubject(TunedModel):
     subject_code: str
     new_subject_code: str | None = None 
     name: str | None = None
+
+
+'''
+=================
+EmploymentTeacher
+=================
+''' 
+
+
+class ShowEmployment(TunedModel):
+    """Class for get subject info"""
+    date_start_period: Date
+    date_end_period: Date
+    teacher_id: int
+    monday: str | None = None
+    tuesday: str | None = None
+    wednesday: str | None = None
+    thursday: str | None = None
+    friday: str | None = None
+    saturday: str | None = None
+
+
+class CreateEmployment(TunedModel):
+    date_start_period: Date
+    date_end_period: Date
+    teacher_id: int
+    monday: str | None = None
+    tuesday: str | None = None
+    wednesday: str | None = None
+    thursday: str | None = None
+    friday: str | None = None
+    saturday: str | None = None
+
+
+class UpdateEmployment(TunedModel):
+    date_start_period: Date
+    date_end_period: Date
+    teacher_id: int
+    new_date_start_period: Date | None = None
+    new_date_end_period: Date | None = None
+    new_teacher_id: int | None = None
+    monday: str | None = None
+    tuesday: str | None = None
+    wednesday: str | None = None
+    thursday: str | None = None
+    friday: str | None = None
+    saturday: str | None = None

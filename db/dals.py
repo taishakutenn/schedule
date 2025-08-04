@@ -445,7 +445,7 @@ class EmployTeacherDAL:
     async def create_employTeacher(
             self, date_start_period: Date, date_end_period: Date, teacher_id: int,  monday: str = None,
             tuesday: str = None, wednesday: str = None, thursday: str = None, 
-            friday: float = None, saturday: float = None
+            friday: str = None, saturday: str = None
     ) -> EmploymentTeacher:
         new_employTeacher = EmploymentTeacher(
             date_start_period=date_start_period,

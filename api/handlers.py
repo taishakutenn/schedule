@@ -26,6 +26,7 @@ speciality_router = APIRouter() # Create router for speciality
 group_router = APIRouter() # Create router for group
 curriculum_router = APIRouter() # Create router for curriculum
 subject_router = APIRouter() # Create router for subject
+employment_router = APIRouter() # Create router for EmploymentTeacher
 
 
 '''
@@ -1172,7 +1173,7 @@ async def _get_employment(date_start_period: Date, date_end_period: Date, teache
             return ShowEmployment.from_orm(employment) 
 
 
-async def _get_all_employment(page: int, limit: int, db) -> list[ShowEmployment]:
+async def _get_all_employments(page: int, limit: int, db) -> list[ShowEmployment]:
     async with db as session:
         async with session.begin():
             employment_dal = EmployTeacherDAL(session)
@@ -1181,7 +1182,7 @@ async def _get_all_employment(page: int, limit: int, db) -> list[ShowEmployment]
             return [ShowEmployment.from_orm(employment) for employment in employments]
 
 
-async def _get_all_employment_by_date(date_start_period: Date, date_end_period: Date, 
+async def _get_all_employments_by_date(date_start_period: Date, date_end_period: Date, 
                                         page: int, limit: int, db) -> list[ShowEmployment]:
     async with db as session:
         async with session.begin():
@@ -1257,33 +1258,33 @@ async def _update_employment(body: UpdateEmployment, db) -> ShowEmployment:
             raise
 
 
-@subject_router.post("/create", response_model=ShowSubject)
-async def create_subject(body: CreateSubject, db: AsyncSession = Depends(get_db)):
-    return await _create_new_subject(body, db)
+@employment_router.post("/create", response_model=ShowEmployment)
+async def create_employment(body: CreateEmployment, db: AsyncSession = Depends(get_db)):
+    return await _create_new_employment(body, db)
 
 
-@subject_router.get("/search/{subject_code}", response_model=ShowSubject,
-                    responses={404: {"description": "Предмет не найден"}})
-async def get_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
-    return await _get_subject(subject_code, db)
+@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowSubject,
+                    responses={404: {"description": "График не найден"}})
+async def get_employment(date_start_period: Date, date_end_period: Date, teacher_id: int, db: AsyncSession = Depends(get_db)):
+    return await _get_employment(date_start_period, date_end_period, teacher_id, db)
 
 
-@subject_router.get("/search", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
-async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_subjects(query_param.page, query_param.limit, db)
+@employment_router.get("/search", response_model=list[ShowEmployment], responses={404: {"description": "График не найден"}})
+async def get_all_employments(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_employments(query_param.page, query_param.limit, db)
 
 
-@subject_router.get("/search/by_name/{name}", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
-async def get_all_subjects(name: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_subjects_by_name(name, query_param.page, query_param.limit, db)
+@employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=list[ShowEmployment], responses={404: {"description": "График не найдены"}})
+async def get_all_employments_by_date(date_start_period: Date, date_end_period: Date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, db)
 
 
-@subject_router.put("/delete/{subject_code}", response_model=ShowSubject,
-                    responses={404: {"description": "Предмет не найден"}})
-async def delete_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_subject(subject_code, db)
+@employment_router.put("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmployment,
+                    responses={404: {"description": "График не найден"}})
+async def delete_employment(date_start_period: Date, date_end_period: Date, teacher_id: int, db: AsyncSession = Depends(get_db)):
+    return await _delete_employment(date_start_period, date_end_period, teacher_id, db)
 
 
-@subject_router.put("/update", response_model=ShowSubject, responses={404: {"description": "Предмет не найден"}})
-async def update_subject(body: UpdateSubject, db: AsyncSession = Depends(get_db)):
-    return await _update_subject(body, db)
+@employment_router.put("/update", response_model=ShowEmployment, responses={404: {"description": "График не найден"}})
+async def update_employment(body: UpdateEmployment, db: AsyncSession = Depends(get_db)):
+    return await _update_employment(body, db)

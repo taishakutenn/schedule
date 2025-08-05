@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SubjectDAL, CurriculumDAL, EmployTeacherDAL
+from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SubjectDAL, CurriculumDAL, EmployTeacherDAL, TeacherRequestDAL
 from config.logging_config import configure_logging
 
 from sqlalchemy import Date
@@ -72,3 +72,9 @@ async def ensure_employment_unique(employment_dal: EmployTeacherDAL,
                                    date_start_period: Date, date_end_period: Date, teacher_id: int):
     employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
     return employment is None
+
+# TeacherRequest
+async def ensure_request_unique(request_dal: TeacherRequestDAL, date_request: Date, teacher_id: int,
+                                subject_code: str, group_name: str):
+    request = await request_dal.get_teacherRequest(date_request, teacher_id, subject_code, group_name)
+    return request is None

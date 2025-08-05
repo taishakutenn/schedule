@@ -276,3 +276,45 @@ class UpdateEmployment(TunedModel):
     thursday: str | None = None
     friday: str | None = None
     saturday: str | None = None
+
+
+'''
+==============
+TeacherRequest
+==============
+''' 
+
+
+class ShowTeacherRequest(TunedModel):
+    """Class for get subject info"""
+    date_request: Date
+    teacher_id: int
+    subject_code: str
+    group_name: str
+    lectures_hours: int
+    laboratory_hours: int
+    practice_hours: int
+
+
+class CreateTeacherRequest(TunedModel):
+    date_request: Date
+    teacher_id: int
+    subject_code: str
+    group_name: str
+    lectures_hours: int
+    laboratory_hours: int
+    practice_hours: int
+
+
+class UpdateTeacherRequest(TunedModel):
+    date_request: Date
+    teacher_id: int
+    subject_code: str
+    group_name: str
+    new_date_request: Date | None = None
+    new_teacher_id: int | None = None
+    new_subject_code: str | None = None
+    new_group_name: str | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practice_hours: int | None = None

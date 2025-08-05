@@ -747,17 +747,15 @@ class TeacherRequestDAL:
     @log_exceptions
     async def delete_teacherRequest(self, date_request: Date, teacher_id: int,
                                     subject_code: str, group_name: str) -> TeacherRequest | None:
-        query_select = select(TeacherRequest).where(
+        query = delete(TeacherRequest).where(
             TeacherRequest.date_request == date_request,
             TeacherRequest.teacher_id == teacher_id,
             TeacherRequest.subject_code == subject_code,
             TeacherRequest.group_name == group_name
             )
-        res = await self.db_session.execute(query_select)
+        res = await self.db_session.execute(query)
         teacherRequest = res.scalar_one_or_none()
-
-        await self.db_session.execute(delete(TeacherRequest).where(TeacherRequest.id == id))
-        return teacherRequest  # Return orm object which was in the database
+        return teacherRequest
 
     @log_exceptions
     async def get_all_teachersRequests(self, page: int, limit: int) -> list[TeacherRequest]:
@@ -784,15 +782,16 @@ class TeacherRequestDAL:
         result = await self.db_session.execute(query)
         return list(result.scalars().all())
 
+    # tg_ mean target
     @log_exceptions
-    async def update_teacherRequest(self,date_request: Date, teacher_id: int,
-                                subject_code: str, group_name: str, **kwargs) -> TeacherRequest | None:
+    async def update_teacherRequest(self, tg_date_request: Date, tg_teacher_id: int,
+                                tg_subject_code: str, tg_group_name: str, **kwargs) -> TeacherRequest | None:
         result = await self.db_session.execute(
             update(Teacher).where(
-            TeacherRequest.date_request == date_request,
-            TeacherRequest.teacher_id == teacher_id,
-            TeacherRequest.subject_code == subject_code,
-            TeacherRequest.group_name == group_name
+            TeacherRequest.date_request == tg_date_request,
+            TeacherRequest.teacher_id == tg_teacher_id,
+            TeacherRequest.subject_code == tg_subject_code,
+            TeacherRequest.group_name == tg_group_name
             ).values(**kwargs).returning(Teacher)
         )
         return result.scalar_one_or_none()

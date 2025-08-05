@@ -4,7 +4,7 @@ File for creating validation models
 
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
-from sqlalchemy import Date
+from datetime import date
 
 
 class TunedModel(BaseModel):
@@ -240,8 +240,8 @@ EmploymentTeacher
 
 class ShowEmployment(TunedModel):
     """Class for get subject info"""
-    date_start_period: Date
-    date_end_period: Date
+    date_start_period: date
+    date_end_period: date
     teacher_id: int
     monday: str | None = None
     tuesday: str | None = None
@@ -252,8 +252,8 @@ class ShowEmployment(TunedModel):
 
 
 class CreateEmployment(TunedModel):
-    date_start_period: Date
-    date_end_period: Date
+    date_start_period: date
+    date_end_period: date
     teacher_id: int
     monday: str | None = None
     tuesday: str | None = None
@@ -264,11 +264,11 @@ class CreateEmployment(TunedModel):
 
 
 class UpdateEmployment(TunedModel):
-    date_start_period: Date
-    date_end_period: Date
+    date_start_period: date
+    date_end_period: date
     teacher_id: int
-    new_date_start_period: Date | None = None
-    new_date_end_period: Date | None = None
+    new_date_start_period: date | None = None
+    new_date_end_period: date | None = None
     new_teacher_id: int | None = None
     monday: str | None = None
     tuesday: str | None = None
@@ -287,7 +287,7 @@ TeacherRequest
 
 class ShowTeacherRequest(TunedModel):
     """Class for get subject info"""
-    date_request: Date
+    date_request: date
     teacher_id: int
     subject_code: str
     group_name: str
@@ -297,7 +297,7 @@ class ShowTeacherRequest(TunedModel):
 
 
 class CreateTeacherRequest(TunedModel):
-    date_request: Date
+    date_request: date
     teacher_id: int
     subject_code: str
     group_name: str
@@ -307,11 +307,11 @@ class CreateTeacherRequest(TunedModel):
 
 
 class UpdateTeacherRequest(TunedModel):
-    date_request: Date
+    date_request: date
     teacher_id: int
     subject_code: str
     group_name: str
-    new_date_request: Date | None = None
+    new_date_request: date | None = None
     new_teacher_id: int | None = None
     new_subject_code: str | None = None
     new_group_name: str | None = None

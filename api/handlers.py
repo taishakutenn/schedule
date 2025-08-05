@@ -1167,7 +1167,7 @@ async def _create_new_employment(body: CreateEmployment, db) -> ShowEmployment:
             return ShowEmployment.from_orm(employment)
 
 
-async def _get_employment(date_start_period: Date, date_end_period: Date, teacher_id: int, db) -> ShowEmployment:
+async def _get_employment(date_start_period: date, date_end_period: date, teacher_id: int, db) -> ShowEmployment:
     async with db as session:
         async with session.begin(): 
             employment_dal = EmployTeacherDAL(session)
@@ -1189,7 +1189,7 @@ async def _get_all_employments(page: int, limit: int, db) -> list[ShowEmployment
             return [ShowEmployment.from_orm(employment) for employment in employments]
 
 
-async def _get_all_employments_by_date(date_start_period: Date, date_end_period: Date, 
+async def _get_all_employments_by_date(date_start_period: date, date_end_period: date, 
                                         page: int, limit: int, db) -> list[ShowEmployment]:
     async with db as session:
         async with session.begin():
@@ -1199,7 +1199,7 @@ async def _get_all_employments_by_date(date_start_period: Date, date_end_period:
             return [ShowEmployment.from_orm(employment) for employment in employments]
         
 
-async def _delete_employment(date_start_period: Date, date_end_period: Date, teacher_id: int, db) -> ShowEmployment:
+async def _delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, db) -> ShowEmployment:
     async with db as session:
         try:
             async with session.begin():
@@ -1280,7 +1280,7 @@ async def create_employment(body: CreateEmployment, db: AsyncSession = Depends(g
 
 @employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowSubject,
                     responses={404: {"description": "График не найден"}})
-async def get_employment(date_start_period: Date, date_end_period: Date, teacher_id: int, db: AsyncSession = Depends(get_db)):
+async def get_employment(date_start_period: date, date_end_period: date, teacher_id: int, db: AsyncSession = Depends(get_db)):
     return await _get_employment(date_start_period, date_end_period, teacher_id, db)
 
 
@@ -1290,13 +1290,13 @@ async def get_all_employments(query_param: Annotated[QueryParams, Depends()], db
 
 
 @employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=list[ShowEmployment], responses={404: {"description": "График не найдены"}})
-async def get_all_employments_by_date(date_start_period: Date, date_end_period: Date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+async def get_all_employments_by_date(date_start_period: date, date_end_period: date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, db)
 
 
 @employment_router.put("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmployment,
                     responses={404: {"description": "График не найден"}})
-async def delete_employment(date_start_period: Date, date_end_period: Date, teacher_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, db: AsyncSession = Depends(get_db)):
     return await _delete_employment(date_start_period, date_end_period, teacher_id, db)
 
 
@@ -1356,7 +1356,7 @@ async def _create_new_request(body: CreateTeacherRequest, db) -> ShowTeacherRequ
             return ShowTeacherRequest.from_orm(request)
 
 
-async def _get_request(date_request: Date, teacher_id: int, subject_code: str, group_name: str, db) -> ShowTeacherRequest:
+async def _get_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db) -> ShowTeacherRequest:
     async with db as session:
         async with session.begin(): 
             request_dal = TeacherRequestDAL(session)
@@ -1387,7 +1387,7 @@ async def _get_all_requests_by_teacher(teacher_id: int, page: int, limit: int, d
             return [ShowTeacherRequest.from_orm(request) for request in requests]
         
 
-async def _delete_request(date_request: Date, teacher_id: int, subject_code: str, group_name: str, db) -> ShowTeacherRequest:
+async def _delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db) -> ShowTeacherRequest:
     async with db as session:
         try:
             async with session.begin():
@@ -1485,7 +1485,7 @@ async def create_request(body: CreateTeacherRequest, db: AsyncSession = Depends(
 
 @request_router.get("/search/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,
                     responses={404: {"description": "Запрос не найден"}})
-async def get_request(date_request: Date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
+async def get_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
     return await _get_request(date_request, teacher_id, subject_code, group_name, db)
 
 
@@ -1502,7 +1502,7 @@ async def get_all_requests_by_teacher(teacher_id: int, query_param: Annotated[Qu
 
 @request_router.put("/delete/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,
                     responses={404: {"description": "Запрос не найден"}})
-async def delete_request(date_request: Date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
+async def delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
     return await _delete_request(date_request, teacher_id, subject_code, group_name, db)
 
 

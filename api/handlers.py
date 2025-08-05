@@ -1137,9 +1137,15 @@ async def _create_new_employment(body: CreateEmployment, db) -> ShowEmployment:
     async with db as session:
         async with session.begin():
             employment_dal = EmployTeacherDAL(session)
+            teacher_dal = TeacherDAL(session)
 
             # Check that the employment is unique
             # By using helpers
+            if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Учитель: {body.teacher_id} не существует"
+                )
             if not await ensure_employment_unique(employment_dal, body.date_start_period, body.date_end_period, body.teacher_id):
                 raise HTTPException(
                     status_code=400,
@@ -1220,16 +1226,24 @@ async def _update_employment(body: UpdateEmployment, db) -> ShowEmployment:
                 }
 
                 employment_dal = EmployTeacherDAL(session)
+                teacher_dal = TeacherDAL(session)
 
-                if not await ensure_employment_unique(employment_dal, body.date_start_period, body.date_end_period, body.teacher_id):
+                # Check that the employment is unique
+                # By using helpers
+                if not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} уже существует"
+                        detail=f"Учитель: {body.new_teacher_id} не существует"
+                    )
+                if not await ensure_employment_unique(employment_dal, body.new_date_start_period, body.new_date_end_period, body.new_teacher_id):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"График преподавателя {body.new_teacher_id} начиная с {body.new_date_start_period} и заканчивая {body.new_date_end_period} уже существует"
                     )
                 
-                # Rename field new_teacher_id to date_start_period
-                if "new_teacher_id" in update_data:
-                    update_data["date_start_period"] = update_data.pop("new_teacher_id")
+                # Rename field new_date_start_period to date_start_period
+                if "new_date_start_period" in update_data:
+                    update_data["date_start_period"] = update_data.pop("new_date_start_period")
                 # Rename field new_date_end_period to date_end_period
                 if "new_subject_code" in update_data:
                     update_data["date_end_period"] = update_data.pop("new_date_end_period")

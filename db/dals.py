@@ -499,7 +499,7 @@ class EmployTeacherDAL:
         return res.scalar_one_or_none()
     
     @log_exceptions
-    async def get_employTeacher_by_date(self, date_start_period: Date, date_end_period: Date, 
+    async def get_all_employTeacher_by_date(self, date_start_period: Date, date_end_period: Date, 
                                         page: int, limit: int) -> list[EmploymentTeacher] | None:
         if page == 0:
             query = select(EmploymentTeacher).where(
@@ -512,14 +512,15 @@ class EmployTeacherDAL:
         employs = list(result.scalars().all())
         return employs
     
+    # tg_ mean target
     @log_exceptions
-    async def update_employTeacher(self, date_start_period: Date, date_end_period: Date, teacher_id: int, **kwargs) -> EmploymentTeacher | None:
+    async def update_employTeacher(self, tg_date_start_period: Date, tg_date_end_period: Date, tg_teacher_id: int, **kwargs) -> EmploymentTeacher | None:
         query = (
             update(EmploymentTeacher)
             .where(
-                EmploymentTeacher.date_start_period == date_start_period,
-                EmploymentTeacher.date_end_period == date_end_period,
-                EmploymentTeacher.teacher_id == teacher_id
+                EmploymentTeacher.date_start_period == tg_date_start_period,
+                EmploymentTeacher.date_end_period == tg_date_end_period,
+                EmploymentTeacher.teacher_id == tg_teacher_id
             )
             .values(**kwargs)
             .returning(EmploymentTeacher)

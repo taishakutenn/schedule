@@ -1159,92 +1159,101 @@ async def _create_new_employment(body: CreateEmployment, db) -> ShowEmployment:
             return ShowEmployment.from_orm(employment)
 
 
-async def _get_subject(subject_code: str, db) -> ShowSubject:
+async def _get_employment(date_start_period: Date, date_end_period: Date, teacher_id: int, db) -> ShowEmployment:
     async with db as session:
         async with session.begin(): 
-            subject_dal = SubjectDAL(session)
-            subject = await subject_dal.get_subject(subject_code)
+            employment_dal = EmployTeacherDAL(session)
+            employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
 
             # if curriculum doesn't exist
-            if not subject:
-                raise HTTPException(status_code=404, detail=f"Предмет {subject_code} не найден")
+            if not employment:
+                raise HTTPException(status_code=404, detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден")
 
-            return ShowSubject.from_orm(subject) 
+            return ShowEmployment.from_orm(employment) 
 
 
-async def _get_all_subjects(page: int, limit: int, db) -> list[ShowSubject]:
+async def _get_all_employment(page: int, limit: int, db) -> list[ShowEmployment]:
     async with db as session:
         async with session.begin():
-            subject_dal = SubjectDAL(session)
-            subjects = await subject_dal.get_all_subjects(page, limit)
+            employment_dal = EmployTeacherDAL(session)
+            employments = await employment_dal.get_all_employTeacher(page, limit)
 
-            return [ShowSubject.from_orm(subject) for subject in subjects]
+            return [ShowEmployment.from_orm(employment) for employment in employments]
 
 
-async def _get_all_subjects_by_name(name: str, page: int, limit: int, db) -> list[ShowSubject]:
+async def _get_all_employment_by_date(date_start_period: Date, date_end_period: Date, 
+                                        page: int, limit: int, db) -> list[ShowEmployment]:
     async with db as session:
         async with session.begin():
-            subject_dal = SubjectDAL(session)
-            subjects = await subject_dal.get_subjects_by_name(name, page, limit)
+            employment_dal = EmployTeacherDAL(session)
+            employments = await employment_dal.get_all_employTeacher_by_date(date_start_period, date_end_period, page, limit)
 
-            return [ShowSubject.from_orm(subject) for subject in subjects]
+            return [ShowEmployment.from_orm(employment) for employment in employments]
         
 
-async def _delete_subject(subject_code: str, db) -> ShowSubject:
+async def _delete_employment(date_start_period: Date, date_end_period: Date, teacher_id: int, db) -> ShowEmployment:
     async with db as session:
         try:
             async with session.begin():
-                subject_dal = SubjectDAL(session)
-                subject = await subject_dal.delete_subject(subject_code)
+                employment_dal = EmployTeacherDAL(session)
+                employment = await employment_dal.delete_employTeacher(date_start_period, date_end_period, teacher_id)
 
-                if not subject:
-                    raise HTTPException(status_code=404, detail=f"План: {subject_code} не найден")
+                if not employment:
+                    raise HTTPException(status_code=404, detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден")
 
-            return ShowSubject.from_orm(subject)
+            return ShowEmployment.from_orm(employment)
 
         except Exception as e:
-            logger.warning(f"Удаление предмета отменено (Ошибка: {e})")
+            logger.warning(f"Удаление графика отменено (Ошибка: {e})")
             raise
 
 
-async def _update_subject(body: UpdateSubject, db) -> ShowSubject:
+async def _update_employment(body: UpdateEmployment, db) -> ShowEmployment:
     async with db as session:
         try:
             async with session.begin():
                 # exclusion of None-fields from the transmitted data
                 update_data = {
                     key: value for key, value in body.dict().items() 
-                    if value is not None and key not in ["subject_code"]
+                    if value is not None and key not in ["date_start_period", "date_end_period", "teacher_id"]
                 }
 
-                subject_dal = SubjectDAL(session)
+                employment_dal = EmployTeacherDAL(session)
 
-                if not await ensure_subject_unique(subject_dal, body.new_subject_code):
+                if not await ensure_employment_unique(employment_dal, body.date_start_period, body.date_end_period, body.teacher_id):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Предмет: {body.new_subject_code} уже существует"
+                        detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} уже существует"
                     )
                 
-                # Rename field new_subject_code to subject_code
+                # Rename field new_teacher_id to date_start_period
+                if "new_teacher_id" in update_data:
+                    update_data["date_start_period"] = update_data.pop("new_teacher_id")
+                # Rename field new_date_end_period to date_end_period
                 if "new_subject_code" in update_data:
-                    update_data["subject_code"] = update_data.pop("new_subject_code")
+                    update_data["date_end_period"] = update_data.pop("new_date_end_period")
+                # Rename field new_teacher_id to teacher_id
+                if "new_teacher_id" in update_data:
+                    update_data["teacher_id"] = update_data.pop("new_teacher_id")
 
-                subject = await subject_dal.update_subject(
-                    tg_subject_code = body.subject_code,
+                employment = await employment_dal.update_employTeacher(
+                    tg_date_start_period = body.date_start_period,
+                    tg_date_end_period = body.date_end_period,
+                    tg_teacher_id = body.teacher_id,
                     **update_data
                 )
 
                 # save changed data
                 await session.commit()
 
-                if not subject:
-                    raise HTTPException(status_code=404, detail=f"Предмет: {body.subject_code} не найден")
+                if not employment:
+                    raise HTTPException(status_code=404, detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} не найден")
 
-            return ShowSubject.from_orm(subject)
+            return ShowEmployment.from_orm(employment)
 
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Изменение данных о предмете отменено (Ошибка: {e})")
+            logger.warning(f"Изменение данных о графике отменено (Ошибка: {e})")
             raise
 
 

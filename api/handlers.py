@@ -28,6 +28,7 @@ curriculum_router = APIRouter() # Create router for curriculum
 subject_router = APIRouter() # Create router for subject
 employment_router = APIRouter() # Create router for EmploymentTeacher
 request_router = APIRouter() # Create router for TeacherRequest
+session_router = APIRouter() # Create router for Session
 
 
 '''
@@ -1675,34 +1676,46 @@ async def _update_session(body: UpdateSession, db) -> ShowSession:
             raise
 
 
-# @request_router.post("/create", response_model=ShowTeacherRequest)
-# async def create_request(body: CreateTeacherRequest, db: AsyncSession = Depends(get_db)):
-#     return await _create_new_request(body, db)
+@session_router.post("/create", response_model=ShowSession)
+async def create_session(body: CreateSession, db: AsyncSession = Depends(get_db)):
+    return await _create_new_session(body, db)
 
 
-# @request_router.get("/search/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,
-#                     responses={404: {"description": "Запрос не найден"}})
-# async def get_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
-#     return await _get_request(date_request, teacher_id, subject_code, group_name, db)
+@session_router.get("/search/{session_number}/{date}/{group_name}", response_model=ShowSession,
+                    responses={404: {"description": "Сессия не найдена"}})
+async def get_session(session_number: int, date: date, group_name: str, db: AsyncSession = Depends(get_db)):
+    return await _get_session(session_number, date, group_name, db)
 
 
-# @request_router.get("/search", response_model=list[ShowTeacherRequest], responses={404: {"description": "Запрос не найден"}})
-# async def get_all_requests(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-#     return await _get_all_requests(query_param.page, query_param.limit, db)
+@session_router.get("/search", response_model=list[ShowSession], responses={404: {"description": "Сессия не найдена"}})
+async def get_all_sessions(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_sessions(query_param.page, query_param.limit, db)
 
 
-# @request_router.get("/search/by_teacher/{teacher_id}", 
-#                     response_model=list[ShowTeacherRequest], responses={404: {"description": "Запрос не найдены"}})
-# async def get_all_requests_by_teacher(teacher_id: int, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-#     return await _get_all_requests_by_teacher(teacher_id, query_param.page, query_param.limit, db)
+@session_router.get("/search/by_date/{date}", 
+                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
+async def get_all_session_by_date(date: date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_sessions_by_date(date, query_param.page, query_param.limit, db)
 
 
-# @request_router.put("/delete/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,
-#                     responses={404: {"description": "Запрос не найден"}})
-# async def delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
-#     return await _delete_request(date_request, teacher_id, subject_code, group_name, db)
+@session_router.get("/search/by_teacher/{teacher_id}", 
+                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
+async def get_all_session_by_date(teacher_id: int, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_sessions_by_teacher(teacher_id, query_param.page, query_param.limit, db)
 
 
-# @request_router.put("/update", response_model=ShowTeacherRequest, responses={404: {"description": "Запрос не найден"}})
-# async def update_request(body: UpdateTeacherRequest, db: AsyncSession = Depends(get_db)):
-#     return await _update_request(body, db)
+@session_router.get("/search/by_group/{group_name}", 
+                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
+async def get_all_session_by_date(group_name: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_sessions_by_group(group_name, query_param.page, query_param.limit, db)
+
+
+@session_router.put("/delete/{session_number}/{date}/{group_name}", response_model=ShowSession,
+                    responses={404: {"description": "Сессия не найдена"}})
+async def delete_session(session_number: int, date: date, group_name: str, db: AsyncSession = Depends(get_db)):
+    return await _delete_session(session_number, date, group_name, db)
+
+
+@session_router.put("/update", response_model=ShowSession, responses={404: {"description": "Сессия не найдена"}})
+async def update_session(body: UpdateSession, db: AsyncSession = Depends(get_db)):
+    return await _update_session(body, db)

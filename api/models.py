@@ -318,3 +318,46 @@ class UpdateTeacherRequest(TunedModel):
     lectures_hours: int | None = None
     laboratory_hours: int | None = None
     practice_hours: int | None = None
+
+
+'''
+=======
+Session
+=======
+'''
+
+
+class ShowSession(TunedModel):
+    session_number: int
+    date: date
+    group_name: str
+    session_type: str
+    subject_code: str | None = None
+    teacher_id: int | None = None
+    cabinet_number: int
+    building_number: int
+
+
+class CreateSession(TunedModel):
+    session_number: int
+    date: date
+    group_name: str
+    session_type: str
+    subject_code: str | None = None
+    teacher_id: int | None = None
+    cabinet_number: int
+    building_number: int
+
+
+class UpdateSession(TunedModel):
+    session_number: int
+    session_date: date
+    group_name: str
+    new_session_number: int
+    new_session_date: date
+    new_group_name: str
+    session_type: str
+    subject_code: str | None = None
+    teacher_id: int | None = None
+    cabinet_number: int
+    building_number: int

@@ -597,7 +597,7 @@ class SessionDAL:
         return res.scalar_one_or_none()
     
     @log_exceptions
-    async def get_session_by_date(self, date: Date, page: int, limit: int) -> list[Session] | None:
+    async def get_all_sessions_by_date(self, date: Date, page: int, limit: int) -> list[Session] | None:
         if page == 0:
             query = select(Session).where(Session.date == date).order_by(Session.session_number.asc())
         else:
@@ -607,7 +607,7 @@ class SessionDAL:
         return sessions
     
     @log_exceptions
-    async def get_session_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[Session] | None:
+    async def get_all_sessions_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[Session] | None:
         if page == 0:
             query = select(Session).where(Session.teacher_id == teacher_id).order_by(Session.date.asc())
         else:
@@ -617,7 +617,7 @@ class SessionDAL:
         return sessions
     
     @log_exceptions
-    async def get_session_by_group(self, group_name: str, page: int, limit: int) -> list[Session] | None:
+    async def get_all_sessions_by_group(self, group_name: str, page: int, limit: int) -> list[Session] | None:
         if page == 0:
             query = select(Session).where(Session.group_name == group_name).order_by(Session.date.asc())
         else:
@@ -626,14 +626,15 @@ class SessionDAL:
         sessions = list(result.scalars().all())
         return sessions
     
+    # tg_ mean target
     @log_exceptions
-    async def update_session(self, session_number: int, date: Date, group_name: str, **kwargs) -> Session | None:
+    async def update_session(self, tg_session_number: int, tg_date: Date, tg_group_name: str, **kwargs) -> Session | None:
         query = (
             update(Session)
             .where(
-                Session.session_number == session_number,
-                Session.date == date,
-                Session.group_name == group_name
+                Session.session_number == tg_session_number,
+                Session.date == tg_date,
+                Session.group_name == tg_group_name
             )
             .values(**kwargs)
             .returning(Session)

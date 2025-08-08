@@ -10,8 +10,8 @@ from typing import Annotated, Union
 # from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
 # from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
 from api.models import *
-from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique, ensure_employment_unique, ensure_request_unique
-from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, CurriculumDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL
+from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique
+from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, CurriculumDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL
 from db.session import get_db
 
 from config.logging_config import configure_logging
@@ -1328,12 +1328,12 @@ async def _create_new_request(body: CreateTeacherRequest, db) -> ShowTeacherRequ
                     status_code=400,
                     detail=f"Учитель: {body.teacher_id} не существует"
                 )
-            if not await ensure_subject_exists(subject_dal, body.teacher_id):
+            if not await ensure_subject_exists(subject_dal, body.subject_code):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Предмет: {body.subject_code} не существует"
                 )
-            if not await ensure_group_exists(group_dal, body.teacher_id):
+            if not await ensure_group_exists(group_dal, body.group_name):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Группа: {body.group_name} не существует"
@@ -1509,3 +1509,200 @@ async def delete_request(date_request: date, teacher_id: int, subject_code: str,
 @request_router.put("/update", response_model=ShowTeacherRequest, responses={404: {"description": "Запрос не найден"}})
 async def update_request(body: UpdateTeacherRequest, db: AsyncSession = Depends(get_db)):
     return await _update_request(body, db)
+
+
+'''
+===========================
+CRUD operations for Session
+===========================
+'''
+
+
+async def _create_new_session(body: CreateSession, db) -> ShowSession:
+    async with db as session:
+        async with session.begin():
+            session_dal = SessionDAL(session)
+            group_dal = GroupDAL(session)
+
+            # Check that the group exists
+            # Check that the employment is unique
+            # By using helpers
+            if not await ensure_group_exists(group_dal, body.group_name):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Группа: {body.group_name} не существует"
+                )
+            if not await ensure_session_unique(session_dal, body.session_number, body.date, body.group_name):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Сессия у преподавателя под номером {body.session_number} для группы {body.group_name} на дату {body.date} уже существует"
+                )
+
+            session = await session_dal.create_session(
+            session_number=body.session_number,
+            date=body.date,
+            group_name=body.group_name,
+            session_type=body.session_type,
+            subject_code=body.subject_code,
+            teacher_id=body.teacher_id,
+            cabinet_number=body.cabinet_number,
+            building_number=body.building_number
+            )
+            return ShowSession.from_orm(session)
+
+
+async def _get_session(session_number: int, date: date, group_name: str, db) -> ShowSession:
+    async with db as session:
+        async with session.begin(): 
+            session_dal = SessionDAL(session)
+            data_session = await session_dal.get_session(session_number, date, group_name)
+
+            # if session doesn't exist
+            if not data_session:
+                raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} уже существует")
+
+            return ShowSession.from_orm(data_session) 
+
+
+async def _get_all_sessions(page: int, limit: int, db) -> list[ShowSession]:
+    async with db as session:
+        async with session.begin():
+            session_dal = SessionDAL(session)
+            data_sessions = await session_dal.get_all_sessions(page, limit)
+
+            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+
+
+async def _get_all_sessions_by_date(date: date, page: int, limit: int, db) -> list[ShowSession]:
+    async with db as session:
+        async with session.begin():
+            session_dal = SessionDAL(session)
+            data_sessions = await session_dal.get_all_sessions_by_date(date, page, limit)
+
+            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+        
+
+async def _get_all_sessions_by_teacher(teacher_id: int, page: int, limit: int, db) -> list[ShowSession]:
+    async with db as session:
+        async with session.begin():
+            session_dal = SessionDAL(session)
+            data_sessions = await session_dal.get_all_sessions_by_teacher(teacher_id, page, limit)
+
+            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+        
+
+async def _get_all_sessions_by_group(group_name: str, page: int, limit: int, db) -> list[ShowSession]:
+    async with db as session:
+        async with session.begin():
+            session_dal = SessionDAL(session)
+            data_sessions = await session_dal.get_all_sessions_by_group(group_name, page, limit)
+
+            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+        
+
+async def _delete_session(session_number: int, date: date, group_name: str, db) -> ShowSession:
+    async with db as session:
+        try:
+            async with session.begin():
+                session_dal = SessionDAL(session)
+                data_session = await session_dal.delete_session(session_number, date, group_name)
+
+                if not session:
+                    raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} не найден")
+
+            return ShowSession.from_orm(session)
+
+        except Exception as e:
+            logger.warning(f"Удаление сессии отменено (Ошибка: {e})")
+            raise
+
+
+async def _update_session(body: UpdateSession, db) -> ShowSession:
+    async with db as session:
+        try:
+            async with session.begin():
+                # exclusion of None-fields from the transmitted data
+                update_data = {
+                    key: value for key, value in body.dict().items() 
+                    if value is not None and key not in ["session_number", "date", "group_name"]
+                }
+
+                session_dal = SessionDAL(session)
+                group_dal = GroupDAL(session)
+
+                # Check that the group exists
+                # Check that the employment is unique
+                # By using helpers
+                if not await ensure_group_exists(group_dal, body.new_group_name):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Группа: {body.new_group_name} не существует"
+                    )
+                if not await ensure_session_unique(session_dal, body.new_session_number, body.new_date, body.new_group_name):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Сессия у преподавателя под номером {body.new_session_number} для группы {body.new_group_name} на дату {body.new_date} уже существует"
+                    )
+                
+                # Rename field new_session_number to session_number
+                if "new_session_number" in update_data:
+                    update_data["session_number"] = update_data.pop("new_session_number")
+                # Rename field new_date to date
+                if "new_date" in update_data:
+                    update_data["date"] = update_data.pop("new_date")
+                # Rename field new_group_name to group_name
+                if "new_group_name" in update_data:
+                    update_data["group_name"] = update_data.pop("new_group_name")
+
+                request = await session_dal.update_session(
+                    tg_session_number = body.session_number,
+                    tg_date = body.date,
+                    tg_group_name = body.group_name,
+                    **update_data
+                )
+
+                # save changed data
+                await session.commit()
+
+                if not request:
+                    raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {body.new_session_number} для группы {body.new_group_name} на дату {body.new_date} не найден")
+
+            return ShowTeacherRequest.from_orm(request)
+
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о сессии отменено (Ошибка: {e})")
+            raise
+
+
+# @request_router.post("/create", response_model=ShowTeacherRequest)
+# async def create_request(body: CreateTeacherRequest, db: AsyncSession = Depends(get_db)):
+#     return await _create_new_request(body, db)
+
+
+# @request_router.get("/search/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,
+#                     responses={404: {"description": "Запрос не найден"}})
+# async def get_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
+#     return await _get_request(date_request, teacher_id, subject_code, group_name, db)
+
+
+# @request_router.get("/search", response_model=list[ShowTeacherRequest], responses={404: {"description": "Запрос не найден"}})
+# async def get_all_requests(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+#     return await _get_all_requests(query_param.page, query_param.limit, db)
+
+
+# @request_router.get("/search/by_teacher/{teacher_id}", 
+#                     response_model=list[ShowTeacherRequest], responses={404: {"description": "Запрос не найдены"}})
+# async def get_all_requests_by_teacher(teacher_id: int, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+#     return await _get_all_requests_by_teacher(teacher_id, query_param.page, query_param.limit, db)
+
+
+# @request_router.put("/delete/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,
+#                     responses={404: {"description": "Запрос не найден"}})
+# async def delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
+#     return await _delete_request(date_request, teacher_id, subject_code, group_name, db)
+
+
+# @request_router.put("/update", response_model=ShowTeacherRequest, responses={404: {"description": "Запрос не найден"}})
+# async def update_request(body: UpdateTeacherRequest, db: AsyncSession = Depends(get_db)):
+#     return await _update_request(body, db)

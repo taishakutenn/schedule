@@ -237,14 +237,15 @@ class Session(Base):
     group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True)
     subject_code = Column(String, ForeignKey("subjects.subject_code", onupdate="CASCADE", ondelete="SET NULL"))
     teacher_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="SET NULL"))
-    cabinet_number = Column(Integer, nullable=False, onupdate="CASCADE", ondelete="SET NULL")
-    building_number = Column(Integer, nullable=False, onupdate="CASCADE", ondelete="SET NULL")
+    cabinet_number = Column(Integer, nullable=False)
+    building_number = Column(Integer, nullable=False)
 
     # For a composite primary key
     __table_args__ = (
         ForeignKeyConstraint(
             ['cabinet_number', 'building_number'],
-            ['cabinets.cabinet_number', 'cabinets.building_number']
+            ['cabinets.cabinet_number', 'cabinets.building_number'],
+             onupdate="CASCADE", ondelete="SET NULL"
         ),
     )
 

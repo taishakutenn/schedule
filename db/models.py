@@ -177,7 +177,7 @@ class Cabinet(Base):
     cabinet_state = Column(String, nullable=True)
 
     # Foreign keys
-    building_number = Column(Integer, ForeignKey("buildings.building_number"), primary_key=True)
+    building_number = Column(Integer, ForeignKey("buildings.building_number", onupdate="CASCADE", ondelete="SET NULL"), primary_key=True)
 
     # Relationships
     building = relationship("Building", back_populates="cabinets")
@@ -234,11 +234,11 @@ class Session(Base):
     session_type = Column(String, nullable=False)
 
     # Foreign keys
-    group_name = Column(String, ForeignKey("groups.group_name"), primary_key=True)
-    subject_code = Column(String, ForeignKey("subjects.subject_code"))
-    teacher_id = Column(Integer, ForeignKey("teachers.id"))
-    cabinet_number = Column(Integer, nullable=False)
-    building_number = Column(Integer, nullable=False)
+    group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True)
+    subject_code = Column(String, ForeignKey("subjects.subject_code", onupdate="CASCADE", ondelete="SET NULL"))
+    teacher_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="SET NULL"))
+    cabinet_number = Column(Integer, nullable=False, onupdate="CASCADE", ondelete="SET NULL")
+    building_number = Column(Integer, nullable=False, onupdate="CASCADE", ondelete="SET NULL")
 
     # For a composite primary key
     __table_args__ = (
@@ -286,7 +286,7 @@ class EmploymentTeacher(Base):
     saturday = Column(String, nullable=True, default="8:30")
 
     # Foreign keys
-    teacher_id = Column(Integer, ForeignKey("teachers.id"), primary_key=True)
+    teacher_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True)
 
     # Relationships
     teacher = relationship("Teacher", back_populates="employments")
@@ -318,9 +318,9 @@ class TeacherRequest(Base):
     practice_hours = Column(Integer, nullable=False, default=0)
 
     # Foreign keys
-    teacher_id = Column(Integer, ForeignKey("teachers.id"), primary_key=True)
-    subject_code = Column(String, ForeignKey("subjects.subject_code"), primary_key=True)
-    group_name = Column(String, ForeignKey("groups.group_name"), primary_key=True)
+    teacher_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True)
+    subject_code = Column(String, ForeignKey("subjects.subject_code", onupdate="CASCADE", ondelete="SET NULL"), primary_key=True)
+    group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="SET NULL"), primary_key=True)
 
     # Relationships
     teacher = relationship("Teacher", back_populates="requests")

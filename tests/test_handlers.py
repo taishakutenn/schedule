@@ -6,7 +6,8 @@ import pytest
 #############################
 
 
-def test_create_new_teacher():
+@pytest.mark.parametrize("a, b, result", [(10, 2, 5), (11, 4, 10)])
+def test_create_new_teacher(a, b, result):
     pass
 
 

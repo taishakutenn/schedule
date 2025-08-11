@@ -10,7 +10,7 @@ from typing import Annotated, Union
 # from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
 # from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
 from api.models import *
-from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique
+from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists
 from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, CurriculumDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL
 from db.session import get_db
 
@@ -1279,7 +1279,7 @@ async def create_employment(body: CreateEmployment, db: AsyncSession = Depends(g
     return await _create_new_employment(body, db)
 
 
-@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowSubject,
+@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmployment,
                     responses={404: {"description": "График не найден"}})
 async def get_employment(date_start_period: date, date_end_period: date, teacher_id: int, db: AsyncSession = Depends(get_db)):
     return await _get_employment(date_start_period, date_end_period, teacher_id, db)
@@ -1290,7 +1290,7 @@ async def get_all_employments(query_param: Annotated[QueryParams, Depends()], db
     return await _get_all_employments(query_param.page, query_param.limit, db)
 
 
-@employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=list[ShowEmployment], responses={404: {"description": "График не найдены"}})
+@employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=list[ShowEmployment], responses={404: {"description": "Графики не найдены"}})
 async def get_all_employments_by_date(date_start_period: date, date_end_period: date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, db)
 
@@ -1339,7 +1339,7 @@ async def _create_new_request(body: CreateTeacherRequest, db) -> ShowTeacherRequ
                     status_code=400,
                     detail=f"Группа: {body.group_name} не существует"
                 )
-            if not await ensure_request_unique(request_dal, ):
+            if not await ensure_request_unique(request_dal, body.date_request, body.teacher_id, body.subject_code, body.group_name):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Запрос преподавателя {body.teacher_id} на предмет {body.subject_code} для группы {body.group_name} на дату {body.date_request} уже существует"
@@ -1423,25 +1423,25 @@ async def _update_request(body: UpdateTeacherRequest, db) -> ShowTeacherRequest:
                 # Check that the teacher, subject, group exists
                 # Check that the request is unique
                 # By using helpers
-                if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                if body.new_teacher_id != None and not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Учитель: {body.teacher_id} не существует"
+                        detail=f"Учитель: {body.new_teacher_id} не существует"
                     )
-                if not await ensure_subject_exists(subject_dal, body.teacher_id):
+                if body.new_subject_code != None and not await ensure_subject_exists(subject_dal, body.new_subject_code):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Предмет: {body.subject_code} не существует"
+                        detail=f"Предмет: {body.new_subject_code} не существует"
                     )
-                if not await ensure_group_exists(group_dal, body.teacher_id):
+                if body.new_group_name != None and not await ensure_group_exists(group_dal, body.new_group_name):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Группа: {body.group_name} не существует"
+                        detail=f"Группа: {body.new_group_name} не существует"
                     )
-                if not await ensure_request_unique(request_dal, ):
+                if not await ensure_request_unique(request_dal, body.new_date_request, body.new_teacher_id, body.new_subject_code, body.new_group_name):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Запрос преподавателя {body.teacher_id} на предмет {body.subject_code} для группы {body.group_name} на дату {body.date_request} уже существует"
+                        detail=f"Запрос преподавателя {body.new_teacher_id} на предмет {body.new_subject_code} для группы {body.new_group_name} на дату {body.new_date_request} уже существует"
                     )
                 
                 # Rename field new_date_request to date_request
@@ -1524,14 +1524,20 @@ async def _create_new_session(body: CreateSession, db) -> ShowSession:
         async with session.begin():
             session_dal = SessionDAL(session)
             group_dal = GroupDAL(session)
+            cabinet_dal = CabinetDAL(session)
 
-            # Check that the group exists
+            # Check that the group, cabinet exists
             # Check that the employment is unique
             # By using helpers
             if not await ensure_group_exists(group_dal, body.group_name):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Группа: {body.group_name} не существует"
+                )
+            if not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
                 )
             if not await ensure_session_unique(session_dal, body.session_number, body.date, body.group_name):
                 raise HTTPException(

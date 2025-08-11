@@ -472,6 +472,7 @@ class EmployTeacherDAL:
                 EmploymentTeacher.date_end_period == date_end_period,
                 EmploymentTeacher.teacher_id == teacher_id
             )
+            .returning(EmploymentTeacher)
         )
         res = await self.db_session.execute(query)
         deleted_emloyTeacher = res.scalar_one_or_none()
@@ -753,7 +754,7 @@ class TeacherRequestDAL:
             TeacherRequest.teacher_id == teacher_id,
             TeacherRequest.subject_code == subject_code,
             TeacherRequest.group_name == group_name
-            )
+            ).returning(TeacherRequest)
         res = await self.db_session.execute(query)
         teacherRequest = res.scalar_one_or_none()
         return teacherRequest
@@ -770,13 +771,17 @@ class TeacherRequestDAL:
     @log_exceptions
     async def get_teacherRequest(self, date_request: Date, teacher_id: int,
                                 subject_code: str, group_name: str) -> TeacherRequest | None:
-        result = await self.db_session.execute(select(TeacherRequest).where(TeacherRequest.id == id))
+        result = await self.db_session.execute(select(TeacherRequest).
+            where(TeacherRequest.date_request == date_request,
+                TeacherRequest.teacher_id == teacher_id,
+                TeacherRequest.subject_code == subject_code,
+                TeacherRequest.group_name == group_name))
         return result.scalar_one_or_none()
     
     @log_exceptions
     async def get_all_requests_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherRequest]:
         query = select(TeacherRequest).where(TeacherRequest.teacher_id == teacher_id
-                                            ).order_by(TeacherRequest.date_request.asc())
+            ).order_by(TeacherRequest.date_request.asc())
         if page > 0:
             query = query.offset((page - 1) * limit).limit(limit)
 
@@ -788,11 +793,11 @@ class TeacherRequestDAL:
     async def update_teacherRequest(self, tg_date_request: Date, tg_teacher_id: int,
                                 tg_subject_code: str, tg_group_name: str, **kwargs) -> TeacherRequest | None:
         result = await self.db_session.execute(
-            update(Teacher).where(
+            update(TeacherRequest).where(
             TeacherRequest.date_request == tg_date_request,
             TeacherRequest.teacher_id == tg_teacher_id,
             TeacherRequest.subject_code == tg_subject_code,
             TeacherRequest.group_name == tg_group_name
-            ).values(**kwargs).returning(Teacher)
+            ).values(**kwargs).returning(TeacherRequest)
         )
         return result.scalar_one_or_none()

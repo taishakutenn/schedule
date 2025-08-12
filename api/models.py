@@ -4,6 +4,7 @@ File for creating validation models
 
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from datetime import date
 
 
 class TunedModel(BaseModel):
@@ -180,18 +181,18 @@ class ShowCurriculum(TunedModel):
     semester_number: int
     group_name: str
     subject_code: str
-    lectures_hours: float | None = None
-    laboratory_hours: float | None = None
-    practical_hours: float | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practical_hours: int | None = None
 
 
 class CreateCurriculum(TunedModel):
     semester_number: int
     group_name: str
     subject_code: str
-    lectures_hours: float | None = None
-    laboratory_hours: float | None = None
-    practical_hours: float | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practical_hours: int | None = None
 
 
 class UpdateCurriculum(TunedModel):
@@ -201,9 +202,9 @@ class UpdateCurriculum(TunedModel):
     new_semester_number: int | None = None
     new_group_name: str | None = None
     new_subject_code: str | None = None
-    lectures_hours: float | None = None
-    laboratory_hours: float | None = None
-    practical_hours: float | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practical_hours: int | None = None
 
 
 '''
@@ -228,3 +229,135 @@ class UpdateSubject(TunedModel):
     subject_code: str
     new_subject_code: str | None = None 
     name: str | None = None
+
+
+'''
+=================
+EmploymentTeacher
+=================
+''' 
+
+
+class ShowEmployment(TunedModel):
+    """Class for get subject info"""
+    date_start_period: date
+    date_end_period: date
+    teacher_id: int
+    monday: str | None = None
+    tuesday: str | None = None
+    wednesday: str | None = None
+    thursday: str | None = None
+    friday: str | None = None
+    saturday: str | None = None
+
+
+class CreateEmployment(TunedModel):
+    date_start_period: date
+    date_end_period: date
+    teacher_id: int
+    monday: str | None = None
+    tuesday: str | None = None
+    wednesday: str | None = None
+    thursday: str | None = None
+    friday: str | None = None
+    saturday: str | None = None
+
+
+class UpdateEmployment(TunedModel):
+    date_start_period: date
+    date_end_period: date
+    teacher_id: int
+    new_date_start_period: date | None = None
+    new_date_end_period: date | None = None
+    new_teacher_id: int | None = None
+    monday: str | None = None
+    tuesday: str | None = None
+    wednesday: str | None = None
+    thursday: str | None = None
+    friday: str | None = None
+    saturday: str | None = None
+
+
+'''
+==============
+TeacherRequest
+==============
+''' 
+
+
+class ShowTeacherRequest(TunedModel):
+    """Class for get subject info"""
+    date_request: date
+    teacher_id: int
+    subject_code: str
+    group_name: str
+    lectures_hours: int
+    laboratory_hours: int
+    practice_hours: int
+
+
+class CreateTeacherRequest(TunedModel):
+    date_request: date
+    teacher_id: int
+    subject_code: str
+    group_name: str
+    lectures_hours: int
+    laboratory_hours: int
+    practice_hours: int
+
+
+class UpdateTeacherRequest(TunedModel):
+    date_request: date
+    teacher_id: int
+    subject_code: str
+    group_name: str
+    new_date_request: date | None = None
+    new_teacher_id: int | None = None
+    new_subject_code: str | None = None
+    new_group_name: str | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practice_hours: int | None = None
+
+
+'''
+=======
+Session
+=======
+'''
+
+
+class ShowSession(TunedModel):
+    session_number: int
+    date: date
+    group_name: str
+    session_type: str
+    subject_code: str | None = None
+    teacher_id: int | None = None
+    cabinet_number: int
+    building_number: int
+
+
+class CreateSession(TunedModel):
+    session_number: int
+    date: date
+    group_name: str
+    session_type: str
+    subject_code: str | None = None
+    teacher_id: int | None = None
+    cabinet_number: int
+    building_number: int
+
+
+class UpdateSession(TunedModel):
+    session_number: int
+    session_date: date
+    group_name: str
+    new_session_number: int
+    new_session_date: date
+    new_group_name: str
+    session_type: str
+    subject_code: str | None = None
+    teacher_id: int | None = None
+    cabinet_number: int
+    building_number: int

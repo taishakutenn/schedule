@@ -571,7 +571,7 @@ class SessionDAL:
                 Session.session_number == session_number,
                 Session.date == date,
                 Session.group_name == group_name
-            )
+            ).returning(Session)
         )
         res = await self.db_session.execute(query)
         deleted_session = res.scalar_one_or_none()

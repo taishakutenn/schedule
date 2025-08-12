@@ -1525,16 +1525,28 @@ async def _create_new_session(body: CreateSession, db) -> ShowSession:
             session_dal = SessionDAL(session)
             group_dal = GroupDAL(session)
             cabinet_dal = CabinetDAL(session)
+            subject_dal = SubjectDAL(session)
+            teacher_dal = TeacherDAL(session)
 
-            # Check that the group, cabinet exists
+            # Check that the group, subject, teacher, cabinet exists
             # Check that the employment is unique
             # By using helpers
             if not await ensure_group_exists(group_dal, body.group_name):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Группа: {body.group_name} не существует"
+                )    
+            if  body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Предмет: {body.subject_code} не существует"
                 )
-            if not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number):
+            if body.teacher_id != None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Преподаватель: {body.teacher_id} не существует"
+                )     
+            if body.cabinet_number != None and body.building_number != None and not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
@@ -1617,7 +1629,7 @@ async def _delete_session(session_number: int, date: date, group_name: str, db) 
                 if not session:
                     raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} не найден")
 
-            return ShowSession.from_orm(session)
+            return ShowSession.from_orm(data_session)
 
         except Exception as e:
             logger.warning(f"Удаление сессии отменено (Ошибка: {e})")
@@ -1631,39 +1643,52 @@ async def _update_session(body: UpdateSession, db) -> ShowSession:
                 # exclusion of None-fields from the transmitted data
                 update_data = {
                     key: value for key, value in body.dict().items() 
-                    if value is not None and key not in ["session_number", "date", "group_name"]
+                    if value is not None and key not in ["session_number", "session_date", "group_name"]
                 }
 
                 session_dal = SessionDAL(session)
                 group_dal = GroupDAL(session)
+                cabinet_dal = CabinetDAL(session)
+                subject_dal = SubjectDAL(session)
+                teacher_dal = TeacherDAL(session)
 
-                # Check that the group exists
+                # Check that the group, subject, teacher, cabinet exists
                 # Check that the employment is unique
                 # By using helpers
                 if not await ensure_group_exists(group_dal, body.new_group_name):
                     raise HTTPException(
                         status_code=400,
                         detail=f"Группа: {body.new_group_name} не существует"
-                    )
-                if not await ensure_session_unique(session_dal, body.new_session_number, body.new_date, body.new_group_name):
+                    )    
+                if body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Сессия у преподавателя под номером {body.new_session_number} для группы {body.new_group_name} на дату {body.new_date} уже существует"
+                        detail=f"Предмет: {body.subject_code} не существует"
+                    )
+                if body.teacher_id != None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Преподаватель: {body.teacher_id} не существует"
+                    )     
+                if body.cabinet_number != None and body.building_number != None and not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
                     )
                 
                 # Rename field new_session_number to session_number
                 if "new_session_number" in update_data:
                     update_data["session_number"] = update_data.pop("new_session_number")
-                # Rename field new_date to date
-                if "new_date" in update_data:
-                    update_data["date"] = update_data.pop("new_date")
+                # Rename field new_session_date to date
+                if "new_session_date" in update_data:
+                    update_data["date"] = update_data.pop("new_session_date")
                 # Rename field new_group_name to group_name
                 if "new_group_name" in update_data:
                     update_data["group_name"] = update_data.pop("new_group_name")
 
-                request = await session_dal.update_session(
+                session_data = await session_dal.update_session(
                     tg_session_number = body.session_number,
-                    tg_date = body.date,
+                    tg_date = body.session_date,
                     tg_group_name = body.group_name,
                     **update_data
                 )
@@ -1671,10 +1696,10 @@ async def _update_session(body: UpdateSession, db) -> ShowSession:
                 # save changed data
                 await session.commit()
 
-                if not request:
-                    raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {body.new_session_number} для группы {body.new_group_name} на дату {body.new_date} не найден")
+                if not session:
+                    raise HTTPException(status_code=404, detail=f"Сессия под номером {body.session_number} для группы {body.group_name} на дату {body.session_date} не найдена")
 
-            return ShowTeacherRequest.from_orm(request)
+            return ShowSession.from_orm(session_data)
 
         except Exception as e:
             await session.rollback()

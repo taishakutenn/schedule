@@ -21,7 +21,7 @@ async def ensure_building_exists(building_dal: BuildingDAL, building_number: int
 
 # Cabinet
 async def ensure_cabinet_exists(cabinet_dal: CabinetDAL, cabinet_number: int, building_number: int):
-    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(cabinet_number, building_number)
+    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
     return cabinet
 
 # Teacher

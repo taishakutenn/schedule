@@ -353,11 +353,11 @@ class UpdateSession(TunedModel):
     session_number: int
     session_date: date
     group_name: str
-    new_session_number: int
-    new_session_date: date
-    new_group_name: str
-    session_type: str
+    new_session_number: int | None = None
+    new_session_date: date | None = None
+    new_group_name: str | None = None
+    session_type: str | None = None
     subject_code: str | None = None
     teacher_id: int | None = None
-    cabinet_number: int
-    building_number: int
+    cabinet_number: int | None = None
+    building_number: int | None = None

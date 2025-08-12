@@ -232,7 +232,6 @@ class Session(Base):
     session_number = Column(Integer, primary_key=True, nullable=False)
     date = Column(Date, primary_key=True, nullable=False)
     session_type = Column(String, nullable=False)
-
     # Foreign keys
     group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True)
     subject_code = Column(String, ForeignKey("subjects.subject_code", onupdate="CASCADE", ondelete="SET NULL"))

@@ -14,6 +14,9 @@ from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, 
 from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, CurriculumDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL
 from db.session import get_db
 
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, status, Request
+
 from config.logging_config import configure_logging
 
 # Create logger object
@@ -38,18 +41,70 @@ CRUD operations for teachers
 '''
 
 
-async def _create_new_teacher(body: CreateTeacher, db) -> ShowTeacher:
+# async def _create_new_teacher(body: CreateTeacher, db) -> ShowTeacher:
+#     async with db as session:
+#         async with session.begin():
+#             teacher_dal = TeacherDAL(session)
+#             teacher = await teacher_dal.create_teacher(
+#                 name=body.name,
+#                 surname=body.surname,
+#                 phone_number=body.phone_number,
+#                 email=str(body.email),
+#                 fathername=body.fathername
+#             )
+#             return ShowTeacher.from_orm(teacher)
+        
+
+async def _create_new_teacher(body: CreateTeacher, request:Request, db) -> ShowTeacherWithHATEOAS:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
-            teacher = await teacher_dal.create_teacher(
-                name=body.name,
-                surname=body.surname,
-                phone_number=body.phone_number,
-                email=str(body.email),
-                fathername=body.fathername
-            )
-            return ShowTeacher.from_orm(teacher)
+            try:
+                teacher = await teacher_dal.create_teacher(
+                    name=body.name,
+                    surname=body.surname,
+                    phone_number=body.phone_number,
+                    email=str(body.email),
+                    fathername=body.fathername
+                )
+
+                teacher_id = teacher.id
+                teacher_pydantic = ShowTeacher.model_validate(teacher)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/{teacher_id}',
+                    "delete": f'{api_base_url}/teachers/{teacher_id}',
+                    "teachers": f'{api_base_url}/teachers'
+                }
+                # teacher_pydantic.links = hateoas_links
+
+                return ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=hateoas_links)
+            
+            except IntegrityError as e:
+                await session.rollback()
+
+                #???????????????????????????????????????????????????????????????????????????????????????????????????
+                # ДОДЕЛАТЬ
+                #???????????????????????????????????????????????????????????????????????????????????????????????????
+
+                if "email" in str(e.orig).lower():
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Учитель с таким email уже существует.")
+                elif "phone_number" in str(e.orig).lower():
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Учитель с таким номером телефона уже существует.")
+                else:
+                    logger.error(f"Ошибка целостности БД при создании учителя: {e}")
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Невозможно создать учителя из-за конфликта данных.")
+                     
+            except Exception as e:
+                 await session.rollback()
+                 logger.error(f"Неожиданная ошибка при создании учителя: {e}")
+                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")
 
 
 async def _get_teacher_by_id(teacher_id, db) -> ShowTeacher:
@@ -140,9 +195,13 @@ async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher:
             raise
 
 
-@teacher_router.post("/create", response_model=ShowTeacher)
-async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)):
-    return await _create_new_teacher(body, db)
+# @teacher_router.post("/create", response_model=ShowTeacher)
+# async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)):
+#     return await _create_new_teacher(body, db)
+
+@teacher_router.post("/", response_model=ShowTeacherWithHATEOAS, status_code=status.HTTP_201_CREATED) # 201 Created standard code
+async def create_teacher(body: CreateTeacher, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_teacher(body, request, db)
 
 
 @teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacher,

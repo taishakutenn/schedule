@@ -35,6 +35,7 @@ Teachers
 
 class ShowTeacher(TunedModel):
     """Class for get teacher info"""
+    id: int
     name: str
     surname: str
     phone_number: str
@@ -57,6 +58,11 @@ class UpdateTeacher(TunedModel):
     phone_number: str | None = None
     email: EmailStr | None = None
     fathername: str | None = None
+
+
+class ShowTeacherWithHATEOAS(TunedModel):
+    teacher: ShowTeacher
+    links: dict[str, str] = {}
 
 
 '''

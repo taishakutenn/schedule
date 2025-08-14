@@ -53,14 +53,38 @@ CRUD operations for teachers
 #                 fathername=body.fathername
 #             )
 #             return ShowTeacher.from_orm(teacher)
-        
 
-async def _create_new_teacher(body: CreateTeacher, request:Request, db) -> ShowTeacherWithHATEOAS:
+
+# async def _get_teacher_by_id(teacher_id, db) -> ShowTeacher:
+#     async with db as session:
+#         async with session.begin():
+#             teacher_dal = TeacherDAL(session)
+#             teacher = await teacher_dal.get_teacher_by_id(teacher_id)
+
+#             # if teacher doesn't exist
+#             if not teacher:
+#                 raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
+
+#             return ShowTeacher.from_orm(teacher)
+
+
+# async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher:
+#     async with db as session:
+#         async with session.begin():
+#             teacher_dal = TeacherDAL(session)
+#             teacher = await teacher_dal.get_teacher_by_name_surname(name, surname)
+
+#             # if teacher exist
+#             if not teacher:
+#                 raise HTTPException(status_code=404, detail=f"Учитель {name, surname} не найден")
+
+#             return ShowTeacher.from_orm(teacher)
+
+
+async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> ShowTeacherWithHATEOAS:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
-            group_dal = GroupDAL(session)
-
             try:
                 teacher = await teacher_dal.create_teacher(
                     name=body.name,
@@ -73,9 +97,6 @@ async def _create_new_teacher(body: CreateTeacher, request:Request, db) -> ShowT
                 teacher_id = teacher.id
                 teacher_pydantic = ShowTeacher.model_validate(teacher)
 
-                group = await group_dal.get_group_by_advisor_id(teacher_id)
-                group_name = group.group_name if group else None
-
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
                 api_prefix = '/schedule'
@@ -83,10 +104,10 @@ async def _create_new_teacher(body: CreateTeacher, request:Request, db) -> ShowT
 
                 hateoas_links = {
                     "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update',
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers',
-                    "group": f'{api_base_url}/groups/search/{group_name}',
+                    "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
                     "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
                     "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
                     "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
@@ -107,48 +128,140 @@ async def _create_new_teacher(body: CreateTeacher, request:Request, db) -> ShowT
             except Exception as e:
                  logger.error(f"Неожиданная ошибка при создании преподавателя: {e}", exc_info=True)
                  raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")
+        
 
-
-async def _get_teacher_by_id(teacher_id, db) -> ShowTeacher:
+async def _get_teacher_by_id(teacher_id, request: Request, db) -> ShowTeacherWithHATEOAS:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
-            teacher = await teacher_dal.get_teacher_by_id(teacher_id)
+            try: 
+                teacher = await teacher_dal.get_teacher_by_id(teacher_id)
 
-            # if teacher doesn't exist
-            if not teacher:
-                raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
+                # if teacher doesn't exist
+                if not teacher:
+                    raise HTTPException(status_code=404, detail=f"Преподаватель с id: {teacher_id} не найден")
+                
+                teacher_pydantic = ShowTeacher.model_validate(teacher)
 
-            return ShowTeacher.from_orm(teacher)
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update',
+                    "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
+                    "teachers": f'{api_base_url}/teachers',
+                    "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
+                    "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
+                    "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
+                    "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
+                }
+
+                return ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=hateoas_links)
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение преподавателя отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher:
+async def _get_teacher_by_name_and_surname(name, surname, request: Request, db) -> ShowTeacherWithHATEOAS:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
-            teacher = await teacher_dal.get_teacher_by_name_surname(name, surname)
+            try:
+                teacher = await teacher_dal.get_teacher_by_name_surname(name, surname)
 
-            # if teacher exist
-            if not teacher:
-                raise HTTPException(status_code=404, detail=f"Учитель {name, surname} не найден")
+                # if teacher exist
+                if not teacher:
+                    raise HTTPException(status_code=404, detail=f"Преподаватель {name, surname} не найден")
 
-            return ShowTeacher.from_orm(teacher)
+                teacher_pydantic = ShowTeacher.model_validate(teacher)
+                teacher_id = teacher.id
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update',
+                    "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
+                    "teachers": f'{api_base_url}/teachers',
+                    "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
+                    "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
+                    "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
+                    "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
+                }
+
+                return ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=hateoas_links)
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение преподавателя отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_all_teachers(page: int, limit: int, db) -> list[ShowTeacher]:
+async def _get_all_teachers(page: int, limit: int, request: Request, db) -> ShowTeacherListWithHATEOAS:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
-            teachers = await teacher_dal.get_all_teachers(page, limit)
+            try:
+                teachers = await teacher_dal.get_all_teachers(page, limit)
 
-            # If you need to return a list of objects
-            # and they were not found,
-            # then we return an empty list instead of 404.
-            # We return 404 when a specific object was not found.
-            return [ShowTeacher.from_orm(teacher) for teacher in teachers]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teachers_with_hateoas = []
+                for teacher in teachers:
+                    teacher_pydantic = ShowTeacher.model_validate(teacher)
+
+                    # add HATEOAS
+                    teacher_id = teacher.id
+                    teacher_links = {
+                        "self": f'{api_base_url}/teachers/search/{teacher_id}',
+                        "update": f'{api_base_url}/teachers/update',
+                        "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
+                        "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
+                        "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
+                        "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
+                        "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
+                    }
+
+                    teacher_with_links = ShowTeacherWithHATEOAS(
+                        teacher=teacher_pydantic,
+                        links=teacher_links
+                    )
+                    teachers_with_hateoas.append(teacher_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowTeacherListWithHATEOAS(
+                    teachers=teachers_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение преподавателей отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _delete_teacher(teacher_id: int, db) -> ShowTeacher:
+async def _delete_teacher(teacher_id: int, request: Request, db) -> ShowTeacherWithHATEOAS:
     """
     Use the async with, because it will automatically close the session with the database if an error occurs
     And apply the changes
@@ -160,23 +273,47 @@ async def _delete_teacher(teacher_id: int, db) -> ShowTeacher:
                 teacher = await teacher_dal.delete_teacher(teacher_id)
 
                 if not teacher:
-                    raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
+                    raise HTTPException(status_code=404, detail=f"Преподаватель с id: {teacher_id} не найден")
+                
+                teacher_pydantic = ShowTeacher.model_validate(teacher)
 
-            return ShowTeacher.from_orm(teacher)
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
-        except Exception as e:
-            logger.warning(f"Удаление учителя отменено (Ошибка: {e})")
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
+                    "teachers": f'{api_base_url}/teachers/search',
+                    "create": f'{api_base_url}/teachers/create',
+                    "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
+                    "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
+                    "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
+                    "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
+                }
+
+                return ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=hateoas_links)
+
+        except HTTPException:
             raise
 
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при удалении преподавателя {teacher_id}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при удалении преподавателя."
+            )
 
-async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher:
+
+async def _update_teacher(body: UpdateTeacher, request:Request, db) -> ShowTeacherWithHATEOAS:
     """Use it for the same reasons as for the delete operation"""
     async with db as session:
         try:
             async with session.begin():
                 # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() if value is not None and key != "teacher_id"
+                    key: value for key, value in body.dict().items() 
+                    if value is not None and key != "teacher_id"
                 }
 
                 # change data
@@ -187,39 +324,63 @@ async def _update_teacher(body: UpdateTeacher, db) -> ShowTeacher:
                 )
 
                 if not teacher:
-                    raise HTTPException(status_code=404, detail=f"Учитель с id: {body.teacher_id} не найден")
+                    raise HTTPException(status_code=404, detail=f"Преподаватель с id: {body.teacher_id} не найден")
 
-            return ShowTeacher.from_orm(teacher)
+                teacher_pydantic = ShowTeacher.model_validate(teacher)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_id = body.teacher_id 
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update/', 
+                    "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
+                    "teachers": f'{api_base_url}/teachers',
+                    "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
+                    "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
+                    "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
+                    "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
+                }
+
+                return ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=hateoas_links)
+            
+        except HTTPException:
+            raise   
 
         except Exception as e:
-            await session.rollback()
-            logger.warning(f"Изменение данных об учителе отменено (Ошибка: {e})")
-            raise
+            logger.error(f"Неожиданная ошибка при обновлении преподавателя {body.teacher_id}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при обновлении преподавателя."
+            )
 
 
 # @teacher_router.post("/create", response_model=ShowTeacher)
 # async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)):
 #     return await _create_new_teacher(body, db)
 
-@teacher_router.post("/", response_model=ShowTeacherWithHATEOAS, status_code=status.HTTP_201_CREATED) # 201 Created standard code
+@teacher_router.post("/create", response_model=ShowTeacherWithHATEOAS, status_code=201) # 201 Created standard code
 async def create_teacher(body: CreateTeacher, request: Request, db: AsyncSession = Depends(get_db)):
     return await _create_new_teacher(body, request, db)
 
 
-@teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacher,
-                    responses={404: {"description": "Учитель не найден"}})
-async def get_teacher_by_id(teacher_id: int, db: AsyncSession = Depends(get_db)):
-    return await _get_teacher_by_id(teacher_id, db)
+@teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacherWithHATEOAS,
+                    responses={404: {"description": "Преподаватель не найден"}})
+async def get_teacher_by_id(teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_teacher_by_id(teacher_id, request, db)
 
 
-@teacher_router.get("/search/by_humanity", response_model=ShowTeacher,
-                    responses={404: {"description": "Учитель не найден"}})
-async def get_teacher_by_name_and_surname(name: str, surname: str, db: AsyncSession = Depends(get_db)):
-    return await _get_teacher_by_name_and_surname(name, surname, db)
+@teacher_router.get("/search/by_humanity", response_model=ShowTeacherWithHATEOAS,
+                    responses={404: {"description": "Преподаватель не найден"}})
+async def get_teacher_by_name_and_surname(name: str, surname: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_teacher_by_name_and_surname(name, surname, request, db)
 
 
-@teacher_router.get("/search", response_model=list[ShowTeacher], responses={404: {"description": "Учителя не найдены"}})
-async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+@teacher_router.get("/search", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})
+async def get_all_teachers(request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     """
     query_param set via Annotated so that fastapi understands
     that the pydantic model QueryParam refers to the query parameters,
@@ -228,18 +389,18 @@ async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], db: A
     it is better to use this pydantic model, so as not to manually enter these parameters each time.
     Link to documentation: https://fastapi.tiangolo.com/ru/tutorial/query-param-models/
     """
-    return await _get_all_teachers(query_param.page, query_param.limit, db)
+    return await _get_all_teachers(query_param.page, query_param.limit, request, db)
 
 
-@teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacher,
-                    responses={404: {"description": "Учитель не найден"}})
-async def delete_teacher(teacher_id: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_teacher(teacher_id, db)
+@teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacherWithHATEOAS,
+                    responses={404: {"description": "Преподаватель не найден"}})
+async def delete_teacher(teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_teacher(teacher_id, request, db)
 
 
-@teacher_router.put("/update", response_model=ShowTeacher, responses={404: {"description": "Учитель не найден"}})
-async def update_teacher(body: UpdateTeacher, db: AsyncSession = Depends(get_db)):
-    return await _update_teacher(body, db)
+@teacher_router.put("/update", response_model=ShowTeacherWithHATEOAS, responses={404: {"description": "Преподаватель не найден"}})
+async def update_teacher(body: UpdateTeacher, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_teacher(body, request, db)
 
 
 '''

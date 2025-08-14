@@ -3,7 +3,7 @@ File for creating validation models
 """
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import date
 
 
@@ -62,6 +62,11 @@ class UpdateTeacher(TunedModel):
 
 class ShowTeacherWithHATEOAS(TunedModel):
     teacher: ShowTeacher
+    links: dict[str, str] = {}
+
+
+class ShowTeacherListWithHATEOAS(BaseModel):
+    teachers: List[ShowTeacherWithHATEOAS]
     links: dict[str, str] = {}
 
 

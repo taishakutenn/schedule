@@ -35,7 +35,7 @@ class Group(Base):
     quantity_students = Column(Integer, nullable=True)
 
     # Foreign keys
-    group_advisor_id = Column(Integer, ForeignKey("teachers.id"), nullable=True)
+    group_advisor_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     speciality_code = Column(String, 
                             ForeignKey("specialties.speciality_code", onupdate="CASCADE", ondelete="SET NULL"), 
                             nullable=True)
@@ -93,8 +93,8 @@ class Teacher(Base):
     name = Column(String, nullable=False)
     surname = Column(String, nullable=False)
     fathername = Column(String, nullable=True)
-    phone_number = Column(String, nullable=False)
-    email = Column(String, nullable=True)
+    phone_number = Column(String, unique = True, nullable=False)
+    email = Column(String, unique = True, nullable=True)
 
     # Relationships
     advisory_group = relationship("Group", back_populates="advisor")

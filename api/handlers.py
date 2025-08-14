@@ -59,6 +59,8 @@ async def _create_new_teacher(body: CreateTeacher, request:Request, db) -> ShowT
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
+            group_dal = GroupDAL(session)
+
             try:
                 teacher = await teacher_dal.create_teacher(
                     name=body.name,
@@ -71,39 +73,39 @@ async def _create_new_teacher(body: CreateTeacher, request:Request, db) -> ShowT
                 teacher_id = teacher.id
                 teacher_pydantic = ShowTeacher.model_validate(teacher)
 
+                group = await group_dal.get_group_by_advisor_id(teacher_id)
+                group_name = group.group_name if group else None
+
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
                 api_prefix = '/schedule'
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
-                    "self": f'{api_base_url}/teachers/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/{teacher_id}',
-                    "delete": f'{api_base_url}/teachers/{teacher_id}',
-                    "teachers": f'{api_base_url}/teachers'
+                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update/{teacher_id}',
+                    "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
+                    "teachers": f'{api_base_url}/teachers',
+                    "group": f'{api_base_url}/groups/search/{group_name}',
+                    "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
+                    "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
+                    "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
                 }
-                # teacher_pydantic.links = hateoas_links
 
                 return ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=hateoas_links)
             
             except IntegrityError as e:
-                await session.rollback()
-
-                #???????????????????????????????????????????????????????????????????????????????????????????????????
-                # ДОДЕЛАТЬ
-                #???????????????????????????????????????????????????????????????????????????????????????????????????
-
-                if "email" in str(e.orig).lower():
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Учитель с таким email уже существует.")
-                elif "phone_number" in str(e.orig).lower():
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Учитель с таким номером телефона уже существует.")
+                error_msg = str(e.orig).lower()
+                if "email" in error_msg and 'already_exists' in error_msg:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Преподаватель с таким email уже существует.")
+                elif "phone_number" in error_msg and 'already_exists' in error_msg:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Преподаватель с таким номером телефона уже существует.")
                 else:
-                    logger.error(f"Ошибка целостности БД при создании учителя: {e}")
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Невозможно создать учителя из-за конфликта данных.")
+                    logger.error(f"Ошибка целостности БД при создании преподавателя: {e}")
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Невозможно создать преподавателя из-за конфликта данных.")
                      
             except Exception as e:
-                 await session.rollback()
-                 logger.error(f"Неожиданная ошибка при создании учителя: {e}")
+                 logger.error(f"Неожиданная ошибка при создании преподавателя: {e}", exc_info=True)
                  raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")
 
 
@@ -732,7 +734,20 @@ async def _get_group_by_name(group_name: str, db) -> ShowGroup:
                 raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
 
             return ShowGroup.from_orm(group) 
+        
 
+async def _get_group_by_advisor(advisor_id: int, db) -> ShowGroup:
+    async with db as session:
+        async with session.begin(): 
+            group_dal = GroupDAL(session)
+            group = await group_dal.get_group_by_advisor_id(advisor_id)
+
+            # if group doesn't exist
+            if not group:
+                raise HTTPException(status_code=404, detail=f"Группа с преподавателем: {advisor_id} не найдена")
+
+            return ShowGroup.from_orm(group) 
+        
 
 async def _get_all_groups(page: int, limit: int, db) -> list[ShowGroup]:
     async with db as session:
@@ -841,6 +856,12 @@ async def create_group(body: CreateGroup, db: AsyncSession = Depends(get_db)):
                     responses={404: {"description": "Группа не найдена"}})
 async def get_group_by_name(group_name: str, db: AsyncSession = Depends(get_db)):
     return await _get_group_by_name(group_name, db)
+
+
+@group_router.get("/search/by_group_name/{advisor_id}", response_model=ShowGroup,
+                    responses={404: {"description": "Группа не найдена"}})
+async def get_group_by_name(advisor_id: int, db: AsyncSession = Depends(get_db)):
+    return await _get_group_by_name(advisor_id, db)
 
 
 @group_router.get("/search", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})

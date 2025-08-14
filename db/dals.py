@@ -310,6 +310,12 @@ class GroupDAL:
         query = select(Group).where(Group.group_name == group_name)
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
+    
+    @log_exceptions
+    async def get_group_by_advisor_id(self, advisor_id: int) -> Group | None:
+        query = select(Group).where(Group.group_advisor_id == advisor_id)
+        res = await self.db_session.execute(query)
+        return res.scalar_one_or_none()
 
     @log_exceptions
     async def get_all_groups(self, page: int, limit: int) -> list[Group] | None:
@@ -482,6 +488,16 @@ class EmployTeacherDAL:
     async def get_all_employTeacher(self, page: int, limit: int) -> list[EmploymentTeacher] | None:
         if page == 0:
             query = select(EmploymentTeacher).order_by(EmploymentTeacher.date_start_period.asc())
+        else:
+            query = select(EmploymentTeacher).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        employs = list(result.scalars().all())
+        return employs
+    
+    @log_exceptions
+    async def get_all_employTeacher_by_teacher(self, teacher_id, page: int, limit: int) -> list[EmploymentTeacher] | None:
+        if page == 0:
+            query = select(EmploymentTeacher).where(EmploymentTeacher.teacher_id == teacher_id).order_by(EmploymentTeacher.date_start_period.asc())
         else:
             query = select(EmploymentTeacher).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)

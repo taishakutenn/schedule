@@ -327,3 +327,32 @@ class TeacherRequest(Base):
     teacher = relationship("Teacher", back_populates="requests")
     subject = relationship("Subject", back_populates="requests")
     group = relationship("Group", back_populates="requests")
+
+
+class Token(Base):
+    """
+    Represents a token for using api
+    More information about the tokens read in the habr: https://habr.com/ru/articles/533868/
+
+    Fields:
+        token_id: Just primary key in the table what not to do 3 primary key
+        access_token: Token that will store user data, site signature. Lives for a very short period
+        refresh_token: A token that will automatically allow you to get a new pair of access_token and refresh_token tokens
+    """
+    __tablename__ = "tokens"
+
+    token_id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    access_token = Column(String, nullable=True)
+    refresh_token = Column(String, nullable=True)
+
+    def generate_access_token(self):
+        """Function for generating the access_token"""
+        pass
+
+    def generate_refresh_token(self):
+        """Function for generating the refresh_token"""
+        pass
+
+    def set_token(self, access_token, refresh_token):
+        """Function which set the tokens"""
+        pass

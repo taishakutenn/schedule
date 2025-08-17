@@ -97,6 +97,16 @@ class UpdateBuilding(TunedModel):
     building_address: str | None = None
 
 
+class ShowBuildingWithHATEOAS(TunedModel):
+    building: ShowBuilding
+    links: dict[str, str] = {}
+
+
+class ShowBuildingListWithHATEOAS(BaseModel):
+    buildings: List[ShowBuildingWithHATEOAS]
+    links: dict[str, str] = {}
+
+
 '''
 =======
 Cabinet

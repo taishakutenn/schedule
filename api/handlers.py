@@ -41,46 +41,6 @@ CRUD operations for teachers
 '''
 
 
-# async def _create_new_teacher(body: CreateTeacher, db) -> ShowTeacher:
-#     async with db as session:
-#         async with session.begin():
-#             teacher_dal = TeacherDAL(session)
-#             teacher = await teacher_dal.create_teacher(
-#                 name=body.name,
-#                 surname=body.surname,
-#                 phone_number=body.phone_number,
-#                 email=str(body.email),
-#                 fathername=body.fathername
-#             )
-#             return ShowTeacher.from_orm(teacher)
-
-
-# async def _get_teacher_by_id(teacher_id, db) -> ShowTeacher:
-#     async with db as session:
-#         async with session.begin():
-#             teacher_dal = TeacherDAL(session)
-#             teacher = await teacher_dal.get_teacher_by_id(teacher_id)
-
-#             # if teacher doesn't exist
-#             if not teacher:
-#                 raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
-
-#             return ShowTeacher.from_orm(teacher)
-
-
-# async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher:
-#     async with db as session:
-#         async with session.begin():
-#             teacher_dal = TeacherDAL(session)
-#             teacher = await teacher_dal.get_teacher_by_name_surname(name, surname)
-
-#             # if teacher exist
-#             if not teacher:
-#                 raise HTTPException(status_code=404, detail=f"Учитель {name, surname} не найден")
-
-#             return ShowTeacher.from_orm(teacher)
-
-
 async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> ShowTeacherWithHATEOAS:
     async with db as session:
         async with session.begin():
@@ -103,8 +63,8 @@ async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> Show
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
-                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update',
+                    "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update/{teacher_id}',
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -149,8 +109,8 @@ async def _get_teacher_by_id(teacher_id, request: Request, db) -> ShowTeacherWit
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
-                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update',
+                    "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update/{teacher_id}',
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -190,7 +150,7 @@ async def _get_teacher_by_name_and_surname(name, surname, request: Request, db) 
 
                 hateoas_links = {
                     "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update',
+                    "update": f'{api_base_url}/teachers/update/{teacher_id}',
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -227,8 +187,8 @@ async def _get_all_teachers(page: int, limit: int, request: Request, db) -> Show
                     # add HATEOAS
                     teacher_id = teacher.id
                     teacher_links = {
-                        "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                        "update": f'{api_base_url}/teachers/update',
+                        "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "update": f'{api_base_url}/teachers/update/{teacher_id}',
                         "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                         "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
                         "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
@@ -244,7 +204,7 @@ async def _get_all_teachers(page: int, limit: int, request: Request, db) -> Show
 
                 collection_links = {
                     "self": f'{api_base_url}/teachers?page={page}&limit={limit}',
-                    "create": f'{api_base_url}/teachers'
+                    "create": f'{api_base_url}/teachers/create'
                 }
                 collection_links = {k: v for k, v in collection_links.items() if v is not None}
 
@@ -283,7 +243,7 @@ async def _delete_teacher(teacher_id: int, request: Request, db) -> ShowTeacherW
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
-                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
+                    "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers/search',
                     "create": f'{api_base_url}/teachers/create',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -326,19 +286,19 @@ async def _update_teacher(body: UpdateTeacher, request:Request, db) -> ShowTeach
                 if not teacher:
                     raise HTTPException(status_code=404, detail=f"Преподаватель с id: {body.teacher_id} не найден")
 
+                
+                teacher_id = body.teacher_id 
                 teacher_pydantic = ShowTeacher.model_validate(teacher)
 
                 base_url = str(request.base_url).rstrip('/')
                 api_prefix = '/schedule'
                 api_base_url = f'{base_url}{api_prefix}'
 
-                teacher_id = body.teacher_id 
-
                 hateoas_links = {
                     "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update/', 
+                    "update": f'{api_base_url}/teachers/update/{teacher_id}', 
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
-                    "teachers": f'{api_base_url}/teachers',
+                    "teachers": f'{api_base_url}/teachers/search',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
                     "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
                     "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
@@ -357,10 +317,6 @@ async def _update_teacher(body: UpdateTeacher, request:Request, db) -> ShowTeach
                 detail="Внутренняя ошибка сервера при обновлении преподавателя."
             )
 
-
-# @teacher_router.post("/create", response_model=ShowTeacher)
-# async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)):
-#     return await _create_new_teacher(body, db)
 
 @teacher_router.post("/create", response_model=ShowTeacherWithHATEOAS, status_code=201) # 201 Created standard code
 async def create_teacher(body: CreateTeacher, request: Request, db: AsyncSession = Depends(get_db)):
@@ -410,74 +366,204 @@ CRUD operations for buildings
 '''
 
 
-async def _create_new_building(body: CreateBuilding, db) -> ShowBuilding:
+async def _create_new_building(body: CreateBuilding, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
-            building = await building_dal.create_building(
-                building_number=body.building_number,
-                city=body.city,
-                building_address=body.building_address
-            )
+            try: 
+                building = await building_dal.create_building(
+                    building_number=body.building_number,
+                    city=body.city,
+                    building_address=body.building_address
+                )
 
-            return ShowBuilding.from_orm(building)
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update/{building_number}',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+                
+            except Exception as e:
+                 logger.error(f"Неожиданная ошибка при создании здания: {e}", exc_info=True)
+                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_building_by_number(number, db) -> ShowBuilding:
+async def _get_building_by_number(building_number, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
-            building = await building_dal.get_building_by_number(number)
 
-            # if building exist
-            if not building:
-                raise HTTPException(status_code=404, detail=f"Здание с номером: {number} не найдено")
+            try: 
+                building = await building_dal.get_building_by_number(building_number)
 
-            return ShowBuilding.from_orm(building)
+                # if building exist
+                if not building:
+                    raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
+
+                building_pydantic = ShowBuilding.model_validate(building)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update/{building_number}',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение здания отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_building_by_address(address, db) -> ShowBuilding:
+async def _get_building_by_address(address, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
-            building = await building_dal.get_building_by_address(address)
 
-            # if building exist
-            if not building:
-                raise HTTPException(status_code=404, detail=f"Здание по адресу: {address} не найдено")
+            try: 
+                building = await building_dal.get_building_by_address(address)
 
-            return ShowBuilding.from_orm(building)
+                # if building exist
+                if not building:
+                    raise HTTPException(status_code=404, detail=f"Здание по адресу: {address} не найдено")
+                
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update/{building_number}',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+                
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение здания отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_all_buildings(page: int, limit: int, db) -> list[ShowBuilding]:
+async def _get_all_buildings(page: int, limit: int, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
-            buildings = await building_dal.get_all_buildings(page, limit)
 
-            return [ShowBuilding.from_orm(building) for building in buildings]
+            try:
+                buildings = await building_dal.get_all_buildings(page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                buildings_with_hateoas = []
+                for building in buildings:
+                    building_pydantic = ShowBuilding.model_validate(building)
+
+                    # add HATEOAS
+                    building_number = building.building_number
+                    building_links = {
+                        "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                        "update": f'{api_base_url}/buildings/update/{building_number}',
+                        "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                        "buildings": f'{api_base_url}/buildings/search',
+                        "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                    }
+
+                    building_with_links = ShowBuildingWithHATEOAS(
+                        building=building_pydantic,
+                        links=building_links
+                    )
+                    buildings_with_hateoas.append(building_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/building?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/buildings/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowBuildingListWithHATEOAS(
+                    buildings=buildings_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение зданий отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _delete_building(building_number: int, db) -> ShowBuilding:
+async def _delete_building(building_number: int, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
                 building_dal = BuildingDAL(session)
                 building = await building_dal.delete_building(building_number)
-                # save changed data
-                await session.commit()
 
                 if not building:
                     raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
+                
+                building_pydantic = ShowBuilding.model_validate(building)
 
-                return ShowBuilding.from_orm(building)
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "create": f'{api_base_url}/buildings/create',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            raise
 
         except Exception as e:
-            logger.warning(f"Удаление данных о здании отменено (Ошибка: {e})")
-            raise e
+            logger.error(f"Неожиданная ошибка при удалении здания {building_number}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при удалении здания."
+            )
 
 
-async def _update_building(body: UpdateBuilding, db) -> ShowBuilding:
+async def _update_building(body: UpdateBuilding, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -497,13 +583,29 @@ async def _update_building(body: UpdateBuilding, db) -> ShowBuilding:
                     **update_data
                 )
 
-                # save changed data
-                await session.commit()
-
                 if not building:
                     raise HTTPException(status_code=404, detail=f"Здание с номером: {body.building_number} не найдено")
+                
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building)
 
-                return ShowBuilding.from_orm(building)
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update/{building_number}',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            raise
 
         except Exception as e:
             await session.rollback()
@@ -511,51 +613,44 @@ async def _update_building(body: UpdateBuilding, db) -> ShowBuilding:
             raise e
 
 
-@building_router.post("/create", response_model=ShowBuilding)
-async def create_building(body: CreateBuilding, db: AsyncSession = Depends(get_db)):
-    return await _create_new_building(body, db)
+@building_router.post("/create", response_model=ShowBuildingWithHATEOAS, status_code=201)
+async def create_building(body: CreateBuilding, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_building(body, request, db)
 
 
-@building_router.get("/search/by_number/{building_number}", response_model=ShowBuilding,
+@building_router.get("/search/by_number/{building_number}", response_model=ShowBuildingWithHATEOAS,
                      responses={404: {"description": "Здание не найдено"}})
-async def get_building_by_number(building_number: int, db: AsyncSession = Depends(get_db)):
-    return await _get_building_by_number(building_number, db)
+async def get_building_by_number(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_building_by_number(building_number, request, db)
 
 
-@building_router.get("/search/by_address", response_model=ShowBuilding | None,
+@building_router.get("/search/by_address/{building_address}", response_model=ShowBuildingWithHATEOAS,
                      responses={404: {"description": "Здание не найдено"}})
-async def get_building_by_address(address: str, db: AsyncSession = Depends(get_db)):
-    return await _get_building_by_address(address, db)
+async def get_building_by_address(address: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_building_by_address(address, request, db)
 
 
-@building_router.get("/search", response_model=list[ShowBuilding])
-async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    """
-    query_param set via Annotated so that fastapi understands
-    that the pydantic model QueryParam refers to the query parameters,
-    we specify this as the second argument for Annotated.
-    Wherever there will be pagination and the number of elements on the page,
-    it is better to use this pydantic model, so as not to manually enter these parameters each time.
-    Link to documentation: https://fastapi.tiangolo.com/ru/tutorial/query-param-models/
-    """
-    return await _get_all_buildings(query_param.page, query_param.limit, db)
+@building_router.get("/search", response_model=ShowBuildingListWithHATEOAS)
+async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_buildings(query_param.page, query_param.limit, request, db)
 
 
-@building_router.put("/delete/{building_number}", response_model=ShowBuilding,
+@building_router.put("/delete/{building_number}", response_model=ShowBuildingWithHATEOAS,
                      responses={404: {"description": "Здание не найдено"}})
-async def delete_building(building_number: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_building(building_number, db)
+async def delete_building(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_building(building_number, request, db)
 
 
-@building_router.put("/update", response_model=ShowBuilding, responses={404: {"description": "Здание не найдено"}})
-async def update_building(body: UpdateBuilding, db: AsyncSession = Depends(get_db)):
-    return await _update_building(body, db)
+@building_router.put("/update", response_model=ShowBuildingWithHATEOAS, 
+                    responses={404: {"description": "Здание не найдено"}})
+async def update_building(body: UpdateBuilding, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_building(body, request, db)
 
 
 '''
-============================
-CRUD operations for cabinets
-============================
+===========================
+CRUD operations for Cabinet
+===========================
 '''
 
 

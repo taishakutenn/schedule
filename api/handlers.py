@@ -35,9 +35,9 @@ session_router = APIRouter() # Create router for Session
 
 
 '''
-============================
-CRUD operations for teachers
-============================
+===========================
+CRUD operations for Teacher
+===========================
 '''
 
 
@@ -360,9 +360,9 @@ async def update_teacher(body: UpdateTeacher, request: Request, db: AsyncSession
 
 
 '''
-=============================
-CRUD operations for buildings
-=============================
+============================
+CRUD operations for Building
+============================
 '''
 
 
@@ -705,58 +705,190 @@ async def _create_cabinet(body: CreateCabinet, request: Request, db) -> ShowCabi
             
             except IntegrityError as e:
                 logger.error(f"Неожиданная ошибка при создании кабинета: {e}", exc_info=True)
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Кабинет с таким номером уже существует.")
+                raise HTTPException(status_code=400, detail="Кабинет с таким номером уже существует.")
              
             except Exception as e:
                 logger.error(f"Неожиданная ошибка при создании кабинета: {e}", exc_info=True)
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")        
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")        
 
 
-async def _get_all_cabinets(page: int, limit: int, db) -> list[ShowCabinet]:
+async def _get_all_cabinets(page: int, limit: int, request: Request, db) -> ShowBuildingListWithHATEOAS:
     async with db as session:
         async with session.begin():
             cabinet_dal = CabinetDAL(session)
-            cabinets = await cabinet_dal.get_all_cabinets(page, limit)
+            try:
+                cabinets = await cabinet_dal.get_all_cabinets(page, limit)
 
-            return [ShowCabinet.from_orm(cabinet) for cabinet in cabinets]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                cabinets_with_hateoas = []
+                for cabinet in cabinets:
+                    cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                    # add HATEOAS
+                    cabinet_number = cabinet.cabinet_number
+                    building_number = cabinet.building_number
+                    cabinet_links = {
+                        "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                        "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                        "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                        "cabinets": f'{api_base_url}/cabinets',
+                        "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                    }
+
+                    cabinet_with_links = ShowCabinetWithHATEOAS(
+                        cabinet=cabinet_pydantic,
+                        links=cabinet_links
+                    )
+                    cabinets_with_hateoas.append(cabinet_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/cabinets?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/cabinets/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowCabinetListWithHATEOAS(
+                    cabinets=cabinets_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение кабинета отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_cabinets_by_building(building_number: int, page: int, limit: int, db) -> list[ShowCabinet]:
+async def _get_cabinets_by_building(building_number: int, page: int, limit: int, request: Request, db) -> ShowCabinetListWithHATEOAS:
     async with db as session:
         async with session.begin():
             cabinet_dal = CabinetDAL(session)
-            cabinets = await cabinet_dal.get_cabinets_by_building(building_number, page, limit)
 
-            return [ShowCabinet.from_orm(cabinet) for cabinet in cabinets]
+            try:
+                cabinets = await cabinet_dal.get_cabinets_by_building(building_number, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                cabinets_with_hateoas = []
+                for cabinet in cabinets:
+                    cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                    # add HATEOAS
+                    cabinet_number = cabinet.cabinet_number
+                    cabinet_links = {
+                        "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                        "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                        "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                        "cabinets": f'{api_base_url}/cabinets',
+                        "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                    }
+
+                    cabinet_with_links = ShowCabinetWithHATEOAS(
+                        cabinet=cabinet_pydantic,
+                        links=cabinet_links
+                    )
+                    cabinets_with_hateoas.append(cabinet_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/cabinets?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/cabinets/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowCabinetListWithHATEOAS(
+                    cabinets=cabinets_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение кабинета отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_cabinet_by_building_and_number(building_number: int, cabinet_number: int, db) -> ShowCabinet:
+async def _get_cabinet_by_building_and_number(building_number: int, cabinet_number: int, request: Request, db) -> ShowCabinetWithHATEOAS:
     async with db as session:
         async with session.begin():
             cabinet_dal = CabinetDAL(session)
-            cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
 
-            if not cabinet:
-                raise HTTPException(status_code=404,
-                                    detail=f"Кабинет с номером: {cabinet_number} в здании с номером: {building_number} - не найден")
+            try:
+                cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
 
-            return ShowCabinet.from_orm(cabinet)
+                if not cabinet:
+                    raise HTTPException(status_code=404,
+                                        detail=f"Кабинет с номером: {cabinet_number} в здании с номером: {building_number} - не найден")
+                
+                cabinet_number = cabinet.cabinet_number
+                building_number = cabinet.building_number
+                cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                    "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                    "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                    "cabinets": f'{api_base_url}/cabinets',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+
+                return ShowCabinetWithHATEOAS(cabinet=cabinet_pydantic, links=hateoas_links)
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение кабинета отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _delete_cabinet(building_number: int, cabinet_number: int, db) -> ShowCabinet:
+async def _delete_cabinet(building_number: int, cabinet_number: int, request: Request, db) -> ShowCabinetWithHATEOAS:
     async with db as session:
-        async with session.begin():
-            cabinet_dal = CabinetDAL(session)
-            cabinet = await cabinet_dal.delete_cabinet(building_number, cabinet_number)
+        try:
+            async with session.begin():
+                cabinet_dal = CabinetDAL(session)
+                cabinet = await cabinet_dal.delete_cabinet(building_number, cabinet_number)
 
-            if not cabinet:
-                raise HTTPException(status_code=404,
-                                    detail=f"Кабинет с номером: {cabinet_number} в здании {building_number} не может быть удалён, т.к. не найден")
+                if not cabinet:
+                    raise HTTPException(status_code=404,
+                                        detail=f"Кабинет с номером: {cabinet_number} в здании {building_number} не может быть удалён, т.к. не найден")
 
-            return ShowCabinet.from_orm(cabinet)
+                cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                    "cabinets": f'{api_base_url}/cabinets',
+                    "create": f'{api_base_url}/cabinets/create',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+
+                return ShowCabinetWithHATEOAS(cabinet=cabinet_pydantic, links=hateoas_links)
+        
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            logger.warning(f"Получение кабинета отменено (Ошибка: {e})")
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _update_cabinet(body: UpdateCabinet, db) -> ShowCabinet:
+async def _update_cabinet(body: UpdateCabinet, request: Request, db) -> ShowCabinetWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -794,16 +926,35 @@ async def _update_cabinet(body: UpdateCabinet, db) -> ShowCabinet:
 
                 if not updated_cabinet:
                     raise HTTPException(status_code=404, detail="Кабинет не был обновлён")
+                
+                cabinet_number = updated_cabinet.cabinet_number
+                building_number = updated_cabinet.building_number
+                cabinet_pydantic = ShowCabinet.model_validate(updated_cabinet)
 
-                return ShowCabinet.from_orm(updated_cabinet)
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
-        # Because "Exception" will catch and the api route will not return an error when updating
-        except HTTPException as e:
-            raise e
+                hateoas_links = {
+                    "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                    "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                    "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                    "cabinets": f'{api_base_url}/cabinets',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+
+                return ShowCabinetWithHATEOAS(cabinet=cabinet_pydantic, links=hateoas_links)
+            
+        except HTTPException:
+            raise   
+
         except Exception as e:
-            await session.rollback()
-            logger.warning(f"Изменение данных о кабинете отменено (Ошибка: {e})")
-            raise HTTPException(status_code=500, detail="Произошла непредвиденная ошибка")
+            logger.error(f"Неожиданная ошибка при обновлении кабинета {cabinet_number}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при обновлении кабинета."
+            )
 
 
 @cabinet_router.post("/create", response_model=ShowCabinet)

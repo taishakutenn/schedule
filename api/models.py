@@ -65,7 +65,7 @@ class ShowTeacherWithHATEOAS(TunedModel):
     links: dict[str, str] = {}
 
 
-class ShowTeacherListWithHATEOAS(BaseModel):
+class ShowTeacherListWithHATEOAS(TunedModel):
     teachers: List[ShowTeacherWithHATEOAS]
     links: dict[str, str] = {}
 
@@ -102,7 +102,7 @@ class ShowBuildingWithHATEOAS(TunedModel):
     links: dict[str, str] = {}
 
 
-class ShowBuildingListWithHATEOAS(BaseModel):
+class ShowBuildingListWithHATEOAS(TunedModel):
     buildings: List[ShowBuildingWithHATEOAS]
     links: dict[str, str] = {}
 
@@ -137,6 +137,16 @@ class UpdateCabinet(TunedModel):
     cabinet_state: str | None = None
     building_number: int
     new_building_number: int | None = None
+
+
+class ShowCabinetWithHATEOAS(TunedModel):
+    cabinet: ShowCabinet
+    links = dict[str, str] = {}
+
+
+class ShowCabinetListWithHATEOAS(TunedModel):
+    cabinets = List[ShowCabinetWithHATEOAS]
+    links = dict[str, str] = {}
 
 
 '''

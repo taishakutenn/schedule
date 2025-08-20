@@ -654,36 +654,62 @@ CRUD operations for Cabinet
 '''
 
 
-async def _create_cabinet(body: CreateCabinet, db) -> ShowCabinet:
+async def _create_cabinet(body: CreateCabinet, request: Request, db) -> ShowCabinetWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
             cabinet_dal = CabinetDAL(session)
+            
+            try: 
+                # Check that the building exists
+                # Check that the cabinet is unique
+                # By using helpers
+                if not await ensure_building_exists(building_dal, body.building_number):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Здание с номером {body.building_number} не найдено"
+                    )
 
-            # Check that the building exists
-            # Check that the cabinet is unique
-            # By using helpers
-            if not await ensure_building_exists(building_dal, body.building_number):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Здание с номером {body.building_number} не найдено"
+                if not await ensure_cabinet_unique(cabinet_dal, body.building_number, body.cabinet_number):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Кабинет {body.cabinet_number} уже существует в здании {body.building_number}"
+                    )
+
+                # Create cabinet
+                cabinet = await cabinet_dal.create_cabinet(
+                    cabinet_number=body.cabinet_number,
+                    building_number=body.building_number,
+                    capacity=body.capacity,
+                    cabinet_state=body.cabinet_state
                 )
 
-            if not await ensure_cabinet_unique(cabinet_dal, body.building_number, body.cabinet_number):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Кабинет {body.cabinet_number} уже существует в здании {body.building_number}"
-                )
+                cabinet_number = cabinet.cabinet_number
+                building_number = cabinet.building_number
+                cabinet_pydantic = ShowCabinet.model_validate(cabinet)
 
-            # Create cabinet
-            new_cabinet = await cabinet_dal.create_cabinet(
-                cabinet_number=body.cabinet_number,
-                building_number=body.building_number,
-                capacity=body.capacity,
-                cabinet_state=body.cabinet_state
-            )
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return ShowCabinet.from_orm(new_cabinet)
+                hateoas_links = {
+                    "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                    "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                    "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                    "cabinets": f'{api_base_url}/cabinets',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+
+                return ShowCabinetWithHATEOAS(cabinet=cabinet_pydantic, links=hateoas_links)
+            
+            except IntegrityError as e:
+                logger.error(f"Неожиданная ошибка при создании кабинета: {e}", exc_info=True)
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Кабинет с таким номером уже существует.")
+             
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при создании кабинета: {e}", exc_info=True)
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")        
 
 
 async def _get_all_cabinets(page: int, limit: int, db) -> list[ShowCabinet]:

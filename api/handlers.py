@@ -957,41 +957,44 @@ async def _update_cabinet(body: UpdateCabinet, request: Request, db) -> ShowCabi
             )
 
 
-@cabinet_router.post("/create", response_model=ShowCabinet)
-async def create_cabinet(body: CreateCabinet, db: AsyncSession = Depends(get_db)):
-    return await _create_cabinet(body, db)
+@cabinet_router.post("/create", response_model=ShowCabinetWithHATEOAS)
+async def create_cabinet(body: CreateCabinet, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_cabinet(body, request, db)
 
 
-@cabinet_router.get("/search", response_model=list[ShowCabinet])
-async def get_all_cabinets(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_cabinets(query_param.page, query_param.limit, db)
+@cabinet_router.get("/search", response_model=ShowCabinetListWithHATEOAS, responses={404: {"description": "Кабинеты не найдены"}})
+async def get_all_cabinets(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_cabinets(query_param.page, query_param.limit, request, db)
 
 
-@cabinet_router.get("/search/by_building/{building_number}", response_model=list[ShowCabinet])
+@cabinet_router.get("/search/by_building/{building_number}", response_model=ShowCabinetListWithHATEOAS,
+                    responses={404: {"description": "Кабинеты не найдены"}})
 async def get_cabinets_by_building(building_number: int,
                                    query_param: Annotated[QueryParams, Depends()],
+                                   request: Request,
                                    db: AsyncSession = Depends(get_db)):
-    return await _get_cabinets_by_building(building_number, query_param.page, query_param.limit, db)
+    return await _get_cabinets_by_building(building_number, query_param.page, query_param.limit, request, db)
 
 
-@cabinet_router.get("/search/by_building_and_number", response_model=ShowCabinet,
+@cabinet_router.get("/search/by_building_and_number", response_model=ShowCabinetWithHATEOAS,
                     responses={404: {"description": "Кабинет не найден"}})
 async def get_cabinet_by_building_and_number(building_number: int,
                                              cabinet_number: int,
+                                             request: Request,
                                              db: AsyncSession = Depends(get_db)):
-    return await _get_cabinet_by_building_and_number(building_number, cabinet_number, db)
+    return await _get_cabinet_by_building_and_number(building_number, cabinet_number, request, db)
 
 
-@cabinet_router.put("/delete/{building_number}/{cabinet_number}", response_model=ShowCabinet,
+@cabinet_router.put("/delete/{building_number}/{cabinet_number}", response_model=ShowCabinetWithHATEOAS,
                     responses={404: {"description": "Не удаётся удалить кабинет"}})
-async def delete_cabinet(building_number: int, cabinet_number: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_cabinet(building_number, cabinet_number, db)
+async def delete_cabinet(building_number: int, cabinet_number: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_cabinet(building_number, cabinet_number, request, db)
 
 
-@cabinet_router.put("/update", response_model=ShowCabinet,
+@cabinet_router.put("/update", response_model=ShowCabinetWithHATEOAS,
                     responses={404: {"description": "Кабинет не найден или нет возможности изменить его параметры"}})
-async def update_cabinet(body: UpdateCabinet, db: AsyncSession = Depends(get_db)):
-    return await _update_cabinet(body, db)
+async def update_cabinet(body: UpdateCabinet, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_cabinet(body, request, db)
 
 
 '''

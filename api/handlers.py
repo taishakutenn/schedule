@@ -1025,7 +1025,7 @@ async def _create_speciality(body: CreateSpeciality, request: Request, db) -> Sh
                     "update": f'{api_base_url}/specialities/update/{speciality_code}',
                     "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
                     "specialities": f'{api_base_url}/specialities',
-                    "group": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
                 }
 
                 return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
@@ -1058,16 +1058,16 @@ async def _get_all_specialties(page: int, limit: int, request: Request, db) -> S
 
                     # add HATEOAS
                     speciality_code = speciality.speciality_code
-                    teacher_links = {
+                    speciality_links = {
                         "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
                         "update": f'{api_base_url}/specialities/update/{speciality_code}',
                         "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
-                        "group": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                        "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
                 }
 
                     speciality_with_links = ShowSpecialityWithHATEOAS(
                         speciality=speciality_pydantic,
-                        links=teacher_links
+                        links=speciality_links
                     )
                     specialities_with_hateoas.append(speciality_with_links)
 
@@ -1090,33 +1090,79 @@ async def _get_all_specialties(page: int, limit: int, request: Request, db) -> S
                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_speciality(speciality_code: str, db) -> list[ShowSpeciality]:
+async def _get_speciality(speciality_code: str, request: Request, db) -> ShowSpecialityWithHATEOAS:
     async with db as session:
         async with session.begin():
             speciality_dal = SpecialityDAL(session)
-            speciality = await speciality_dal.get_speciality(speciality_code)
 
-            # if speciality doesn't exist
-            if not speciality:
-                raise HTTPException(status_code=404, detail=f"Специальность с кодом: {speciality_code} не найдена")
+            try:
+                speciality = await speciality_dal.get_speciality(speciality_code)
 
-            return ShowSpeciality.from_orm(speciality)
+                # if speciality doesn't exist
+                if not speciality:
+                    raise HTTPException(status_code=404, detail=f"Специальность с кодом: {speciality_code} не найдена")
+
+                speciality_pydantic = ShowSpeciality.model_validate(speciality)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update/{speciality_code}',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение специальности отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _delete_speciality(speciality_code: str, db) -> ShowSpeciality:
+async def _delete_speciality(speciality_code: str, request: Request, db) -> ShowSpecialityWithHATEOAS:
     async with db as session:
-        async with session.begin():
-            speciality_dal = SpecialityDAL(session)
-            speciality = await speciality_dal.delete_speciality(speciality_code)
+        try:
+            async with session.begin():
+                speciality_dal = SpecialityDAL(session)
+                speciality = await speciality_dal.delete_speciality(speciality_code)
 
-            if not speciality:
-                raise HTTPException(status_code=404,
-                                    detail=f"Специальность с кодом: {speciality_code} не может быть удалена, т.к. не найдена")
+                if not speciality:
+                    raise HTTPException(status_code=404,
+                                        detail=f"Специальность с кодом: {speciality_code} не может быть удалена, т.к. не найдена")
 
-            return ShowSpeciality.from_orm(speciality)
+                speciality_pydantic = ShowSpeciality.model_validate(speciality)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "create": f'{api_base_url}/specialities/create',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+            
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            logger.warning(f"Неожиданная ошибка при удалении специальности {speciality_code}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении специальности.")
 
 
-async def _update_speciality(body: UpdateSpeciality, db) -> ShowSpeciality:
+async def _update_speciality(body: UpdateSpeciality, request: Request, db) -> ShowSpecialityWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -1133,54 +1179,69 @@ async def _update_speciality(body: UpdateSpeciality, db) -> ShowSpeciality:
                     update_data["speciality_code"] = update_data.pop("new_speciality_code")
 
                 # Change data
-                updated_speciality = await speciality_dal.update_speciality(
+                speciality = await speciality_dal.update_speciality(
                     target_code=body.speciality_code, 
                     **update_data
                     )
-                
-                # save changed data
-                await session.commit()
 
-                if not updated_speciality:
+                if not speciality:
                     raise HTTPException(status_code=404, detail="Специальность не была обновлена")
+                
+                speciality_code = body.speciality_code
+                speciality_pydantic = ShowSpeciality.model_validate(speciality)
 
-                return ShowSpeciality.from_orm(updated_speciality)
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
-        # Because "Exception" will catch and the api route will not return an error when updating
-        except HTTPException as e:
-            raise e
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update/{speciality_code}',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            raise   
+
         except Exception as e:
-            await session.rollback()
-            logger.warning(f"Изменение данных о специальности отменено (Ошибка: {e})")
-            raise HTTPException(status_code=500, detail="Произошла непредвиденная ошибка")
+            logger.error(f"Неожиданная ошибка при обновлении специальности {body.speciality_code}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при обновлении специальности."
+            )
 
 
-@speciality_router.post("/create", response_model=ShowSpeciality)
-async def create_speciality(body: CreateSpeciality, db: AsyncSession = Depends(get_db)):
-    return await _create_speciality(body, db)
+@speciality_router.post("/create", response_model=ShowSpecialityWithHATEOAS, status_code=201)
+async def create_speciality(body: CreateSpeciality, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_speciality(body, request, db)
 
 
-@speciality_router.get("/search", response_model=list[ShowSpeciality])
-async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_specialties(query_param.page, query_param.limit, db)
+@speciality_router.get("/search", response_model=ShowSpecialityListWithHATEOAS, responses={404: {"description": "Специальность не найдена"}})
+async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_specialties(query_param.page, query_param.limit, request, db)
 
 
-@speciality_router.get("/search/by_speciality_code", response_model=ShowSpeciality,
+@speciality_router.get("/search/by_speciality_code", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Специальность не найдена"}})
 async def get_speciality_by_code(speciality_code: str, db: AsyncSession = Depends(get_db)):
     return await _get_speciality(speciality_code, db)
 
 
-@speciality_router.put("/delete/{speciality_code}", response_model=ShowSpeciality,
+@speciality_router.put("/delete/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Не удаётся удалить специальность"}})
-async def delete_speciality(speciality_code: str, db: AsyncSession = Depends(get_db)):
+async def delete_speciality(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_speciality(speciality_code, db)
 
 
-@speciality_router.put("/update", response_model=ShowSpeciality,
+@speciality_router.put("/update", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Специальность не найдена или нет возможности изменить её параметры"}})
-async def update_speciality(body: UpdateSpeciality, db: AsyncSession = Depends(get_db)):
-    return await _update_speciality(body, db)
+async def update_speciality(body: UpdateSpeciality, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_speciality(body, request, db)
 
 
 '''

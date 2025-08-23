@@ -1235,7 +1235,7 @@ async def get_speciality_by_code(speciality_code: str, db: AsyncSession = Depend
 @speciality_router.put("/delete/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Не удаётся удалить специальность"}})
 async def delete_speciality(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
-    return await _delete_speciality(speciality_code, db)
+    return await _delete_speciality(speciality_code, request, db)
 
 
 @speciality_router.put("/update", response_model=ShowSpecialityWithHATEOAS,

@@ -170,6 +170,16 @@ class UpdateSpeciality(TunedModel):
     new_speciality_code: str
 
 
+class ShowSpecialityWithHATEOAS(TunedModel):
+    speciality: ShowSpeciality
+    links = dict[str, str] = {}
+
+
+class ShowSpecialityListWithHATEOAS(TunedModel):
+    specialities = List[ShowSpecialityWithHATEOAS]
+    links = dict[str, str] = {}
+
+
 '''
 =====
 GROUP

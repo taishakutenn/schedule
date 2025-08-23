@@ -999,27 +999,95 @@ async def update_cabinet(body: UpdateCabinet, request: Request, db: AsyncSession
 
 '''
 ==============================
-CRUD operations for speciality
+CRUD operations for Speciality
 ==============================
 '''
 
 
-async def _create_speciality(body: CreateSpeciality, db) -> ShowSpeciality:
+async def _create_speciality(body: CreateSpeciality, request: Request, db) -> ShowSpecialityWithHATEOAS:
     async with db as session:
         async with session.begin():
             speciality_dal = SpecialityDAL(session)
-            new_speciality = await speciality_dal.create_speciality(speciality_code=body.speciality_code)
 
-            return ShowSpeciality.from_orm(new_speciality)
+            try:
+                speciality = await speciality_dal.create_speciality(speciality_code=body.speciality_code)
+
+                speciality_code = speciality.speciality_code
+                speciality_pydantic = ShowSpeciality.model_validate(speciality)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update/{speciality_code}',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "group": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+
+            except IntegrityError as e:
+                logger.error(f"Ошибка целостности БД при создании специальности: {e}")
+                raise HTTPException(status_code=400, detail="Невозможно создать специальность из-за конфликта данных.")
+                     
+            except Exception as e:
+                 logger.error(f"Неожиданная ошибка при создании специальности: {e}", exc_info=True)
+                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+        
 
 
-async def _get_all_specialties(page: int, limit: int, db) -> list[ShowSpeciality]:
+async def _get_all_specialties(page: int, limit: int, request: Request, db) -> ShowSpecialityListWithHATEOAS:
     async with db as session:
         async with session.begin():
             speciality_dal = SpecialityDAL(session)
-            specialities = await speciality_dal.get_all_specialties(page, limit)
 
-            return [ShowSpeciality.from_orm(speciality) for speciality in specialities]
+            try:
+                specialities = await speciality_dal.get_all_specialties(page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                specialities_with_hateoas = []
+                for speciality in specialities:
+                    speciality_pydantic = ShowSpeciality.model_validate(speciality)
+
+                    # add HATEOAS
+                    speciality_code = speciality.speciality_code
+                    teacher_links = {
+                        "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                        "update": f'{api_base_url}/specialities/update/{speciality_code}',
+                        "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                        "group": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                    speciality_with_links = ShowSpecialityWithHATEOAS(
+                        speciality=speciality_pydantic,
+                        links=teacher_links
+                    )
+                    specialities_with_hateoas.append(speciality_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/specialities?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/specialities/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowSpecialityListWithHATEOAS(
+                    speciality=specialities_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение специальностей отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
 async def _get_speciality(speciality_code: str, db) -> list[ShowSpeciality]:

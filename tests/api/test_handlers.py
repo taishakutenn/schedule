@@ -5,51 +5,76 @@ import pytest
 # TESTS FOR TEACHERS HANDLERS
 #############################
 
-
-@pytest.mark.parametrize("a, b, result", [(10, 2, 5), (11, 4, 10)])
-def test_create_new_teacher(a, b, result):
-    pass
-
-
 def test_create_new_teacher_error():
     pass
 
+def test_create_new_teacher(client):
 
-def test_get_teacher_by_id():
-    pass
+    # Create test data
+    payload = {
+        "name": "name3",
+        "surname": "surname3",
+        "fathername": "fathername3",
+        "phone_number": "phone_number3",
+        "email": "email3@gmail.com"
+    }
 
+    # Get response from server
+    response = client.post("/teachers/create", json=payload)
 
-def test_get_teacher_by_id_error():
-    pass
+    # Check that status code is 201
+    # assert response.status_code == 201
+    print(response.status_code)
 
+    # Read response's data
+    data = response.json()
 
-def test_get_teacher_by_name_and_surname():
-    pass
+    print(f"ОТВЕТ АПИ: {data}")
 
-
-def test_get_teacher_by_name_and_surname_error():
-    pass
-
-
-def test_get_all_teachers():
-    pass
-
-
-def test_get_all_teachers_error():
-    pass
-
-
-def test_delete_teacher():
-    pass
-
-
-def test_delete_teacher_error():
-    pass
+    # Check response's data for validity
+    assert data["teacher"]["name"] == payload["name"]
+    assert data["teacher"]["surname"] == payload["surname"]
+    assert data["teacher"]["fathername"] == payload["fathername"]
+    assert data["teacher"]["phone_number"] == payload["phone_number"]
+    assert data["teacher"]["email"] == payload["email"]
 
 
-def test_update_teacher():
-    pass
-
-
-def test_update_teacher_error():
-    pass
+#
+# def test_get_teacher_by_id():
+#     pass
+#
+#
+# def test_get_teacher_by_id_error():
+#     pass
+#
+#
+# def test_get_teacher_by_name_and_surname():
+#     pass
+#
+#
+# def test_get_teacher_by_name_and_surname_error():
+#     pass
+#
+#
+# def test_get_all_teachers():
+#     pass
+#
+#
+# def test_get_all_teachers_error():
+#     pass
+#
+#
+# def test_delete_teacher():
+#     pass
+#
+#
+# def test_delete_teacher_error():
+#     pass
+#
+#
+# def test_update_teacher():
+#     pass
+#
+#
+# def test_update_teacher_error():
+#     pass

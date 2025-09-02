@@ -182,7 +182,7 @@ class ShowSpecialityListWithHATEOAS(TunedModel):
 
 '''
 =====
-GROUP
+Group
 =====
 '''
 
@@ -208,6 +208,16 @@ class UpdateGroup(TunedModel):
     speciality_code: str | None = None
     quantity_students: int | None = None
     group_advisor_id: int | None = None
+
+
+class ShowGroupWithHATEOAS(TunedModel):
+    group: ShowGroup
+    links = dict[str, str] = {}
+
+
+class ShowGroupListWithHATEOAS(TunedModel):
+    groups = List[ShowGroupWithHATEOAS]
+    links = dict[str, str] = {}
 
 
 '''

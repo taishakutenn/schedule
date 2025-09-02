@@ -45,6 +45,7 @@ async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> Show
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
+
             try:
                 teacher = await teacher_dal.create_teacher(
                     name=body.name,
@@ -219,6 +220,58 @@ async def _get_all_teachers(page: int, limit: int, request: Request, db) -> Show
             except Exception as e:
                 logger.warning(f"Получение преподавателей отменено (Ошибка: {e})")
                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+            
+
+async def _get_all_teachers(page: int, limit: int, group_name, request: Request, db) -> ShowTeacherListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_dal = TeacherDAL(session)
+            try:
+                teachers = await teacher_dal.get_all_teachers_by_group(page, limit, group_name)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teachers_with_hateoas = []
+                for teacher in teachers:
+                    teacher_pydantic = ShowTeacher.model_validate(teacher)
+
+                    # add HATEOAS
+                    teacher_id = teacher.id
+                    teacher_links = {
+                        "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "update": f'{api_base_url}/teachers/update/{teacher_id}',
+                        "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
+                        "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
+                        "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
+                        "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
+                        "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
+                    }
+
+                    teacher_with_links = ShowTeacherWithHATEOAS(
+                        teacher=teacher_pydantic,
+                        links=teacher_links
+                    )
+                    teachers_with_hateoas.append(teacher_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowTeacherListWithHATEOAS(
+                    teachers=teachers_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение преподавателей отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
 async def _delete_teacher(teacher_id: int, request: Request, db) -> ShowTeacherWithHATEOAS:
@@ -296,7 +349,6 @@ async def _update_teacher(body: UpdateTeacher, request:Request, db) -> ShowTeach
 
                 hateoas_links = {
                     "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update/{teacher_id}', 
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers/search',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -1246,84 +1298,225 @@ async def update_speciality(body: UpdateSpeciality, request: Request, db: AsyncS
 
 '''
 =========================
-CRUD operations for group
+CRUD operations for Group
 =========================
 '''
 
 
-async def _create_new_group(body: CreateGroup, db) -> ShowGroup:
+async def _create_new_group(body: CreateGroup, request: Request, db) -> ShowGroupWithHATEOAS:
     async with db as session:
         async with session.begin():
             group_dal = GroupDAL(session)
             teacher_dal = TeacherDAL(session)
             speciality_dal = SpecialityDAL(session)
 
-            # Check that the teacher and speciality exists
-            # Check that the group is unique
-            # By using helpers
-            if body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Специальность с кодом {body.speciality_code} не найдена"
+            try:
+                # Check that the teacher and speciality exists
+                # Check that the group is unique
+                # By using helpers
+                if body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Специальность с кодом {body.speciality_code} не найдена"
+                    )
+                
+                if body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Учитель с id {body.group_advisor_id} не найден"
+                    )
+
+                if not await ensure_group_unique(group_dal, body.group_name):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Группа {body.group_name} уже существует"
+                    )
+
+                group = await group_dal.create_group(
+                    group_name=body.group_name,
+                    speciality_code=body.speciality_code,
+                    quantity_students=body.quantity_students,
+                    group_advisor_id=body.group_advisor_id
                 )
+
+                group_name = group.group_name
+                group_pydantic = ShowGroup.model_validate(group)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "update": f'{api_base_url}/groups/update/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/by_group/{group_name}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
             
-            if body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+            except IntegrityError as e:
+                logger.error(f"Ошибка целостности БД при создании группы: {e}")
+                raise HTTPException(status_code=400, detail="Невозможно создать группу из-за конфликта данных.")
+                     
+            except Exception as e:
+                 logger.error(f"Неожиданная ошибка при создании группы: {e}", exc_info=True)
+                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+        
+
+
+async def _get_group_by_name(group_name: str, request: Request, db) -> ShowGroupWithHATEOAS:
+    async with db as session:
+        async with db as session:
+            group_dal = GroupDAL(session)
+            try:
+                group = await group_dal.get_group(group_name)
+
+                # if group doesn't exist
+                if not group:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Группа с названием: {group_name} не найдена"
+                    )
+
+                group_pydantic = ShowGroup.model_validate(group)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "update": f'{api_base_url}/groups/update/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении группы {group_name}: {e}", exc_info=True)
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Учитель с id {body.group_advisor_id} не найден"
+                    status_code=500,
+                    detail="Внутренняя ошибка сервера при получении группы."
                 )
+        
 
-            if not await ensure_group_unique(group_dal, body.group_name):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Группа {body.group_name} уже существует"
-                )
-
-            group = await group_dal.create_group(
-                group_name=body.group_name,
-                speciality_code=body.speciality_code,
-                quantity_students=body.quantity_students,
-                group_advisor_id=body.group_advisor_id
-            )
-            return ShowGroup.from_orm(group)
-
-
-async def _get_group_by_name(group_name: str, db) -> ShowGroup:
+async def _get_group_by_advisor(advisor_id: int, request: Request, db) -> ShowGroupWithHATEOAS:
     async with db as session:
         async with session.begin(): 
             group_dal = GroupDAL(session)
-            group = await group_dal.get_group(group_name)
 
-            # if group doesn't exist
-            if not group:
-                raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
+            try:
+                group = await group_dal.get_group_by_advisor_id(advisor_id)
 
-            return ShowGroup.from_orm(group) 
+                # if group doesn't exist
+                if not group:
+                    raise HTTPException(status_code=404, detail=f"Группа с преподавателем: {advisor_id} не найдена")
+
+                group_pydantic = ShowGroup.model_validate(group)
+                group_name = group.group_name
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "update": f'{api_base_url}/groups/update/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении группы {group_name}: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail="Внутренняя ошибка сервера при получении группы."
+                )
         
 
-async def _get_group_by_advisor(advisor_id: int, db) -> ShowGroup:
-    async with db as session:
-        async with session.begin(): 
-            group_dal = GroupDAL(session)
-            group = await group_dal.get_group_by_advisor_id(advisor_id)
-
-            # if group doesn't exist
-            if not group:
-                raise HTTPException(status_code=404, detail=f"Группа с преподавателем: {advisor_id} не найдена")
-
-            return ShowGroup.from_orm(group) 
-        
-
-async def _get_all_groups(page: int, limit: int, db) -> list[ShowGroup]:
+async def _get_all_groups(page: int, limit: int, request: Request, db) -> ShowGroupListWithHATEOAS:
     async with db as session:
         async with session.begin():
             group_dal = GroupDAL(session)
-            groups = await group_dal.get_all_groups(page, limit)
 
-            return [ShowGroup.from_orm(group) for group in groups]
+            try:
+                groups = await group_dal.get_all_groups(page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                groups_with_hateoas = []
+                for group in groups:
+                    group_pydantic = ShowGroup.model_validate(group)
+
+                    # add HATEOAS
+                    group_name = group.group_name
+                    group_links = {
+                        "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                        "update": f'{api_base_url}/groups/update/{group_name}',
+                        "delete": f'{api_base_url}/groups/delete/{group_name}',
+                        "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                        "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                        "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                        "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                        "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                    }
+                    group_links = {k: v for k, v in group_links.items() if v is not None}
+
+                    group_with_links = ShowGroupWithHATEOAS(
+                        group=group_pydantic,
+                        links=group_links
+                    )
+                    groups_with_hateoas.append(group_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/groups?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/groups/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowGroupListWithHATEOAS(
+                    groups=groups_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение групп отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
         
 
-async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: int, db) -> list[ShowGroup]:
+async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: int, request: Request, db) -> ShowGroupListWithHATEOAS:
     async with db as session:
         async with session.begin():
             group_dal = GroupDAL(session)
@@ -1334,13 +1527,59 @@ async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: 
                     status_code=404,
                     detail=f"Специальность с кодом {speciality_code} не найдена"
                 )
+            
+            try:
+                groups = await group_dal.get_all_groups_by_speciality(speciality_code, page, limit)
 
-            groups = await group_dal.get_all_groups_by_speciality(speciality_code, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return [ShowGroup.from_orm(group) for group in groups]
+                groups_with_hateoas = []
+                for group in groups:
+                    group_pydantic = ShowGroup.model_validate(group)
 
+                    # add HATEOAS
+                    group_name = group.group_name
+                    group_links = {
+                        "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                        "update": f'{api_base_url}/groups/update/{group_name}',
+                        "delete": f'{api_base_url}/groups/delete/{group_name}',
+                        "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                        "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                        "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                        "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                        "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                    }
+                    group_links = {k: v for k, v in group_links.items() if v is not None}
 
-async def _delete_group(group_name: str, db) -> ShowGroup:
+                    group_with_links = ShowGroupWithHATEOAS(
+                        group=group_pydantic,
+                        links=group_links
+                    )
+                    groups_with_hateoas.append(group_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/groups?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/groups/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowGroupListWithHATEOAS(
+                    groups=groups_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение групп отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+                
+
+async def _delete_group(group_name: str, request: Request, db) -> ShowGroupWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -1350,14 +1589,39 @@ async def _delete_group(group_name: str, db) -> ShowGroup:
                 if not group:
                     raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
 
-            return ShowGroup.from_orm(group)
+                group_pydantic = ShowGroup.model_validate(group)
 
-        except Exception as e:
-            logger.warning(f"Удаление группы отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "update": f'{api_base_url}/groups/update/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
+        
+        except HTTPException:
             raise
 
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при удалении группы {group_name}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при удалении группы."
+            )
 
-async def _update_group(body: UpdateGroup, db) -> ShowGroup:
+
+async def _update_group(body: UpdateGroup, request: Request, db) -> ShowGroupWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -1398,56 +1662,76 @@ async def _update_group(body: UpdateGroup, db) -> ShowGroup:
                     **update_data
                 )
 
-                # save changed data
-                await session.commit()
+                group_pydantic = ShowGroup.model_validate(group)
+                group_name = group.group_name
 
-                if not group:
-                    raise HTTPException(status_code=404, detail=f"Группа с названием: {body.group_name} не найдена")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return ShowGroup.from_orm(group)
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
+        except HTTPException:
+            raise   
 
         except Exception as e:
-            await session.rollback()
-            logger.warning(f"Изменение данных о группе отменено (Ошибка: {e})")
-            raise
+            logger.error(f"Неожиданная ошибка при обновлении группы {body.group_name}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при обновлении группы."
+            )
 
 
-@group_router.post("/create", response_model=ShowGroup)
-async def create_group(body: CreateGroup, db: AsyncSession = Depends(get_db)):
-    return await _create_new_group(body, db)
+@group_router.post("/create", response_model=ShowGroupWithHATEOAS, status_code=201)
+async def create_group(body: CreateGroup, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_group(body, request, db)
 
 
-@group_router.get("/search/by_group_name/{group_name}", response_model=ShowGroup,
+@group_router.get("/search/by_group_name/{group_name}", response_model=ShowGroupWithHATEOAS,
                     responses={404: {"description": "Группа не найдена"}})
-async def get_group_by_name(group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _get_group_by_name(group_name, db)
+async def get_group_by_name(group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_group_by_name(group_name, request, db)
 
 
-@group_router.get("/search/by_group_name/{advisor_id}", response_model=ShowGroup,
+@group_router.get("/search/by_advisor/{advisor_id}", response_model=ShowGroupWithHATEOAS,
                     responses={404: {"description": "Группа не найдена"}})
-async def get_group_by_name(advisor_id: int, db: AsyncSession = Depends(get_db)):
-    return await _get_group_by_name(advisor_id, db)
+async def get_group_by_advisor(advisor_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_group_by_advisor(advisor_id, request, db)
 
 
-@group_router.get("/search", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
-async def get_all_groups(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_groups(query_param.page, query_param.limit, db)
+@group_router.get("/search", response_model=ShowGroupListWithHATEOAS, 
+                  responses={404: {"description": "Группы не найдены"}})
+async def get_all_groups(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_groups(query_param.page, request, query_param.limit, db)
 
 
-@group_router.get("/search/by_speciality/{speciality_code}", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
-async def get_all_groups_by_speciality(speciality_code: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_groups_by_speciality(speciality_code, query_param.page, query_param.limit, db)
+@group_router.get("/search/by_speciality/{speciality_code}", response_model=ShowGroupListWithHATEOAS, 
+                  responses={404: {"description": "Группы не найдены"}})
+async def get_all_groups_by_speciality(speciality_code: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_groups_by_speciality(speciality_code, query_param.page, query_param.limit, request, db)
 
 
-@group_router.put("/delete/{group_name}", response_model=ShowGroup,
+@group_router.put("/delete/{group_name}", response_model=ShowGroupWithHATEOAS,
                     responses={404: {"description": "Группа не найдена"}})
-async def delete_group(group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_group(group_name, db)
+async def delete_group(group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_group(group_name, request, db)
 
 
-@group_router.put("/update", response_model=ShowGroup, responses={404: {"description": "Группа не найдена"}})
-async def update_group(body: UpdateGroup, db: AsyncSession = Depends(get_db)):
-    return await _update_group(body, db)
+@group_router.put("/update", response_model=ShowGroupWithHATEOAS, 
+                  responses={404: {"description": "Группа не найдена"}})
+async def update_group(body: UpdateGroup, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_group(body, request, db)
 
 
 '''
@@ -1510,6 +1794,19 @@ async def _get_curriculum(semester_number: int, group_name: str, subject_code: s
 
 
 async def _get_all_curriculums(page: int, limit: int, db) -> list[ShowCurriculum]:
+    async with db as session:
+        async with session.begin():
+            curriculum_dal = CurriculumDAL(session)
+            curriculums = await curriculum_dal.get_all_curriculums(page, limit)
+
+            return [ShowCurriculum.from_orm(curriculum) for curriculum in curriculums]
+        
+        '''
+        
+        GROUP
+        
+        '''
+async def _get_all_curriculums_by_group(group, page: int, limit: int, db) -> list[ShowCurriculum]:
     async with db as session:
         async with session.begin():
             curriculum_dal = CurriculumDAL(session)
@@ -1612,6 +1909,11 @@ async def get_curriculum(semester_number: int, group_name: str, subject_code: st
 @curriculum_router.get("/search", response_model=list[ShowCurriculum], responses={404: {"description": "Планы не найдены"}})
 async def get_all_curriculums(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     return await _get_all_curriculums(query_param.page, query_param.limit, db)
+
+
+@curriculum_router.get("/search/by_group/{group_name}", response_model=list[ShowCurriculum], responses={404: {"description": "Планы не найдены"}})
+async def get_all_curriculums(group_name: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_curriculums(group_name, query_param.page, query_param.limit, db)
 
 
 @curriculum_router.put("/delete/{group_name}/{subject_code}/{semester_number}", response_model=ShowCurriculum,
@@ -2033,6 +2335,18 @@ async def _get_all_requests_by_teacher(teacher_id: int, page: int, limit: int, d
             return [ShowTeacherRequest.from_orm(request) for request in requests]
         
 
+'''
+GROUP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'''
+async def _get_all_requests_by_group(teacher_id: int, page: int, limit: int, db) -> list[ShowTeacherRequest]:
+    async with db as session:
+        async with session.begin():
+            request_dal = TeacherRequestDAL(session)
+            requests = await request_dal.get_all_requests_by_teacher(teacher_id, page, limit)
+
+            return [ShowTeacherRequest.from_orm(request) for request in requests]
+        
+
 async def _delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db) -> ShowTeacherRequest:
     async with db as session:
         try:
@@ -2141,9 +2455,18 @@ async def get_all_requests(query_param: Annotated[QueryParams, Depends()], db: A
 
 
 @request_router.get("/search/by_teacher/{teacher_id}", 
-                    response_model=list[ShowTeacherRequest], responses={404: {"description": "Запрос не найдены"}})
+                    response_model=list[ShowTeacherRequest], responses={404: {"description": "Запросы не найдены"}})
 async def get_all_requests_by_teacher(teacher_id: int, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     return await _get_all_requests_by_teacher(teacher_id, query_param.page, query_param.limit, db)
+
+
+'''
+GROUP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'''
+@request_router.get("/search/by_group/{group_name}", 
+                    response_model=list[ShowTeacherRequest], responses={404: {"description": "Запросы не найдены"}})
+async def get_all_requests_by_teacher(group_name: str, teacher_id: int, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_requests_by_teacher(group_name, teacher_id, query_param.page, query_param.limit, db)
 
 
 @request_router.put("/delete/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,

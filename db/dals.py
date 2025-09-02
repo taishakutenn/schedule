@@ -50,6 +50,15 @@ class TeacherDAL:
 
         result = await self.db_session.execute(query)
         return list(result.scalars().all())
+    
+    @log_exceptions
+    async def get_all_teachers_by_group(self, page: int, limit: int, group_name) -> list[Teacher]:
+        query = select(Teacher).where(Teacher.advisory_group == group_name).order_by(Teacher.surname.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        return list(result.scalars().all())
 
     @log_exceptions
     async def get_teacher_by_id(self, id: int) -> Teacher | None:
@@ -401,6 +410,16 @@ class CurriculumDAL:
     async def get_all_curriculums(self, page: int, limit: int) -> list[Curriculum] | None:
         if page == 0:
             query = select(Curriculum).order_by(Curriculum.semester_number.asc())
+        else:
+            query = select(Curriculum).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        curriculums = list(result.scalars().all())
+        return curriculums
+    
+    @log_exceptions
+    async def get_all_curriculums_by_group(self, group, page: int, limit: int) -> list[Curriculum] | None:
+        if page == 0:
+            query = select(Curriculum).where(Curriculum.group_name == group).order_by(Curriculum.semester_number.asc())
         else:
             query = select(Curriculum).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
@@ -797,6 +816,16 @@ class TeacherRequestDAL:
     @log_exceptions
     async def get_all_requests_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherRequest]:
         query = select(TeacherRequest).where(TeacherRequest.teacher_id == teacher_id
+            ).order_by(TeacherRequest.date_request.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        return list(result.scalars().all())
+    
+    @log_exceptions
+    async def get_all_requests_by_group(self, group: str, page: int, limit: int) -> list[TeacherRequest]:
+        query = select(TeacherRequest).where(TeacherRequest.group_name == group
             ).order_by(TeacherRequest.date_request.asc())
         if page > 0:
             query = query.offset((page - 1) * limit).limit(limit)

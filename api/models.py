@@ -258,6 +258,17 @@ class UpdateCurriculum(TunedModel):
     practical_hours: int | None = None
 
 
+class ShowCurriculumWithHATEOAS(TunedModel):
+    curriculum: ShowCurriculum
+    links = dict[str, str] = {}
+
+
+class ShowCurriculumListWithHATEOAS(TunedModel):
+    curriculums = List[ShowCurriculumWithHATEOAS]
+    links = dict[str, str] = {}
+
+
+
 '''
 =======
 Subject

@@ -141,12 +141,12 @@ class UpdateCabinet(TunedModel):
 
 class ShowCabinetWithHATEOAS(TunedModel):
     cabinet: ShowCabinet
-    links = dict[str, str] = {}
+    links: dict[str, str] = {}
 
 
 class ShowCabinetListWithHATEOAS(TunedModel):
-    cabinets = List[ShowCabinetWithHATEOAS]
-    links = dict[str, str] = {}
+    cabinets: List[ShowCabinetWithHATEOAS]
+    links: dict[str, str] = {}
 
 
 '''
@@ -172,12 +172,12 @@ class UpdateSpeciality(TunedModel):
 
 class ShowSpecialityWithHATEOAS(TunedModel):
     speciality: ShowSpeciality
-    links = dict[str, str] = {}
+    links: dict[str, str] = {}
 
 
 class ShowSpecialityListWithHATEOAS(TunedModel):
-    specialities = List[ShowSpecialityWithHATEOAS]
-    links = dict[str, str] = {}
+    specialities: List[ShowSpecialityWithHATEOAS]
+    links: dict[str, str] = {}
 
 
 '''
@@ -212,12 +212,12 @@ class UpdateGroup(TunedModel):
 
 class ShowGroupWithHATEOAS(TunedModel):
     group: ShowGroup
-    links = dict[str, str] = {}
+    links: dict[str, str] = {}
 
 
 class ShowGroupListWithHATEOAS(TunedModel):
-    groups = List[ShowGroupWithHATEOAS]
-    links = dict[str, str] = {}
+    groups: List[ShowGroupWithHATEOAS]
+    links: dict[str, str] = {}
 
 
 '''
@@ -260,12 +260,12 @@ class UpdateCurriculum(TunedModel):
 
 class ShowCurriculumWithHATEOAS(TunedModel):
     curriculum: ShowCurriculum
-    links = dict[str, str] = {}
+    links: dict[str, str] = {}
 
 
 class ShowCurriculumListWithHATEOAS(TunedModel):
     curriculums = List[ShowCurriculumWithHATEOAS]
-    links = dict[str, str] = {}
+    links: dict[str, str] = {}
 
 
 
@@ -291,6 +291,16 @@ class UpdateSubject(TunedModel):
     subject_code: str
     new_subject_code: str | None = None 
     name: str | None = None
+
+
+class ShowSubjectWithHATEOAS(TunedModel):
+    subject: ShowSubject
+    links: dict[str, str] = {}
+
+
+class ShowSubjectListWithHATEOAS(TunedModel):
+    subjects: List[ShowSubjectWithHATEOAS]
+    links: dict[str, str] = {}
 
 
 '''

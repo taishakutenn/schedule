@@ -2018,6 +2018,55 @@ async def _get_all_curriculums_by_group(group_name: str, page: int, limit: int, 
                 raise 
 
 
+async def _get_all_curriculums_by_subject(subject_code: str, page: int, limit: int, request: Request, db) -> ShowCurriculumListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            curriculum_dal = CurriculumDAL(session)
+            try:
+                curriculums_orm_list = await curriculum_dal.get_all_curriculums_by_subject(subject_code, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                curriculums_with_hateoas = []
+                for curriculum_orm in curriculums_orm_list:
+                    curriculum_pydantic = ShowCurriculum.model_validate(curriculum_orm)
+
+                    semester_number = curriculum_orm.semester_number
+                    group_name_from_obj = curriculum_orm.group_name 
+                    subject_code = curriculum_orm.subject_code
+
+                    curriculum_links = {
+                        "self": f'{api_base_url}/curriculums/search/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "update": f'{api_base_url}/curriculums/update/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "delete": f'{api_base_url}/curriculums/delete/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name_from_obj}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                    }
+
+                    curriculum_with_links = ShowCurriculumWithHATEOAS( 
+                        curriculum=curriculum_pydantic,
+                        links=curriculum_links
+                    )
+                    curriculums_with_hateoas.append(curriculum_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/curriculums/search/by_subject/{subject_code}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/curriculums',
+                    "subject": f'{api_base_url}/subjects/search/by_subject_code/{subject_code}', 
+                }
+
+                return ShowCurriculumListWithHATEOAS( 
+                    curriculums=curriculums_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка учебных планов для предмета '{subject_code}' (страница {page}, лимит {limit}): {e}", exc_info=True)
+                raise 
+
+
 async def _delete_curriculum(semester_number: int, group_name: str, subject_code: str, request: Request, db) -> ShowCurriculumWithHATEOAS:
     async with db as session:
         try:
@@ -2174,7 +2223,12 @@ async def get_all_curriculums(request: Request, query_param: Annotated[QueryPara
 
 @curriculum_router.get("/search/by_group/{group_name}", response_model=ShowCurriculumListWithHATEOAS, responses={404: {"description": "Планы не найдены"}})
 async def get_all_curriculums_by_group(group_name: str, request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_curriculums_by_group(group_name, query_param.page, query_param.limit, request, db) 
+    return await _get_all_curriculums_by_group(group_name, query_param.page, query_param.limit, request, db)
+
+
+@curriculum_router.get("/search/by_subject/{subject_code}", response_model=ShowCurriculumListWithHATEOAS, responses={404: {"description": "Планы не найдены"}})
+async def _get_all_curriculums_by_subject(subject_code: str, request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_curriculums_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
 
 
 @curriculum_router.delete("/{semester_number}/{group_name}/{subject_code}", response_model=ShowCurriculumWithHATEOAS,
@@ -2195,145 +2249,341 @@ CRUD operations for Subject
 '''
 
 
-async def _create_new_subject(body: CreateSubject, db) -> ShowSubject:
+async def _create_new_subject(body: CreateSubject, request: Request, db) -> ShowSubjectWithHATEOAS:
     async with db as session:
         async with session.begin():
             subject_dal = SubjectDAL(session)
 
-            # Check that the subject is unique
-            # By using helpers
-            if not await ensure_subject_unique(subject_dal, body.subject_code):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Предмет {body.subject_code} уже существует"
+            try:
+                if not await ensure_subject_unique(subject_dal, body.subject_code):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Предмет {body.subject_code} уже существует"
+                    )
+
+                subject = await subject_dal.create_subject(
+                    subject_code=body.subject_code,
+                    name=body.name
                 )
 
-            subject = await subject_dal.create_subject(
-                subject_code=body.subject_code,
-                name=body.name
-            )
-            return ShowSubject.from_orm(subject)
+                subject_pydantic = ShowSubject.model_validate(subject) 
+                
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                subject_code = subject.subject_code
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects/search/{subject_code}',
+                    "update": f'{api_base_url}/subjects/update/{subject_code}',
+                    "delete": f'{api_base_url}/subjects/delete/{subject_code}',
+                    "subjects": f'{api_base_url}/subjects',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                    "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                    "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}',
+                }
+
+                return ShowSubjectWithHATEOAS(subject=subject_pydantic, links=hateoas_links)
+
+            except IntegrityError as e:
+                await session.rollback() 
+                logger.error(f"Ошибка целостности БД при создании предмета '{body.subject_code}': {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Невозможно создать предмет из-за конфликта данных (возможно, он уже существует)."
+                )
+            
+            except HTTPException:
+                await session.rollback() 
+                raise
+
+            except Exception as e:
+                await session.rollback() 
+                logger.error(f"Неожиданная ошибка при создании предмета '{body.subject_code}': {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при создании предмета."
+                )
 
 
-async def _get_subject(subject_code: str, db) -> ShowSubject:
-    async with db as session:
-        async with session.begin(): 
-            subject_dal = SubjectDAL(session)
-            subject = await subject_dal.get_subject(subject_code)
-
-            # if curriculum doesn't exist
-            if not subject:
-                raise HTTPException(status_code=404, detail=f"Предмет {subject_code} не найден")
-
-            return ShowSubject.from_orm(subject) 
-
-
-async def _get_all_subjects(page: int, limit: int, db) -> list[ShowSubject]:
+async def _get_subject(subject_code: str, request: Request, db) -> ShowSubjectWithHATEOAS:
     async with db as session:
         async with session.begin():
             subject_dal = SubjectDAL(session)
-            subjects = await subject_dal.get_all_subjects(page, limit)
+            try:
+                subject = await subject_dal.get_subject(subject_code)
 
-            return [ShowSubject.from_orm(subject) for subject in subjects]
+                # if subject doesn't exist
+                if not subject:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмет {subject_code} не найден"
+                    )
+
+                subject_pydantic = ShowSubject.model_validate(subject) 
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects/search/{subject_code}',
+                    "update": f'{api_base_url}/subjects/update/{subject_code}',
+                    "delete": f'{api_base_url}/subjects/delete/{subject_code}',
+                    "subjects": f'{api_base_url}/subjects',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                    "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                    "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}',
+                }
+
+                return ShowSubjectWithHATEOAS(subject=subject_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении предмета {subject_code}: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении предмета."
+                )
 
 
-async def _get_all_subjects_by_name(name: str, page: int, limit: int, db) -> list[ShowSubject]:
+async def _get_all_subjects(page: int, limit: int, request: Request, db) -> ShowSubjectListWithHATEOAS: 
     async with db as session:
         async with session.begin():
             subject_dal = SubjectDAL(session)
-            subjects = await subject_dal.get_subjects_by_name(name, page, limit)
+            try:
+                subjects_orm_list = await subject_dal.get_all_subjects(page, limit)
 
-            return [ShowSubject.from_orm(subject) for subject in subjects]
-        
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
-async def _delete_subject(subject_code: str, db) -> ShowSubject:
+                subjects_with_hateoas = []
+                for subject_orm in subjects_orm_list:
+                    subject_pydantic = ShowSubject.model_validate(subject_orm)
+
+                    subject_code = subject_orm.subject_code
+                    subject_links = {
+                        "self": f'{api_base_url}/subjects/search/{subject_code}',
+                        "update": f'{api_base_url}/subjects/update/{subject_code}',
+                        "delete": f'{api_base_url}/subjects/delete/{subject_code}',
+                        "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                        "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                        "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}',
+                    }
+
+                    subject_with_links = ShowSubjectWithHATEOAS( 
+                        subject=subject_pydantic,
+                        links=subject_links
+                    )
+                    subjects_with_hateoas.append(subject_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/subjects?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/subjects',
+                }
+
+                return ShowSubjectListWithHATEOAS(
+                    subjects=subjects_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка предметов (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка предметов.")
+
+
+async def _get_all_subjects_by_name(
+    name: str, page: int, limit: int, request: Request, db) -> ShowSubjectListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            subject_dal = SubjectDAL(session)
+            try:
+                subjects_orm_list = await subject_dal.get_subjects_by_name(name, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                subjects_with_hateoas = []
+                for subject_orm in subjects_orm_list:
+                    subject_pydantic = ShowSubject.model_validate(subject_orm)
+
+                    subject_code = subject_orm.subject_code
+                    subject_links = {
+                        "self": f'{api_base_url}/subjects/search/{subject_code}',
+                        "update": f'{api_base_url}/subjects/update/{subject_code}',
+                        "delete": f'{api_base_url}/subjects/delete/{subject_code}',
+                        "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                        "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                        "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}',
+                    }
+
+                    subject_with_links = ShowSubjectWithHATEOAS(
+                        subject=subject_pydantic,
+                        links=subject_links
+                    )
+                    subjects_with_hateoas.append(subject_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/subjects/search/by_name/{name}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/subjects',
+                    "subjects": f'{api_base_url}/subjects',
+                }
+
+                return ShowSubjectListWithHATEOAS( 
+                    subjects=subjects_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка предметов по имени '{name}' (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка предметов.")
+ 
+
+async def _delete_subject(subject_code: str, request: Request, db) -> ShowSubjectWithHATEOAS:
     async with db as session:
         try:
-            async with session.begin():
+            async with session.begin(): 
                 subject_dal = SubjectDAL(session)
                 subject = await subject_dal.delete_subject(subject_code)
 
                 if not subject:
-                    raise HTTPException(status_code=404, detail=f"План: {subject_code} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмет: {subject_code} не найден"
+                    )
 
-            return ShowSubject.from_orm(subject)
+                subject_pydantic = ShowSubject.model_validate(subject) 
 
-        except Exception as e:
-            logger.warning(f"Удаление предмета отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects/search/{subject_code}',
+                    "subjects": f'{api_base_url}/subjects',
+                    "create": f'{api_base_url}/subjects',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                    "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                    "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}'
+                }
+
+                return ShowSubjectWithHATEOAS(subject=subject_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback() 
             raise
 
+        except Exception as e:
+            await session.rollback() 
+            logger.error(f"Неожиданная ошибка при удалении предмета {subject_code}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при удалении предмета."
+            )
 
-async def _update_subject(body: UpdateSubject, db) -> ShowSubject:
+
+async def _update_subject(body: UpdateSubject, request: Request, db) -> ShowSubjectWithHATEOAS: 
     async with db as session:
         try:
             async with session.begin():
-                # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() 
+                    key: value for key, value in body.dict().items()
                     if value is not None and key not in ["subject_code"]
                 }
 
                 subject_dal = SubjectDAL(session)
 
-                if not await ensure_subject_unique(subject_dal, body.new_subject_code):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Предмет: {body.new_subject_code} уже существует"
-                    )
+                if body.new_subject_code is not None and body.new_subject_code != body.subject_code:
+                    if not await ensure_subject_unique(subject_dal, body.new_subject_code):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Предмет: {body.new_subject_code} уже существует"
+                        )
                 
-                # Rename field new_subject_code to subject_code
-                if "new_subject_code" in update_data:
-                    update_data["subject_code"] = update_data.pop("new_subject_code")
-
+                if body.new_subject_code is not None and body.new_subject_code != body.subject_code:
+                     update_data["subject_code"] = body.new_subject_code
+                
                 subject = await subject_dal.update_subject(
-                    tg_subject_code = body.subject_code,
+                    tg_subject_code=body.subject_code,
                     **update_data
                 )
 
-                # save changed data
-                await session.commit()
-
                 if not subject:
-                    raise HTTPException(status_code=404, detail=f"Предмет: {body.subject_code} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмет: {body.subject_code} не найден"
+                    )
 
-            return ShowSubject.from_orm(subject)
+                subject_pydantic = ShowSubject.model_validate(subject) 
 
-        except Exception as e:
-            await session.rollback()
-            logger.warning(f"Изменение данных о предмете отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                final_subject_code = subject.subject_code 
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects/search/{final_subject_code}',
+                    "update": f'{api_base_url}/subjects/update/{final_subject_code}', 
+                    "delete": f'{api_base_url}/subjects/delete/{final_subject_code}',
+                    "subjects": f'{api_base_url}/subjects',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_subject/{final_subject_code}',
+                    "requests": f'{api_base_url}/requests/search/by_subject/{final_subject_code}',
+                    "sessions": f'{api_base_url}/sessions/search/by_subject/{final_subject_code}'
+                }
+
+                return ShowSubjectWithHATEOAS(subject=subject_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback() 
             raise
+        except Exception as e:
+            await session.rollback() 
+            logger.error(f"Неожиданная ошибка при обновлении предмета {body.subject_code}: {e}", exc_info=True) 
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при обновлении предмета."
+            )
 
 
-@subject_router.post("/create", response_model=ShowSubject)
-async def create_subject(body: CreateSubject, db: AsyncSession = Depends(get_db)):
-    return await _create_new_subject(body, db)
+@subject_router.post("/create", response_model=ShowSubjectWithHATEOAS, status_code=status.HTTP_201_CREATED)
+async def create_subject(body: CreateSubject, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_subject(body, request, db)
 
 
-@subject_router.get("/search/by_code/{subject_code}", response_model=ShowSubject,
+@subject_router.get("/search/by_code/{subject_code}", response_model=ShowSubjectWithHATEOAS, 
                     responses={404: {"description": "Предмет не найден"}})
-async def get_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
-    return await _get_subject(subject_code, db)
+async def get_subject(subject_code: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_subject(subject_code, request, db) 
 
 
-@subject_router.get("/search", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
-async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_subjects(query_param.page, query_param.limit, db)
+@subject_router.get("/search", response_model=ShowSubjectListWithHATEOAS,
+                    responses={404: {"description": "Предметы не найдены"}})
+async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_subjects(query_param.page, query_param.limit, request, db) 
 
 
-@subject_router.get("/search/by_name/{name}", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
-async def get_all_subjects(name: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_subjects_by_name(name, query_param.page, query_param.limit, db)
+@subject_router.get("/search/by_name/{name}", response_model=ShowSubjectListWithHATEOAS, 
+                    responses={404: {"description": "Предметы не найдены"}})
+async def get_all_subjects_by_name(name: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_subjects_by_name(name, query_param.page, query_param.limit, request, db) 
 
 
-@subject_router.put("/delete/{subject_code}", response_model=ShowSubject,
+@subject_router.put("/delete/{subject_code}", response_model=ShowSubjectWithHATEOAS, 
                     responses={404: {"description": "Предмет не найден"}})
-async def delete_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_subject(subject_code, db)
+async def delete_subject(subject_code: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _delete_subject(subject_code, request, db)
 
 
-@subject_router.put("/update", response_model=ShowSubject, responses={404: {"description": "Предмет не найден"}})
-async def update_subject(body: UpdateSubject, db: AsyncSession = Depends(get_db)):
-    return await _update_subject(body, db)
+@subject_router.put("/update", response_model=ShowSubjectWithHATEOAS,
+                    responses={404: {"description": "Предмет не найден"}})
+async def update_subject(body: UpdateSubject, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _update_subject(body, request, db) 
+
 
 
 '''
@@ -2596,10 +2846,16 @@ async def _get_all_requests_by_teacher(teacher_id: int, page: int, limit: int, d
             return [ShowTeacherRequest.from_orm(request) for request in requests]
         
 
-'''
-GROUP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-'''
 async def _get_all_requests_by_group(teacher_id: int, page: int, limit: int, db) -> list[ShowTeacherRequest]:
+    async with db as session:
+        async with session.begin():
+            request_dal = TeacherRequestDAL(session)
+            requests = await request_dal.get_all_requests_by_teacher(teacher_id, page, limit)
+
+            return [ShowTeacherRequest.from_orm(request) for request in requests]
+        
+
+async def _get_all_requests_by_subject(teacher_id: int, page: int, limit: int, db) -> list[ShowTeacherRequest]:
     async with db as session:
         async with session.begin():
             request_dal = TeacherRequestDAL(session)
@@ -2840,6 +3096,15 @@ async def _get_all_sessions_by_teacher(teacher_id: int, page: int, limit: int, d
         
 
 async def _get_all_sessions_by_group(group_name: str, page: int, limit: int, db) -> list[ShowSession]:
+    async with db as session:
+        async with session.begin():
+            session_dal = SessionDAL(session)
+            data_sessions = await session_dal.get_all_sessions_by_group(group_name, page, limit)
+
+            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+        
+
+async def _get_all_sessions_by_subject(group_name: str, page: int, limit: int, db) -> list[ShowSession]:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)

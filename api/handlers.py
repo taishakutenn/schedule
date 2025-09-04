@@ -2593,72 +2593,229 @@ CRUD operations for EmploymentTeacher
 '''
 
 
-async def _create_new_employment(body: CreateEmployment, db) -> ShowEmployment:
+async def _create_new_employment(body: CreateEmployment, request: Request, db) -> ShowEmploymentWithHATEOAS: 
     async with db as session:
         async with session.begin():
             employment_dal = EmployTeacherDAL(session)
             teacher_dal = TeacherDAL(session)
 
-            # Check that the employment is unique
-            # By using helpers
-            if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Учитель: {body.teacher_id} не существует"
+            try:
+                if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Учитель: {body.teacher_id} не существует"
+                    )
+                
+                if not await ensure_employment_unique(
+                    employment_dal, 
+                    body.date_start_period, 
+                    body.date_end_period, 
+                    body.teacher_id
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} уже существует"
+                    )
+
+                employment = await employment_dal.create_employTeacher(
+                    date_start_period=body.date_start_period,
+                    date_end_period=body.date_end_period,
+                    teacher_id=body.teacher_id,
+                    monday=body.monday,
+                    tuesday=body.tuesday,
+                    wednesday=body.wednesday,
+                    thursday=body.thursday,
+                    friday=body.friday,
+                    saturday=body.saturday
                 )
-            if not await ensure_employment_unique(employment_dal, body.date_start_period, body.date_end_period, body.teacher_id):
+
+                employment_pydantic = ShowEmployment.model_validate(employment)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                date_start = employment.date_start_period.isoformat()
+                date_end = employment.date_end_period.isoformat()
+                teacher_id = employment.teacher_id
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/employments/search/{teacher_id}/{date_start}/{date_end}',
+                    "update": f'{api_base_url}/employments/update/{teacher_id}/{date_start}/{date_end}',
+                    "delete": f'{api_base_url}/employments/delete/{teacher_id}/{date_start}/{date_end}',
+                    "employments": f'{api_base_url}/employments',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}'
+                }
+
+                return ShowEmploymentWithHATEOAS(employment=employment_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback() 
+                raise
+
+            except Exception as e:
+                await session.rollback() 
+                logger.error(f"Неожиданная ошибка при создании графика занятости для учителя {body.teacher_id}: {e}", exc_info=True)
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} уже существует"
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail="Внутренняя ошибка сервера при создании графика занятости."
                 )
 
-            employment = await employment_dal.create_employTeacher(
-                date_start_period=body.date_start_period,
-                date_end_period=body.date_end_period,
-                teacher_id=body.teacher_id,
-                monday=body.monday,
-                tuesday=body.tuesday,
-                wednesday=body.wednesday,
-                thursday=body.thursday,
-                friday=body.friday,
-                saturday=body.saturday
-            )
-            return ShowEmployment.from_orm(employment)
+
+async def _get_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db) -> ShowEmploymentWithHATEOAS: 
+    async with db as session:
+        async with session.begin():
+            employment_dal = EmployTeacherDAL(session)
+            try:
+                employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
+
+                # if employment doesn't exist
+                if not employment:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден"
+                    )
+
+                employment_pydantic = ShowEmployment.model_validate(employment) 
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                start_date_str = date_start_period.isoformat()
+                end_date_str = date_end_period.isoformat()
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/employments/search/{teacher_id}/{start_date_str}/{end_date_str}',
+                    "update": f'{api_base_url}/employments/update/{teacher_id}/{start_date_str}/{end_date_str}',
+                    "delete": f'{api_base_url}/employments/delete/{teacher_id}/{start_date_str}/{end_date_str}',
+                    "employments": f'{api_base_url}/employments',
+                    "teacher": f'{api_base_url}/teachers/search/{teacher_id}'
+                }
+
+                return ShowEmploymentWithHATEOAS(employment=employment_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении графика занятости преподавателя {teacher_id} с {date_start_period} по {date_end_period}: {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении графика занятости."
+                )
 
 
-async def _get_employment(date_start_period: date, date_end_period: date, teacher_id: int, db) -> ShowEmployment:
+async def _get_all_employments(page: int, limit: int, request: Request, db) -> ShowEmploymentListWithHATEOAS:
     async with db as session:
         async with session.begin(): 
             employment_dal = EmployTeacherDAL(session)
-            employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
+            try:
+                employments_orm_list = await employment_dal.get_all_employTeacher(page, limit)
 
-            # if curriculum doesn't exist
-            if not employment:
-                raise HTTPException(status_code=404, detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule' 
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return ShowEmployment.from_orm(employment) 
+                employments_with_hateoas = []
+                for employment_orm in employments_orm_list:
+                    employment_pydantic = ShowEmployment.model_validate(employment_orm) 
+
+                    emp_date_start = employment_orm.date_start_period.isoformat() 
+                    emp_date_end = employment_orm.date_end_period.isoformat()
+                    emp_teacher_id = employment_orm.teacher_id
+
+                    employment_links = {
+                        "self": f'{api_base_url}/employments/search/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "update": f'{api_base_url}/employments/update/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "delete": f'{api_base_url}/employments/delete/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "teacher": f'{api_base_url}/teachers/search/{emp_teacher_id}'
+                    }
+
+                    employment_with_links = ShowEmploymentWithHATEOAS( 
+                        employment=employment_pydantic,
+                        links=employment_links
+                    )
+                    employments_with_hateoas.append(employment_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/employments/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/employments/create',
+                    "employments": f'{api_base_url}/employments'
+                }
+
+                return ShowEmploymentListWithHATEOAS( 
+                    employments=employments_with_hateoas, 
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка графиков занятости (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка графиков занятости.")
 
 
-async def _get_all_employments(page: int, limit: int, db) -> list[ShowEmployment]:
+async def _get_all_employments_by_date(
+    date_start_period: date, date_end_period: date, page: int, limit: int, request: Request, db) -> ShowEmploymentListWithHATEOAS:
     async with db as session:
-        async with session.begin():
+        async with session.begin(): 
             employment_dal = EmployTeacherDAL(session)
-            employments = await employment_dal.get_all_employTeacher(page, limit)
+            try:
+                employments_orm_list = await employment_dal.get_all_employTeacher_by_date(date_start_period, date_end_period, page, limit)
 
-            return [ShowEmployment.from_orm(employment) for employment in employments]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule' 
+                api_base_url = f'{base_url}{api_prefix}'
 
+                employments_with_hateoas = []
+                for employment_orm in employments_orm_list:
+                    employment_pydantic = ShowEmployment.model_validate(employment_orm) 
 
-async def _get_all_employments_by_date(date_start_period: date, date_end_period: date, 
-                                        page: int, limit: int, db) -> list[ShowEmployment]:
-    async with db as session:
-        async with session.begin():
-            employment_dal = EmployTeacherDAL(session)
-            employments = await employment_dal.get_all_employTeacher_by_date(date_start_period, date_end_period, page, limit)
+                    emp_date_start = employment_orm.date_start_period.isoformat()
+                    emp_date_end = employment_orm.date_end_period.isoformat()
+                    emp_teacher_id = employment_orm.teacher_id
 
-            return [ShowEmployment.from_orm(employment) for employment in employments]
+                    employment_links = {
+                        "self": f'{api_base_url}/employments/search/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "update": f'{api_base_url}/employments/update/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "delete": f'{api_base_url}/employments/delete/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "teacher": f'{api_base_url}/teachers/search/{emp_teacher_id}'
+                    }
+
+                    employment_with_links = ShowEmploymentWithHATEOAS(
+                        employment=employment_pydantic,
+                        links=employment_links
+                    )
+                    employments_with_hateoas.append(employment_with_links)
+
+                # Форматируем даты для использования в URL
+                start_date_str = date_start_period.isoformat()
+                end_date_str = date_end_period.isoformat()
+                
+                collection_links = {
+                    "self": f'{api_base_url}/employments/search/by_date/{start_date_str}/{end_date_str}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/employments/create',
+                    "employments": f'{api_base_url}/employments'
+                }
+
+                return ShowEmploymentListWithHATEOAS(
+                    employments=employments_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка графиков занятости с {date_start_period} по {date_end_period} (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка графиков занятости.")
+
         
 
-async def _delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, db) -> ShowEmployment:
+async def _delete_employment(
+    date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db) -> ShowEmploymentWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -2666,102 +2823,163 @@ async def _delete_employment(date_start_period: date, date_end_period: date, tea
                 employment = await employment_dal.delete_employTeacher(date_start_period, date_end_period, teacher_id)
 
                 if not employment:
-                    raise HTTPException(status_code=404, detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден"
+                    )
 
-            return ShowEmployment.from_orm(employment)
+                employment_pydantic = ShowEmployment.model_validate(employment)
 
-        except Exception as e:
-            logger.warning(f"Удаление графика отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                start_date_str = date_start_period.isoformat()
+                end_date_str = date_end_period.isoformat()
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/employments/search/{teacher_id}/{start_date_str}/{end_date_str}',
+                    "employments": f'{api_base_url}/employments',
+                    "create": f'{api_base_url}/employments/create',
+                    "teacher": f'{api_base_url}/teachers/search/{teacher_id}'
+                }
+
+                return ShowEmploymentWithHATEOAS(employment=employment_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
             raise
 
+        except Exception as e:
+            await session.rollback()
+            logger.error(
+                f"Неожиданная ошибка при удалении графика занятости преподавателя {teacher_id} с {date_start_period} по {date_end_period}: {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при удалении графика занятости." 
+            )
 
-async def _update_employment(body: UpdateEmployment, db) -> ShowEmployment:
+
+async def _update_employment(body: UpdateEmployment, request: Request, db) -> ShowEmploymentWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
-                # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() 
-                    if value is not None and key not in ["date_start_period", "date_end_period", "teacher_id"]
+                    key: value for key, value in body.dict().items()
+                    if value is not None and key not in ["date_start_period", "date_end_period", "teacher_id", "new_date_start_period", "new_date_end_period", "new_teacher_id"]
                 }
 
                 employment_dal = EmployTeacherDAL(session)
                 teacher_dal = TeacherDAL(session)
-
-                # Check that the employment is unique
-                # By using helpers
-                if not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Учитель: {body.new_teacher_id} не существует"
-                    )
-                if not await ensure_employment_unique(employment_dal, body.new_date_start_period, body.new_date_end_period, body.new_teacher_id):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"График преподавателя {body.new_teacher_id} начиная с {body.new_date_start_period} и заканчивая {body.new_date_end_period} уже существует"
-                    )
                 
-                # Rename field new_date_start_period to date_start_period
-                if "new_date_start_period" in update_data:
-                    update_data["date_start_period"] = update_data.pop("new_date_start_period")
-                # Rename field new_date_end_period to date_end_period
-                if "new_subject_code" in update_data:
-                    update_data["date_end_period"] = update_data.pop("new_date_end_period")
-                # Rename field new_teacher_id to teacher_id
-                if "new_teacher_id" in update_data:
-                    update_data["teacher_id"] = update_data.pop("new_teacher_id")
+                new_date_start = body.new_date_start_period if body.new_date_start_period is not None else body.date_start_period
+                new_date_end = body.new_date_end_period if body.new_date_end_period is not None else body.date_end_period
+                new_teacher_id = body.new_teacher_id if body.new_teacher_id is not None else body.teacher_id
+
+                if body.new_teacher_id is not None and body.new_teacher_id != body.teacher_id:
+                    if not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=f"Учитель: {body.new_teacher_id} не существует"
+                        )
+                
+                if (new_date_start != body.date_start_period or 
+                    new_date_end != body.date_end_period or 
+                    new_teacher_id != body.teacher_id):
+                    
+                    if not await ensure_employment_unique(employment_dal, new_date_start, new_date_end, new_teacher_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"График преподавателя {new_teacher_id} начиная с {new_date_start} и заканчивая {new_date_end} уже существует"
+                        )
+
+                if body.new_date_start_period is not None:
+                    update_data["date_start_period"] = body.new_date_start_period
+                if body.new_date_end_period is not None:
+                    update_data["date_end_period"] = body.new_date_end_period
+                if body.new_teacher_id is not None:
+                    update_data["teacher_id"] = body.new_teacher_id
 
                 employment = await employment_dal.update_employTeacher(
-                    tg_date_start_period = body.date_start_period,
-                    tg_date_end_period = body.date_end_period,
-                    tg_teacher_id = body.teacher_id,
-                    **update_data
+                    tg_date_start_period=body.date_start_period,
+                    tg_date_end_period=body.date_end_period,
+                    tg_teacher_id=body.teacher_id,
+                    **update_data 
                 )
 
-                # save changed data
-                await session.commit()
-
                 if not employment:
-                    raise HTTPException(status_code=404, detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} не найден"
+                    )
 
-            return ShowEmployment.from_orm(employment)
+                employment_pydantic = ShowEmployment.model_validate(employment)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                final_date_start = employment.date_start_period.isoformat()
+                final_date_end = employment.date_end_period.isoformat()
+                final_teacher_id = employment.teacher_id
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/employments/search/{final_teacher_id}/{final_date_start}/{final_date_end}',
+                    "update": f'{api_base_url}/employments/update/{final_teacher_id}/{final_date_start}/{final_date_end}', 
+                    "delete": f'{api_base_url}/employments/delete/{final_teacher_id}/{final_date_start}/{final_date_end}', 
+                    "employments": f'{api_base_url}/employments',
+                    "teacher": f'{api_base_url}/teachers/search/{final_teacher_id}'
+                }
+
+                return ShowEmploymentWithHATEOAS(employment=employment_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
 
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Изменение данных о графике отменено (Ошибка: {e})")
-            raise
+            logger.error(
+                f"Неожиданная ошибка при обновлении графика занятости преподавателя {body.teacher_id} с {body.date_start_period} по {body.date_end_period}: {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при обновлении графика занятости."
+            )
 
 
-@employment_router.post("/create", response_model=ShowEmployment)
-async def create_employment(body: CreateEmployment, db: AsyncSession = Depends(get_db)):
-    return await _create_new_employment(body, db)
+@employment_router.post("/create", response_model=ShowEmploymentWithHATEOAS, status_code=status.HTTP_201_CREATED) 
+async def create_employment(body: CreateEmployment, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_employment(body, request, db) 
 
-
-@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmployment,
+@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS, 
                     responses={404: {"description": "График не найден"}})
-async def get_employment(date_start_period: date, date_end_period: date, teacher_id: int, db: AsyncSession = Depends(get_db)):
-    return await _get_employment(date_start_period, date_end_period, teacher_id, db)
+async def get_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_employment(date_start_period, date_end_period, teacher_id, request, db)  
 
+@employment_router.get("/search", response_model=ShowEmploymentListWithHATEOAS,  
+                    responses={404: {"description": "Графики не найдены"}}) 
+async def get_all_employments(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_employments(query_param.page, query_param.limit, request, db)  
 
-@employment_router.get("/search", response_model=list[ShowEmployment], responses={404: {"description": "График не найден"}})
-async def get_all_employments(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_employments(query_param.page, query_param.limit, db)
+@employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=ShowEmploymentListWithHATEOAS,  
+                    responses={404: {"description": "Графики не найдены"}}) 
+async def get_all_employments_by_date(date_start_period: date, date_end_period: date, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, request, db)
 
-
-@employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=list[ShowEmployment], responses={404: {"description": "Графики не найдены"}})
-async def get_all_employments_by_date(date_start_period: date, date_end_period: date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, db)
-
-
-@employment_router.put("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmployment,
+@employment_router.put("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS,  
                     responses={404: {"description": "График не найден"}})
-async def delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_employment(date_start_period, date_end_period, teacher_id, db)
+async def delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_employment(date_start_period, date_end_period, teacher_id, request, db)  
 
+@employment_router.put("/update", response_model=ShowEmploymentWithHATEOAS,  
+                    responses={404: {"description": "График не найден"}})
+async def update_employment(body: UpdateEmployment, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_employment(body, request, db)  
 
-@employment_router.put("/update", response_model=ShowEmployment, responses={404: {"description": "График не найден"}})
-async def update_employment(body: UpdateEmployment, db: AsyncSession = Depends(get_db)):
-    return await _update_employment(body, db)
 
 
 '''

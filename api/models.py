@@ -350,6 +350,16 @@ class UpdateEmployment(TunedModel):
     saturday: str | None = None
 
 
+class ShowEmploymentWithHATEOAS(TunedModel):
+    employment: ShowEmployment
+    links: dict[str, str] = {}
+
+
+class ShowEmploymentListWithHATEOAS(TunedModel):
+    employments: List[ShowEmploymentWithHATEOAS]
+    links: dict[str, str] = {}
+
+
 '''
 ==============
 TeacherRequest

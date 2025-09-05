@@ -453,3 +453,13 @@ class UpdateSession(TunedModel):
     teacher_id: int | None = None
     cabinet_number: int | None = None
     building_number: int | None = None
+
+
+class ShowSessionWithHATEOAS(TunedModel):
+    request: ShowSession
+    links: dict[str, str] = {}
+
+
+class ShowSessionListWithHATEOAS(TunedModel):
+    requests: List[ShowSessionWithHATEOAS]
+    links: dict[str, str] = {}

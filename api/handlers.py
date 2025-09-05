@@ -3565,7 +3565,7 @@ CRUD operations for Session
 '''
 
 
-async def _create_new_session(body: CreateSession, db) -> ShowSession:
+async def _create_new_session(body: CreateSession, request: Request, db) -> ShowSessionWithHATEOAS:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)
@@ -3574,131 +3574,409 @@ async def _create_new_session(body: CreateSession, db) -> ShowSession:
             subject_dal = SubjectDAL(session)
             teacher_dal = TeacherDAL(session)
 
-            # Check that the group, subject, teacher, cabinet exists
-            # Check that the employment is unique
-            # By using helpers
-            if not await ensure_group_exists(group_dal, body.group_name):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Группа: {body.group_name} не существует"
-                )    
-            if  body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Предмет: {body.subject_code} не существует"
-                )
-            if body.teacher_id != None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Преподаватель: {body.teacher_id} не существует"
-                )     
-            if body.cabinet_number != None and body.building_number != None and not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
-                )
-            if not await ensure_session_unique(session_dal, body.session_number, body.date, body.group_name):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Сессия у преподавателя под номером {body.session_number} для группы {body.group_name} на дату {body.date} уже существует"
+            try:
+                if not await ensure_group_exists(group_dal, body.group_name):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Группа: {body.group_name} не существует"
+                    )    
+                
+                if body.subject_code is not None and not await ensure_subject_exists(subject_dal, body.subject_code):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Предмет: {body.subject_code} не существует"
+                    )
+                
+                if body.teacher_id is not None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Преподаватель: {body.teacher_id} не существует"
+                    )     
+                
+                if (body.cabinet_number is not None and body.building_number is not None and 
+                    not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number)):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
+                    )
+                
+                if not await ensure_session_unique(session_dal, body.session_number, body.date, body.group_name):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Сессия у преподавателя под номером {body.session_number} для группы {body.group_name} на дату {body.date} уже существует"
+                    )
+
+                session_obj = await session_dal.create_session(
+                    session_number=body.session_number,
+                    date=body.date,
+                    group_name=body.group_name,
+                    session_type=body.session_type,
+                    subject_code=body.subject_code,
+                    teacher_id=body.teacher_id,
+                    cabinet_number=body.cabinet_number,
+                    building_number=body.building_number
                 )
 
-            session = await session_dal.create_session(
-            session_number=body.session_number,
-            date=body.date,
-            group_name=body.group_name,
-            session_type=body.session_type,
-            subject_code=body.subject_code,
-            teacher_id=body.teacher_id,
-            cabinet_number=body.cabinet_number,
-            building_number=body.building_number
-            )
-            return ShowSession.from_orm(session)
+                session_pydantic = ShowSession.model_validate(session_obj) 
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                sess_number = session_obj.session_number
+                sess_date_str = session_obj.date.isoformat()
+                sess_group_name = session_obj.group_name
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "sessions": f'{api_base_url}/sessions',
+                    "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/{session_obj.subject_code}' if session_obj.subject_code else None,
+                    "teacher": f'{api_base_url}/teachers/search/{session_obj.teacher_id}' if session_obj.teacher_id else None,
+                    "cabinet": f'{api_base_url}/cabinets/search/{session_obj.building_number}/{session_obj.cabinet_number}' if session_obj.cabinet_number is not None and session_obj.building_number is not None else None
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSessionWithHATEOAS(session=session_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании сессии: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail="Внутренняя ошибка сервера при создании сессии."
+                )
 
 
-async def _get_session(session_number: int, date: date, group_name: str, db) -> ShowSession:
+async def _get_session(
+    session_number: int, date: date, group_name: str, request: Request, db) -> ShowSessionWithHATEOAS:
     async with db as session:
-        async with session.begin(): 
-            session_dal = SessionDAL(session)
+        session_dal = SessionDAL(session)
+        try:
             data_session = await session_dal.get_session(session_number, date, group_name)
 
-            # if session doesn't exist
             if not data_session:
-                raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} уже существует")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, 
+                    detail=f"Сессия под номером {session_number} для группы {group_name} на дату {date} не найдена" 
+                )
 
-            return ShowSession.from_orm(data_session) 
+            session_pydantic = ShowSession.model_validate(data_session) 
+
+            base_url = str(request.base_url).rstrip('/')
+            api_prefix = '/schedule' 
+            api_base_url = f'{base_url}{api_prefix}'
+
+            sess_date_str = date.isoformat() 
+            
+            sess_number = session_number 
+            sess_group_name = group_name
+
+            hateoas_links = {
+                "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                "sessions": f'{api_base_url}/sessions',
+                "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                "subject": f'{api_base_url}/subjects/search/{data_session.subject_code}' if data_session.subject_code else None,
+                "teacher": f'{api_base_url}/teachers/search/{data_session.teacher_id}' if data_session.teacher_id else None,
+                "cabinet": f'{api_base_url}/cabinets/search/{data_session.building_number}/{data_session.cabinet_number}' if data_session.cabinet_number is not None and data_session.building_number is not None else None
+            }
+            hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+            return ShowSessionWithHATEOAS(session=session_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка при получении сессии {session_number} для группы {group_name} на дату {date}: {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Внутренняя ошибка сервера при получении сессии."
+            )
 
 
-async def _get_all_sessions(page: int, limit: int, db) -> list[ShowSession]:
+async def _get_all_sessions(page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
+    async with db as session:
+        session_dal = SessionDAL(session)
+        try:
+            data_sessions_orm_list = await session_dal.get_all_sessions(page, limit)
+
+            base_url = str(request.base_url).rstrip('/')
+            api_prefix = '/schedule' 
+            api_base_url = f'{base_url}{api_prefix}'
+
+            sessions_with_hateoas = []
+            for session_orm in data_sessions_orm_list:
+                session_pydantic = ShowSession.model_validate(session_orm) 
+
+                sess_number = session_orm.session_number
+                sess_date_str = session_orm.date.isoformat() 
+                sess_group_name = session_orm.group_name
+
+                session_links = {
+                    "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                    "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                    "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                }
+                session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                session_with_links = ShowSessionWithHATEOAS(
+                    session=session_pydantic,
+                    links=session_links
+                )
+                sessions_with_hateoas.append(session_with_links)
+
+            collection_links = {
+                "self": f'{api_base_url}/sessions/search?page={page}&limit={limit}',
+                "create": f'{api_base_url}/sessions/create', 
+                "sessions": f'{api_base_url}/sessions'
+            }
+
+            return ShowSessionListWithHATEOAS(
+                sessions=sessions_with_hateoas, 
+                links=collection_links
+            )
+
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при получении списка сессий (page={page}, limit={limit}): {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+
+
+async def _get_all_sessions_by_date(date: date, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions(page, limit)
+            try:
+                data_sessions_orm_list = await session_dal.get_all_sessions_by_date(date, page, limit)
 
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
+                sessions_with_hateoas = []
+                for session_orm in data_sessions_orm_list:
+                    session_pydantic = ShowSession.model_validate(session_orm)
 
-async def _get_all_sessions_by_date(date: date, page: int, limit: int, db) -> list[ShowSession]:
-    async with db as session:
-        async with session.begin():
-            session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions_by_date(date, page, limit)
+                    sess_number = session_orm.session_number
+                    sess_date_str = session_orm.date.isoformat() 
+                    sess_group_name = session_orm.group_name
 
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+                    session_links = {
+                        "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                        "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                        "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                        "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                    }
+                    session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                    session_with_links = ShowSessionWithHATEOAS(
+                        session=session_pydantic,
+                        links=session_links
+                    )
+                    sessions_with_hateoas.append(session_with_links)
+
+                date_str_for_url = date.isoformat() 
+                collection_links = {
+                    "self": f'{api_base_url}/sessions/search/by_date/{date_str_for_url}?page={page}&limit={limit}', 
+                    "create": f'{api_base_url}/sessions/create',
+                    "sessions": f'{api_base_url}/sessions', 
+                    "by_date": f'{api_base_url}/sessions/search/by_date/{date_str_for_url}'
+                }
+
+                return ShowSessionListWithHATEOAS(
+                    sessions=sessions_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка сессий по дате {date} (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+
         
 
-async def _get_all_sessions_by_teacher(teacher_id: int, page: int, limit: int, db) -> list[ShowSession]:
+async def _get_all_sessions_by_group( group_name: str, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions_by_teacher(teacher_id, page, limit)
+            try:
+                data_sessions_orm_list = await session_dal.get_all_sessions_by_group(group_name, page, limit)
+                
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+                sessions_with_hateoas = []
+                for session_orm in data_sessions_orm_list:
+                    session_pydantic = ShowSession.model_validate(session_orm)
+
+                    sess_number = session_orm.session_number
+                    sess_date_str = session_orm.date.isoformat() 
+                    sess_group_name = session_orm.group_name
+
+                    session_links = {
+                        "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                        "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                        "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                        "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                    }
+                    session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                    session_with_links = ShowSessionWithHATEOAS(
+                        session=session_pydantic,
+                        links=session_links
+                    )
+                    sessions_with_hateoas.append(session_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/sessions/search/by_group/{group_name}?page={page}&limit={limit}', 
+                    "create": f'{api_base_url}/sessions/create', 
+                    "sessions": f'{api_base_url}/sessions', 
+                    "group": f'{api_base_url}/groups/search/by_group-name/{group_name}'
+                }
+
+                return ShowSessionListWithHATEOAS(
+                    sessions=sessions_with_hateoas, 
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка сессий для группы {group_name} (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+
         
 
-async def _get_all_sessions_by_group(group_name: str, page: int, limit: int, db) -> list[ShowSession]:
+async def _get_all_sessions_by_subject(subject_code: str, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions_by_group(group_name, page, limit)
+            try:
+                data_sessions_orm_list = await session_dal.get_all_sessions_by_subject(subject_code, page, limit) 
 
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                sessions_with_hateoas = []
+                for session_orm in data_sessions_orm_list:
+                    session_pydantic = ShowSession.model_validate(session_orm) 
+
+                    sess_number = session_orm.session_number
+                    sess_date_str = session_orm.date.isoformat() 
+                    sess_group_name = session_orm.group_name
+
+                    session_links = {
+                        "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                        "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                        "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                        "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                    }
+                    session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                    session_with_links = ShowSessionWithHATEOAS(
+                        session=session_pydantic,
+                        links=session_links
+                    )
+                    sessions_with_hateoas.append(session_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/sessions/search/by_subject/{subject_code}?page={page}&limit={limit}', 
+                    "create": f'{api_base_url}/sessions/create', 
+                    "sessions": f'{api_base_url}/sessions',
+                    "subject": f'{api_base_url}/subjects/search/{subject_code}'
+                }
+
+                return ShowSessionListWithHATEOAS(
+                    sessions=sessions_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка сессий для предмета {subject_code} (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+
         
 
-async def _get_all_sessions_by_subject(group_name: str, page: int, limit: int, db) -> list[ShowSession]:
-    async with db as session:
-        async with session.begin():
-            session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions_by_group(group_name, page, limit)
-
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
-        
-
-async def _delete_session(session_number: int, date: date, group_name: str, db) -> ShowSession:
+async def _delete_session(session_number: int, date: date, group_name: str, request: Request, db) -> ShowSessionWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
                 session_dal = SessionDAL(session)
                 data_session = await session_dal.delete_session(session_number, date, group_name)
 
-                if not session:
-                    raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} не найден")
+                if not data_session:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} не найдена" # <-- Исправлено сообщение
+                    )
 
-            return ShowSession.from_orm(data_session)
+                session_pydantic = ShowSession.model_validate(data_session) 
 
-        except Exception as e:
-            logger.warning(f"Удаление сессии отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                sess_date_str = date.isoformat() 
+
+                sess_number = session_number 
+                sess_group_name = group_name 
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "sessions": f'{api_base_url}/sessions',
+                    "create": f'{api_base_url}/sessions/create',
+                    "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/{data_session.subject_code}' if data_session.subject_code else None,
+                    "teacher": f'{api_base_url}/teachers/search/{data_session.teacher_id}' if data_session.teacher_id else None,
+                    "cabinet": f'{api_base_url}/cabinets/search/{data_session.building_number}/{data_session.cabinet_number}' if data_session.cabinet_number is not None and data_session.building_number is not None else None,
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSessionWithHATEOAS(session=session_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
             raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(
+                f"Неожиданная ошибка при удалении сессии {session_number} для группы {group_name} на дату {date}: {e}",
+                exc_info=True
+            ) 
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Внутренняя ошибка сервера при удалении сессии." 
+            )
 
 
-async def _update_session(body: UpdateSession, db) -> ShowSession:
+async def _update_session(body: UpdateSession, request: Request, db) -> ShowSessionWithHATEOAS: 
     async with db as session:
         try:
             async with session.begin():
-                # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() 
-                    if value is not None and key not in ["session_number", "session_date", "group_name"]
+                    key: value for key, value in body.dict().items()
+                    if value is not None and key not in ["session_number", "session_date", "group_name", "new_session_number", "new_session_date", "new_group_name"]
                 }
 
                 session_dal = SessionDAL(session)
@@ -3706,102 +3984,137 @@ async def _update_session(body: UpdateSession, db) -> ShowSession:
                 cabinet_dal = CabinetDAL(session)
                 subject_dal = SubjectDAL(session)
                 teacher_dal = TeacherDAL(session)
+                
+                new_sess_number = body.new_session_number if body.new_session_number is not None else body.session_number
+                new_sess_date = body.new_session_date if body.new_session_date is not None else body.session_date
+                new_group_name = body.new_group_name if body.new_group_name is not None else body.group_name
 
-                # Check that the group, subject, teacher, cabinet exists
-                # Check that the employment is unique
-                # By using helpers
-                if not await ensure_group_exists(group_dal, body.new_group_name):
+                if body.new_group_name is not None and body.new_group_name != body.group_name:
+                    if not await ensure_group_exists(group_dal, body.new_group_name):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=f"Группа: {body.new_group_name} не существует"
+                        )
+            
+                if body.subject_code is not None and not await ensure_subject_exists(subject_dal, body.subject_code):
                     raise HTTPException(
-                        status_code=400,
-                        detail=f"Группа: {body.new_group_name} не существует"
-                    )    
-                if body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
-                    raise HTTPException(
-                        status_code=400,
+                        status_code=status.HTTP_404_NOT_FOUND, 
                         detail=f"Предмет: {body.subject_code} не существует"
                     )
-                if body.teacher_id != None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+            
+                if body.teacher_id is not None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
                     raise HTTPException(
-                        status_code=400,
+                        status_code=status.HTTP_404_NOT_FOUND, 
                         detail=f"Преподаватель: {body.teacher_id} не существует"
-                    )     
-                if body.cabinet_number != None and body.building_number != None and not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number):
+                    )
+                
+                if (body.cabinet_number is not None and body.building_number is not None and
+                    not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number)):
                     raise HTTPException(
-                        status_code=400,
+                        status_code=status.HTTP_404_NOT_FOUND, 
                         detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
                     )
                 
-                # Rename field new_session_number to session_number
-                if "new_session_number" in update_data:
-                    update_data["session_number"] = update_data.pop("new_session_number")
-                # Rename field new_session_date to date
-                if "new_session_date" in update_data:
-                    update_data["date"] = update_data.pop("new_session_date")
-                # Rename field new_group_name to group_name
-                if "new_group_name" in update_data:
-                    update_data["group_name"] = update_data.pop("new_group_name")
+                if body.new_session_number is not None:
+                    update_data["session_number"] = body.new_session_number
+                if body.new_session_date is not None:
+                    update_data["date"] = body.new_session_date 
+                if body.new_group_name is not None:
+                    update_data["group_name"] = body.new_group_name
 
                 session_data = await session_dal.update_session(
-                    tg_session_number = body.session_number,
-                    tg_date = body.session_date,
-                    tg_group_name = body.group_name,
-                    **update_data
+                    tg_session_number=body.session_number, 
+                    tg_date=body.session_date,
+                    tg_group_name=body.group_name,
+                    **update_data 
                 )
 
-                # save changed data
-                await session.commit()
+                if not session_data:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Сессия под номером {body.session_number} для группы {body.group_name} на дату {body.session_date} не найдена" 
+                    )
 
-                if not session:
-                    raise HTTPException(status_code=404, detail=f"Сессия под номером {body.session_number} для группы {body.group_name} на дату {body.session_date} не найдена")
+                session_pydantic = ShowSession.model_validate(session_data)
 
-            return ShowSession.from_orm(session_data)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule' 
+                api_base_url = f'{base_url}{api_prefix}'
 
-        except Exception as e:
+                final_sess_number = session_data.session_number 
+                final_sess_date_str = session_data.date.isoformat() 
+                final_group_name = session_data.group_name 
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/sessions/search/{final_sess_number}/{final_sess_date_str}/{final_group_name}',
+                    "update": f'{api_base_url}/sessions/update/{final_sess_number}/{final_sess_date_str}/{final_group_name}', 
+                    "delete": f'{api_base_url}/sessions/delete/{final_sess_number}/{final_sess_date_str}/{final_group_name}',
+                    "sessions": f'{api_base_url}/sessions', 
+                    "group": f'{api_base_url}/groups/search/by_group-name/{final_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/{session_data.subject_code}' if session_data.subject_code else None, 
+                    "teacher": f'{api_base_url}/teachers/search/{session_data.teacher_id}' if session_data.teacher_id else None, 
+                    "cabinet": f'{api_base_url}/cabinets/search/{session_data.building_number}/{session_data.cabinet_number}' if session_data.cabinet_number is not None and session_data.building_number is not None else None
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSessionWithHATEOAS(session=session_pydantic, links=hateoas_links)
+
+        except HTTPException:
             await session.rollback()
-            logger.warning(f"Изменение данных о сессии отменено (Ошибка: {e})")
             raise
+        except Exception as e:
+            await session.rollback() 
+            logger.error(
+                f"Неожиданная ошибка при обновлении сессии {body.session_number} для группы {body.group_name} на дату {body.session_date}: {e}",
+                exc_info=True
+            ) 
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Внутренняя ошибка сервера при обновлении сессии." 
+            )
 
 
-@session_router.post("/create", response_model=ShowSession)
-async def create_session(body: CreateSession, db: AsyncSession = Depends(get_db)):
-    return await _create_new_session(body, db)
 
+@session_router.post("/create", response_model=ShowSessionWithHATEOAS, status_code=status.HTTP_201_CREATED) 
+async def create_session(body: CreateSession, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _create_new_session(body, request, db) 
 
-@session_router.get("/search/{session_number}/{date}/{group_name}", response_model=ShowSession,
+@session_router.get("/search/{session_number}/{date}/{group_name}", response_model=ShowSessionWithHATEOAS, 
                     responses={404: {"description": "Сессия не найдена"}})
-async def get_session(session_number: int, date: date, group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _get_session(session_number, date, group_name, db)
+async def get_session(session_number: int, date: date, group_name: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_session(session_number, date, group_name, request, db) 
 
+@session_router.get("/search", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions(query_param.page, query_param.limit, request, db) 
 
-@session_router.get("/search", response_model=list[ShowSession], responses={404: {"description": "Сессия не найдена"}})
-async def get_all_sessions(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_sessions(query_param.page, query_param.limit, db)
+@session_router.get("/search/by_date/{date}", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions_by_date(date: date, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions_by_date(date, query_param.page, query_param.limit, request, db) 
 
+@session_router.get("/search/by_teacher/{teacher_id}", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions_by_teacher(teacher_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions_by_teacher(teacher_id, query_param.page, query_param.limit, request, db) 
 
-@session_router.get("/search/by_date/{date}", 
-                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
-async def get_all_session_by_date(date: date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_sessions_by_date(date, query_param.page, query_param.limit, db)
+@session_router.get("/search/by_group/{group_name}", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions_by_group(group_name: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions_by_group(group_name, query_param.page, query_param.limit, request, db) 
 
+@session_router.get("/search/by_subject/{subject_code}", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions_by_subject(subject_code: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
 
-@session_router.get("/search/by_teacher/{teacher_id}", 
-                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
-async def get_all_session_by_date(teacher_id: int, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_sessions_by_teacher(teacher_id, query_param.page, query_param.limit, db)
-
-
-@session_router.get("/search/by_group/{group_name}", 
-                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
-async def get_all_session_by_date(group_name: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_sessions_by_group(group_name, query_param.page, query_param.limit, db)
-
-
-@session_router.put("/delete/{session_number}/{date}/{group_name}", response_model=ShowSession,
+@session_router.put("/delete/{session_number}/{date}/{group_name}", response_model=ShowSessionWithHATEOAS, 
                     responses={404: {"description": "Сессия не найдена"}})
-async def delete_session(session_number: int, date: date, group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_session(session_number, date, group_name, db)
+async def delete_session(session_number: int, date: date, group_name: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _delete_session(session_number, date, group_name, request, db) 
 
-
-@session_router.put("/update", response_model=ShowSession, responses={404: {"description": "Сессия не найдена"}})
-async def update_session(body: UpdateSession, db: AsyncSession = Depends(get_db)):
-    return await _update_session(body, db)
+@session_router.put("/update", response_model=ShowSessionWithHATEOAS, 
+                    responses={404: {"description": "Сессия не найдена"}})
+async def update_session(body: UpdateSession, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _update_session(body, request, db) 

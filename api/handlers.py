@@ -3915,7 +3915,64 @@ async def _get_all_sessions_by_subject(subject_code: str, page: int, limit: int,
             except Exception as e:
                 logger.error(f"Неожиданная ошибка при получении списка сессий для предмета {subject_code} (page={page}, limit={limit}): {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+            
 
+async def _get_all_sessions_by_teacher(teacher_id: int, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            session_dal = SessionDAL(session)
+            try:
+                data_sessions_orm_list = await session_dal.get_all_sessions_by_teacher(teacher_id, page, limit)
+                if data_sessions_orm_list is None:
+                    data_sessions_orm_list = []
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '/schedule'
+                api_base_url = f'{base_url}{api_prefix}'
+
+                sessions_with_hateoas = []
+                for session_orm in data_sessions_orm_list:
+                    session_pydantic = ShowSession.model_validate(session_orm) 
+
+                    sess_number = session_orm.session_number
+                    sess_date_str = session_orm.date.isoformat()
+                    sess_group_name = session_orm.group_name
+
+                    session_links = {
+                        "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                        "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                        "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                        "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                    }
+                    session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                    session_with_links = ShowSessionWithHATEOAS(
+                        session=session_pydantic,
+                        links=session_links
+                    )
+                    sessions_with_hateoas.append(session_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/sessions/create',
+                    "sessions": f'{api_base_url}/sessions',
+                    "teacher": f'{api_base_url}/teachers/search/{teacher_id}'
+                }
+
+                return ShowSessionListWithHATEOAS(
+                    sessions=sessions_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка сессий для учителя {teacher_id} (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении списка сессий."
+                )
         
 
 async def _delete_session(session_number: int, date: date, group_name: str, request: Request, db) -> ShowSessionWithHATEOAS:
@@ -3976,7 +4033,7 @@ async def _update_session(body: UpdateSession, request: Request, db) -> ShowSess
             async with session.begin():
                 update_data = {
                     key: value for key, value in body.dict().items()
-                    if value is not None and key not in ["session_number", "session_date", "group_name", "new_session_number", "new_session_date", "new_group_name"]
+                    if value is not None and key not in ["session_number", "session_date", "group_name"]
                 }
 
                 session_dal = SessionDAL(session)
@@ -3984,10 +4041,6 @@ async def _update_session(body: UpdateSession, request: Request, db) -> ShowSess
                 cabinet_dal = CabinetDAL(session)
                 subject_dal = SubjectDAL(session)
                 teacher_dal = TeacherDAL(session)
-                
-                new_sess_number = body.new_session_number if body.new_session_number is not None else body.session_number
-                new_sess_date = body.new_session_date if body.new_session_date is not None else body.session_date
-                new_group_name = body.new_group_name if body.new_group_name is not None else body.group_name
 
                 if body.new_group_name is not None and body.new_group_name != body.group_name:
                     if not await ensure_group_exists(group_dal, body.new_group_name):
@@ -4072,7 +4125,6 @@ async def _update_session(body: UpdateSession, request: Request, db) -> ShowSess
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
                 detail="Внутренняя ошибка сервера при обновлении сессии." 
             )
-
 
 
 @session_router.post("/create", response_model=ShowSessionWithHATEOAS, status_code=status.HTTP_201_CREATED) 

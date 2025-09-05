@@ -402,6 +402,16 @@ class UpdateTeacherRequest(TunedModel):
     practice_hours: int | None = None
 
 
+class ShowTeacherRequestWithHATEOAS(TunedModel):
+    request: ShowTeacherRequest
+    links: dict[str, str] = {}
+
+
+class ShowTeacherRequestListWithHATEOAS(TunedModel):
+    requests: List[ShowTeacherRequestWithHATEOAS]
+    links: dict[str, str] = {}
+
+
 '''
 =======
 Session

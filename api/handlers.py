@@ -60,7 +60,7 @@ async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> Show
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -111,7 +111,7 @@ async def _get_teacher_by_id(teacher_id, request: Request, db) -> ShowTeacherWit
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -151,7 +151,7 @@ async def _get_teacher_by_name_and_surname(name, surname, request: Request, db) 
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -183,7 +183,7 @@ async def _get_all_teachers(page: int, limit: int, request: Request, db) -> Show
                 teachers = await teacher_dal.get_all_teachers(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 teachers_with_hateoas = []
@@ -235,7 +235,7 @@ async def _get_all_teachers_by_group(page: int, limit: int, group_name, request:
                 teachers = await teacher_dal.get_all_teachers_by_group(page, limit, group_name)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 teachers_with_hateoas = []
@@ -297,7 +297,7 @@ async def _delete_teacher(teacher_id: int, request: Request, db) -> ShowTeacherW
 
                 # add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -350,7 +350,7 @@ async def _update_teacher(body: UpdateTeacher, request:Request, db) -> ShowTeach
                 teacher_pydantic = ShowTeacher.model_validate(teacher)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -410,7 +410,7 @@ async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], reque
 
 @teacher_router.get("/search/by_group/{group_name}", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})
 async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], group_name: str, request: Request,  db: AsyncSession = Depends(get_db)):
-    return await _get_all_teachers(query_param.page, query_param.limit, group_name, request, db)
+    return await _get_all_teachers_by_group(query_param.page, query_param.limit, group_name, request, db)
 
 
 @teacher_router.delete("/delete/{teacher_id}", response_model=ShowTeacherWithHATEOAS,
@@ -447,7 +447,7 @@ async def _create_new_building(body: CreateBuilding, request: Request, db) -> Sh
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -493,7 +493,7 @@ async def _get_building_by_number(building_number, request: Request, db) -> Show
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -531,7 +531,7 @@ async def _get_building_by_address(address, request: Request, db) -> ShowBuildin
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -561,7 +561,7 @@ async def _get_all_buildings(page: int, limit: int, request: Request, db) -> Sho
                 buildings = await building_dal.get_all_buildings(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 buildings_with_hateoas = []
@@ -617,7 +617,7 @@ async def _delete_building(building_number: int, request: Request, db) -> ShowBu
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -670,7 +670,7 @@ async def _update_building(body: UpdateBuilding, request: Request, db) -> ShowBu
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -770,7 +770,7 @@ async def _create_cabinet(body: CreateCabinet, request: Request, db) -> ShowCabi
 
                 # add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -806,7 +806,7 @@ async def _get_all_cabinets(page: int, limit: int, request: Request, db) -> Show
                 cabinets = await cabinet_dal.get_all_cabinets(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 cabinets_with_hateoas = []
@@ -858,7 +858,7 @@ async def _get_cabinets_by_building(building_number: int, page: int, limit: int,
                 cabinets = await cabinet_dal.get_cabinets_by_building(building_number, page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 cabinets_with_hateoas = []
@@ -918,7 +918,7 @@ async def _get_cabinet_by_building_and_number(building_number: int, cabinet_numb
 
                 # add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -954,7 +954,7 @@ async def _delete_cabinet(building_number: int, cabinet_number: int, request: Re
 
                 # add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1021,7 +1021,7 @@ async def _update_cabinet(body: UpdateCabinet, request: Request, db) -> ShowCabi
 
                 # add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1107,7 +1107,7 @@ async def _create_speciality(body: CreateSpeciality, request: Request, db) -> Sh
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1145,7 +1145,7 @@ async def _get_all_specialties(page: int, limit: int, request: Request, db) -> S
                 specialities = await speciality_dal.get_all_specialties(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 specialities_with_hateoas = []
@@ -1202,7 +1202,7 @@ async def _get_speciality(speciality_code: str, request: Request, db) -> ShowSpe
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1238,7 +1238,7 @@ async def _delete_speciality(speciality_code: str, request: Request, db) -> Show
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1290,7 +1290,7 @@ async def _update_speciality(body: UpdateSpeciality, request: Request, db) -> Sh
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1392,7 +1392,7 @@ async def _create_new_group(body: CreateGroup, request: Request, db) -> ShowGrou
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1443,7 +1443,7 @@ async def _get_group_by_name(group_name: str, request: Request, db) -> ShowGroup
                 group_pydantic = ShowGroup.model_validate(group)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1488,7 +1488,7 @@ async def _get_group_by_advisor(advisor_id: int, request: Request, db) -> ShowGr
                 group_name = group.group_name
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1525,7 +1525,7 @@ async def _get_all_groups(page: int, limit: int, request: Request, db) -> ShowGr
                 groups = await group_dal.get_all_groups(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 groups_with_hateoas = []
@@ -1587,7 +1587,7 @@ async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: 
                 groups = await group_dal.get_all_groups_by_speciality(speciality_code, page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 groups_with_hateoas = []
@@ -1631,7 +1631,6 @@ async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: 
             except Exception as e:
                 logger.warning(f"Получение групп отменено (Ошибка: {e})")
                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
-
                 
 
 async def _delete_group(group_name: str, request: Request, db) -> ShowGroupWithHATEOAS:
@@ -1647,7 +1646,7 @@ async def _delete_group(group_name: str, request: Request, db) -> ShowGroupWithH
                 group_pydantic = ShowGroup.model_validate(group)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1723,7 +1722,7 @@ async def _update_group(body: UpdateGroup, request: Request, db) -> ShowGroupWit
                 group_name = group.group_name
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -1842,7 +1841,7 @@ async def _create_new_curriculum(body: CreateCurriculum, request: Request, db) -
                 curriculum_pydantic = ShowCurriculum.model_validate(curriculum)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 semester_number = curriculum.semester_number
@@ -1898,7 +1897,7 @@ async def _get_curriculum(semester_number: int, group_name: str, subject_code: s
             curriculum_pydantic = ShowCurriculum.model_validate(curriculum)
 
             base_url = str(request.base_url).rstrip('/')
-            api_prefix = '/schedule'
+            api_prefix = ''
             api_base_url = f'{base_url}{api_prefix}'
 
             hateoas_links = {
@@ -1934,7 +1933,7 @@ async def _get_all_curriculums(page: int, limit: int, request: Request, db) -> S
                 curriculums_orm_list = await curriculum_dal.get_all_curriculums(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 curriculums_with_hateoas = []
@@ -1968,6 +1967,9 @@ async def _get_all_curriculums(page: int, limit: int, request: Request, db) -> S
                     curriculums=curriculums_with_hateoas,
                     links=collection_links
                 )
+            
+            except HTTPException:
+                raise             
 
             except Exception as e:
                 logger.error(f"Неожиданная ошибка при получении списка учебных планов (страница {page}, лимит {limit}): {e}", exc_info=True)
@@ -1982,7 +1984,7 @@ async def _get_all_curriculums_by_group(group_name: str, page: int, limit: int, 
                 curriculums_orm_list = await curriculum_dal.get_all_curriculums_by_group(group_name, page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 curriculums_with_hateoas = []
@@ -2017,6 +2019,8 @@ async def _get_all_curriculums_by_group(group_name: str, page: int, limit: int, 
                     curriculums=curriculums_with_hateoas,
                     links=collection_links
                 )
+            except HTTPException:
+                raise             
 
             except Exception as e:
                 logger.error(f"Неожиданная ошибка при получении списка учебных планов для группы '{group_name}' (страница {page}, лимит {limit}): {e}", exc_info=True)
@@ -2031,7 +2035,7 @@ async def _get_all_curriculums_by_subject(subject_code: str, page: int, limit: i
                 curriculums_orm_list = await curriculum_dal.get_all_curriculums_by_subject(subject_code, page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 curriculums_with_hateoas = []
@@ -2066,6 +2070,8 @@ async def _get_all_curriculums_by_subject(subject_code: str, page: int, limit: i
                     curriculums=curriculums_with_hateoas,
                     links=collection_links
                 )
+            except HTTPException:
+                raise             
 
             except Exception as e:
                 logger.error(f"Неожиданная ошибка при получении списка учебных планов для предмета '{subject_code}' (страница {page}, лимит {limit}): {e}", exc_info=True)
@@ -2088,7 +2094,7 @@ async def _delete_curriculum(semester_number: int, group_name: str, subject_code
                 curriculum_pydantic = ShowCurriculum.model_validate(curriculum)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -2171,7 +2177,7 @@ async def _update_curriculum(body: UpdateCurriculum, request: Request, db) -> Sh
                 curriculum_pydantic = ShowCurriculum.model_validate(curriculum) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 final_semester_number = curriculum.semester_number
@@ -2210,18 +2216,18 @@ async def _update_curriculum(body: UpdateCurriculum, request: Request, db) -> Sh
             )
 
 
-@curriculum_router.post("/", response_model=ShowCurriculumWithHATEOAS, status_code=status.HTTP_201_CREATED) 
+@curriculum_router.post("/create/", response_model=ShowCurriculumWithHATEOAS, status_code=status.HTTP_201_CREATED) 
 async def create_curriculum(body: CreateCurriculum, request: Request, db: AsyncSession = Depends(get_db)): 
     return await _create_new_curriculum(body, request, db)
 
 
-@curriculum_router.get("/{semester_number}/{group_name}/{subject_code}", response_model=ShowCurriculumWithHATEOAS,
+@curriculum_router.get("/search/{semester_number}/{group_name}/{subject_code}", response_model=ShowCurriculumWithHATEOAS,
                     responses={404: {"description": "План не найден"}})
 async def get_curriculum(semester_number: int, group_name: str, subject_code: str, request: Request, db: AsyncSession = Depends(get_db)): 
     return await _get_curriculum(semester_number, group_name, subject_code, request, db) 
 
 
-@curriculum_router.get("/", response_model=ShowCurriculumListWithHATEOAS, responses={404: {"description": "Планы не найдены"}}) 
+@curriculum_router.get("/search/", response_model=ShowCurriculumListWithHATEOAS, responses={404: {"description": "Планы не найдены"}}) 
 async def get_all_curriculums(request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)): 
     return await _get_all_curriculums(query_param.page, query_param.limit, request, db) 
 
@@ -2232,7 +2238,7 @@ async def get_all_curriculums_by_group(group_name: str, request: Request, query_
 
 
 @curriculum_router.get("/search/by_subject/{subject_code}", response_model=ShowCurriculumListWithHATEOAS, responses={404: {"description": "Планы не найдены"}})
-async def _get_all_curriculums_by_subject(subject_code: str, request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+async def get_all_curriculums_by_subject(subject_code: str, request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
     return await _get_all_curriculums_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
 
 
@@ -2274,7 +2280,7 @@ async def _create_new_subject(body: CreateSubject, request: Request, db) -> Show
                 subject_pydantic = ShowSubject.model_validate(subject) 
                 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 subject_code = subject.subject_code
@@ -2329,7 +2335,7 @@ async def _get_subject(subject_code: str, request: Request, db) -> ShowSubjectWi
                 subject_pydantic = ShowSubject.model_validate(subject) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -2362,7 +2368,7 @@ async def _get_all_subjects(page: int, limit: int, request: Request, db) -> Show
                 subjects_orm_list = await subject_dal.get_all_subjects(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 subjects_with_hateoas = []
@@ -2409,7 +2415,7 @@ async def _get_all_subjects_by_name(
                 subjects_orm_list = await subject_dal.get_subjects_by_name(name, page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 subjects_with_hateoas = []
@@ -2464,7 +2470,7 @@ async def _delete_subject(subject_code: str, request: Request, db) -> ShowSubjec
                 subject_pydantic = ShowSubject.model_validate(subject) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -2526,7 +2532,7 @@ async def _update_subject(body: UpdateSubject, request: Request, db) -> ShowSubj
                 subject_pydantic = ShowSubject.model_validate(subject) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 final_subject_code = subject.subject_code 
@@ -2590,7 +2596,6 @@ async def update_subject(body: UpdateSubject, request: Request, db: AsyncSession
     return await _update_subject(body, request, db) 
 
 
-
 '''
 =====================================
 CRUD operations for EmploymentTeacher
@@ -2637,7 +2642,7 @@ async def _create_new_employment(body: CreateEmployment, request: Request, db) -
                 employment_pydantic = ShowEmployment.model_validate(employment)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 date_start = employment.date_start_period.isoformat()
@@ -2684,7 +2689,7 @@ async def _get_employment(date_start_period: date, date_end_period: date, teache
                 employment_pydantic = ShowEmployment.model_validate(employment) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 start_date_str = date_start_period.isoformat()
@@ -2722,7 +2727,7 @@ async def _get_all_employments(page: int, limit: int, request: Request, db) -> S
                 employments_orm_list = await employment_dal.get_all_employTeacher(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 employments_with_hateoas = []
@@ -2771,7 +2776,7 @@ async def _get_all_employments_by_date(
                 employments_orm_list = await employment_dal.get_all_employTeacher_by_date(date_start_period, date_end_period, page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 employments_with_hateoas = []
@@ -2836,7 +2841,7 @@ async def _delete_employment(
                 employment_pydantic = ShowEmployment.model_validate(employment)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 start_date_str = date_start_period.isoformat()
@@ -2923,7 +2928,7 @@ async def _update_employment(body: UpdateEmployment, request: Request, db) -> Sh
                 employment_pydantic = ShowEmployment.model_validate(employment)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 final_date_start = employment.date_start_period.isoformat()
@@ -2960,25 +2965,30 @@ async def _update_employment(body: UpdateEmployment, request: Request, db) -> Sh
 async def create_employment(body: CreateEmployment, request: Request, db: AsyncSession = Depends(get_db)):
     return await _create_new_employment(body, request, db) 
 
-@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS, 
-                    responses={404: {"description": "График не найден"}})
-async def get_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)): 
-    return await _get_employment(date_start_period, date_end_period, teacher_id, request, db)  
-
-@employment_router.get("/search", response_model=ShowEmploymentListWithHATEOAS,  
-                    responses={404: {"description": "Графики не найдены"}}) 
-async def get_all_employments(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
-    return await _get_all_employments(query_param.page, query_param.limit, request, db)  
 
 @employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=ShowEmploymentListWithHATEOAS,  
                     responses={404: {"description": "Графики не найдены"}}) 
 async def get_all_employments_by_date(date_start_period: date, date_end_period: date, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
     return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, request, db)
 
+
+@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS, 
+                    responses={404: {"description": "График не найден"}})
+async def get_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_employment(date_start_period, date_end_period, teacher_id, request, db)  
+
+
+@employment_router.get("/search", response_model=ShowEmploymentListWithHATEOAS,  
+                    responses={404: {"description": "Графики не найдены"}}) 
+async def get_all_employments(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_employments(query_param.page, query_param.limit, request, db)  
+
+
 @employment_router.delete("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS,  
                     responses={404: {"description": "График не найден"}})
 async def delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_employment(date_start_period, date_end_period, teacher_id, request, db)  
+
 
 @employment_router.put("/update", response_model=ShowEmploymentWithHATEOAS,  
                     responses={404: {"description": "График не найден"}})
@@ -3046,7 +3056,7 @@ async def _create_new_request(body: CreateTeacherRequest, request: Request, db) 
                 request_pydantic = ShowTeacherRequest.model_validate(request_obj) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 date_req_str = request_obj.date_request.isoformat()
@@ -3100,7 +3110,7 @@ async def _get_request(
                 request_pydantic = ShowTeacherRequest.model_validate(request_obj) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 date_req_str = date_request.isoformat()
@@ -3138,7 +3148,7 @@ async def _get_all_requests(page: int, limit: int, request: Request, db) -> Show
                 requests_orm_list = await request_dal.get_all_teachersRequests(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 requests_with_hateoas = []
@@ -3191,7 +3201,7 @@ async def _get_all_requests_by_teacher(
                 requests_orm_list = await request_dal.get_all_requests_by_teacher(teacher_id, page, limit)
  
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 requests_with_hateoas = []
@@ -3247,7 +3257,7 @@ async def _get_all_requests_by_group(group_name: str, page: int, limit: int, req
                 requests_orm_list = await request_dal.get_all_requests_by_group(group_name, page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 requests_with_hateoas = []
@@ -3302,7 +3312,7 @@ async def _get_all_requests_by_subject(subject_code: str, page: int, limit: int,
                 requests_orm_list = await request_dal.get_all_requests_by_subject(subject_code, page, limit) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 requests_with_hateoas = []
@@ -3366,7 +3376,7 @@ async def _delete_request(date_request: date, teacher_id: int, subject_code: str
                 request_pydantic = ShowTeacherRequest.model_validate(request_obj) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 date_req_str = date_request.isoformat()
@@ -3478,7 +3488,7 @@ async def _update_request(body: UpdateTeacherRequest, request: Request, db) -> S
                 request_pydantic = ShowTeacherRequest.model_validate(request_obj) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 final_date_req_str = request_obj.date_request.isoformat()
@@ -3625,7 +3635,7 @@ async def _create_new_session(body: CreateSession, request: Request, db) -> Show
                 session_pydantic = ShowSession.model_validate(session_obj) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 sess_number = session_obj.session_number
@@ -3674,7 +3684,7 @@ async def _get_session(
             session_pydantic = ShowSession.model_validate(data_session) 
 
             base_url = str(request.base_url).rstrip('/')
-            api_prefix = '/schedule' 
+            api_prefix = '' 
             api_base_url = f'{base_url}{api_prefix}'
 
             sess_date_str = date.isoformat() 
@@ -3716,7 +3726,7 @@ async def _get_all_sessions(page: int, limit: int, request: Request, db) -> Show
             data_sessions_orm_list = await session_dal.get_all_sessions(page, limit)
 
             base_url = str(request.base_url).rstrip('/')
-            api_prefix = '/schedule' 
+            api_prefix = '' 
             api_base_url = f'{base_url}{api_prefix}'
 
             sessions_with_hateoas = []
@@ -3768,7 +3778,7 @@ async def _get_all_sessions_by_date(date: date, page: int, limit: int, request: 
                 data_sessions_orm_list = await session_dal.get_all_sessions_by_date(date, page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 sessions_with_hateoas = []
@@ -3823,7 +3833,7 @@ async def _get_all_sessions_by_group( group_name: str, page: int, limit: int, re
                 data_sessions_orm_list = await session_dal.get_all_sessions_by_group(group_name, page, limit)
                 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 sessions_with_hateoas = []
@@ -3877,7 +3887,7 @@ async def _get_all_sessions_by_subject(subject_code: str, page: int, limit: int,
                 data_sessions_orm_list = await session_dal.get_all_sessions_by_subject(subject_code, page, limit) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 sessions_with_hateoas = []
@@ -3932,7 +3942,7 @@ async def _get_all_sessions_by_teacher(teacher_id: int, page: int, limit: int, r
                     data_sessions_orm_list = []
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 sessions_with_hateoas = []
@@ -3996,7 +4006,7 @@ async def _delete_session(session_number: int, date: date, group_name: str, requ
                 session_pydantic = ShowSession.model_validate(data_session) 
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 sess_date_str = date.isoformat() 
@@ -4096,7 +4106,7 @@ async def _update_session(body: UpdateSession, request: Request, db) -> ShowSess
                 session_pydantic = ShowSession.model_validate(session_data)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule' 
+                api_prefix = '' 
                 api_base_url = f'{base_url}{api_prefix}'
 
                 final_sess_number = session_data.session_number 

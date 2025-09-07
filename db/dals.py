@@ -417,9 +417,9 @@ class CurriculumDAL:
         return curriculums
     
     @log_exceptions
-    async def get_all_curriculums_by_group(self, group, page: int, limit: int) -> list[Curriculum] | None:
+    async def get_all_curriculums_by_group(self, group: str, page: int, limit: int) -> list[Curriculum] | None:
         if page == 0:
-            query = select(Curriculum).where(Curriculum.group_name == group).order_by(Curriculum.semester_number.asc())
+            query = select(Curriculum).where(Curriculum.group_name == group).order_by(Curriculum.group_name.asc())
         else:
             query = select(Curriculum).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
@@ -427,7 +427,7 @@ class CurriculumDAL:
         return curriculums
     
     @log_exceptions
-    async def get_all_curriculums_by_subject(self, subject, page: int, limit: int) -> list[Curriculum] | None:
+    async def get_all_curriculums_by_subject(self, subject: str, page: int, limit: int) -> list[Curriculum] | None:
         if page == 0:
             query = select(Curriculum).where(Curriculum.subject_code == subject).order_by(Curriculum.semester_number.asc())
         else:

@@ -264,7 +264,7 @@ class ShowCurriculumWithHATEOAS(TunedModel):
 
 
 class ShowCurriculumListWithHATEOAS(TunedModel):
-    curriculums = List[ShowCurriculumWithHATEOAS]
+    curriculums: List[ShowCurriculumWithHATEOAS]
     links: dict[str, str] = {}
 
 

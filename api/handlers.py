@@ -227,7 +227,7 @@ async def _get_all_teachers(page: int, limit: int, request: Request, db) -> Show
                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
             
 
-async def _get_all_teachers(page: int, limit: int, group_name, request: Request, db) -> ShowTeacherListWithHATEOAS:
+async def _get_all_teachers_by_group(page: int, limit: int, group_name, request: Request, db) -> ShowTeacherListWithHATEOAS:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
@@ -396,7 +396,7 @@ async def get_teacher_by_name_and_surname(name: str, surname: str, request: Requ
 
 
 @teacher_router.get("/search", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})
-async def get_all_teachers(request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], request: Request,  db: AsyncSession = Depends(get_db)):
     """
     query_param set via Annotated so that fastapi understands
     that the pydantic model QueryParam refers to the query parameters,
@@ -408,7 +408,12 @@ async def get_all_teachers(request: Request, query_param: Annotated[QueryParams,
     return await _get_all_teachers(query_param.page, query_param.limit, request, db)
 
 
-@teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacherWithHATEOAS,
+@teacher_router.get("/search/by_group/{group_name}", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})
+async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], group_name: str, request: Request,  db: AsyncSession = Depends(get_db)):
+    return await _get_all_teachers(query_param.page, query_param.limit, group_name, request, db)
+
+
+@teacher_router.delete("/delete/{teacher_id}", response_model=ShowTeacherWithHATEOAS,
                     responses={404: {"description": "Преподаватель не найден"}})
 async def delete_teacher(teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_teacher(teacher_id, request, db)
@@ -710,7 +715,7 @@ async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], requ
     return await _get_all_buildings(query_param.page, query_param.limit, request, db)
 
 
-@building_router.put("/delete/{building_number}", response_model=ShowBuildingWithHATEOAS,
+@building_router.delete("/delete/{building_number}", response_model=ShowBuildingWithHATEOAS,
                      responses={404: {"description": "Здание не найдено"}})
 async def delete_building(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_building(building_number, request, db)
@@ -1070,7 +1075,7 @@ async def get_cabinet_by_building_and_number(building_number: int,
     return await _get_cabinet_by_building_and_number(building_number, cabinet_number, request, db)
 
 
-@cabinet_router.put("/delete/{building_number}/{cabinet_number}", response_model=ShowCabinetWithHATEOAS,
+@cabinet_router.delete("/delete/{building_number}/{cabinet_number}", response_model=ShowCabinetWithHATEOAS,
                     responses={404: {"description": "Не удаётся удалить кабинет"}})
 async def delete_cabinet(building_number: int, cabinet_number: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_cabinet(building_number, cabinet_number, request, db)
@@ -1169,7 +1174,7 @@ async def _get_all_specialties(page: int, limit: int, request: Request, db) -> S
                 collection_links = {k: v for k, v in collection_links.items() if v is not None}
 
                 return ShowSpecialityListWithHATEOAS(
-                    speciality=specialities_with_hateoas,
+                    specialities=specialities_with_hateoas,
                     links=collection_links
                 )
             
@@ -1321,13 +1326,13 @@ async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], r
     return await _get_all_specialties(query_param.page, query_param.limit, request, db)
 
 
-@speciality_router.get("/search/by_speciality_code", response_model=ShowSpecialityWithHATEOAS,
+@speciality_router.get("/search/by_code/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Специальность не найдена"}})
-async def get_speciality_by_code(speciality_code: str, db: AsyncSession = Depends(get_db)):
-    return await _get_speciality(speciality_code, db)
+async def get_speciality_by_code(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_speciality(speciality_code, request, db)
 
 
-@speciality_router.put("/delete/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
+@speciality_router.delete("/delete/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Не удаётся удалить специальность"}})
 async def delete_speciality(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_speciality(speciality_code, request, db)
@@ -1768,7 +1773,7 @@ async def get_group_by_advisor(advisor_id: int, request: Request, db: AsyncSessi
 @group_router.get("/search", response_model=ShowGroupListWithHATEOAS, 
                   responses={404: {"description": "Группы не найдены"}})
 async def get_all_groups(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
-    return await _get_all_groups(query_param.page, request, query_param.limit, db)
+    return await _get_all_groups(query_param.page, query_param.limit, request, db)
 
 
 @group_router.get("/search/by_speciality/{speciality_code}", response_model=ShowGroupListWithHATEOAS, 
@@ -1777,7 +1782,7 @@ async def get_all_groups_by_speciality(speciality_code: str, query_param: Annota
     return await _get_all_groups_by_speciality(speciality_code, query_param.page, query_param.limit, request, db)
 
 
-@group_router.put("/delete/{group_name}", response_model=ShowGroupWithHATEOAS,
+@group_router.delete("/delete/{group_name}", response_model=ShowGroupWithHATEOAS,
                     responses={404: {"description": "Группа не найдена"}})
 async def delete_group(group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_group(group_name, request, db)
@@ -2231,7 +2236,7 @@ async def _get_all_curriculums_by_subject(subject_code: str, request: Request, q
     return await _get_all_curriculums_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
 
 
-@curriculum_router.delete("/{semester_number}/{group_name}/{subject_code}", response_model=ShowCurriculumWithHATEOAS,
+@curriculum_router.delete("/delete/{semester_number}/{group_name}/{subject_code}", response_model=ShowCurriculumWithHATEOAS,
                     responses={404: {"description": "План не найден"}})
 async def delete_curriculum(semester_number: int, group_name: str, subject_code: str, request: Request, db: AsyncSession = Depends(get_db)): 
     return await _delete_curriculum(semester_number, group_name, subject_code, request, db)
@@ -2492,7 +2497,7 @@ async def _update_subject(body: UpdateSubject, request: Request, db) -> ShowSubj
             async with session.begin():
                 update_data = {
                     key: value for key, value in body.dict().items()
-                    if value is not None and key not in ["subject_code"]
+                    if value is not None and key not in ["subject_code", "new_subject_code"]
                 }
 
                 subject_dal = SubjectDAL(session)
@@ -2573,7 +2578,7 @@ async def get_all_subjects_by_name(name: str, query_param: Annotated[QueryParams
     return await _get_all_subjects_by_name(name, query_param.page, query_param.limit, request, db) 
 
 
-@subject_router.put("/delete/{subject_code}", response_model=ShowSubjectWithHATEOAS, 
+@subject_router.delete("/delete/{subject_code}", response_model=ShowSubjectWithHATEOAS, 
                     responses={404: {"description": "Предмет не найден"}})
 async def delete_subject(subject_code: str, request: Request, db: AsyncSession = Depends(get_db)): 
     return await _delete_subject(subject_code, request, db)
@@ -2970,7 +2975,7 @@ async def get_all_employments(query_param: Annotated[QueryParams, Depends()], re
 async def get_all_employments_by_date(date_start_period: date, date_end_period: date, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
     return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, request, db)
 
-@employment_router.put("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS,  
+@employment_router.delete("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS,  
                     responses={404: {"description": "График не найден"}})
 async def delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_employment(date_start_period, date_end_period, teacher_id, request, db)  
@@ -3546,7 +3551,7 @@ async def get_all_requests_by_subject(subject_code: str, query_param: Annotated[
     return await _get_all_requests_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
 
 
-@request_router.put("/delete/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequestWithHATEOAS, 
+@request_router.delete("/delete/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequestWithHATEOAS, 
                     responses={404: {"description": "Запрос не найден"}})
 async def delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_request(date_request, teacher_id, subject_code, group_name, request, db) 
@@ -4161,7 +4166,7 @@ async def get_all_sessions_by_group(group_name: str, query_param: Annotated[Quer
 async def get_all_sessions_by_subject(subject_code: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
     return await _get_all_sessions_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
 
-@session_router.put("/delete/{session_number}/{date}/{group_name}", response_model=ShowSessionWithHATEOAS, 
+@session_router.delete("/delete/{session_number}/{date}/{group_name}", response_model=ShowSessionWithHATEOAS, 
                     responses={404: {"description": "Сессия не найдена"}})
 async def delete_session(session_number: int, date: date, group_name: str, request: Request, db: AsyncSession = Depends(get_db)): 
     return await _delete_session(session_number, date, group_name, request, db) 

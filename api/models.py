@@ -456,10 +456,10 @@ class UpdateSession(TunedModel):
 
 
 class ShowSessionWithHATEOAS(TunedModel):
-    request: ShowSession
+    session: ShowSession
     links: dict[str, str] = {}
 
 
 class ShowSessionListWithHATEOAS(TunedModel):
-    requests: List[ShowSessionWithHATEOAS]
+    sessions: List[ShowSessionWithHATEOAS]
     links: dict[str, str] = {}

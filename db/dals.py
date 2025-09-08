@@ -672,6 +672,16 @@ class SessionDAL:
         sessions = list(result.scalars().all())
         return sessions
     
+    @log_exceptions
+    async def get_all_sessions_by_subject(self, subject: str, page: int, limit: int) -> list[Session] | None:
+        if page == 0:
+            query = select(Session).where(Session.subject_code == subject).order_by(Session.date.asc())
+        else:
+            query = select(Session).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        sessions = list(result.scalars().all())
+        return sessions
+    
     # tg_ mean target
     @log_exceptions
     async def update_session(self, tg_session_number: int, tg_date: Date, tg_group_name: str, **kwargs) -> Session | None:
@@ -836,6 +846,16 @@ class TeacherRequestDAL:
     @log_exceptions
     async def get_all_requests_by_group(self, group: str, page: int, limit: int) -> list[TeacherRequest]:
         query = select(TeacherRequest).where(TeacherRequest.group_name == group
+            ).order_by(TeacherRequest.date_request.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        return list(result.scalars().all())
+    
+    @log_exceptions
+    async def get_all_requests_by_subject(self, subject: str, page: int, limit: int) -> list[TeacherRequest]:
+        query = select(TeacherRequest).where(TeacherRequest.subject_code == subject
             ).order_by(TeacherRequest.date_request.asc())
         if page > 0:
             query = query.offset((page - 1) * limit).limit(limit)

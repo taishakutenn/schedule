@@ -4048,7 +4048,7 @@ async def _update_session(body: UpdateSession, request: Request, db) -> ShowSess
             async with session.begin():
                 update_data = {
                     key: value for key, value in body.dict().items()
-                    if value is not None and key not in ["session_number", "session_date", "group_name"]
+                    if value is not None and key not in ["session_number", "session_date", "group_name", "new_session_number", "new_session_date", "new_group_name"]
                 }
 
                 session_dal = SessionDAL(session)

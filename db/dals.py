@@ -52,8 +52,14 @@ class TeacherDAL:
         return list(result.scalars().all())
     
     @log_exceptions
-    async def get_all_teachers_by_group(self, page: int, limit: int, group_name) -> list[Teacher]:
-        query = select(Teacher).where(Teacher.advisory_group == group_name).order_by(Teacher.surname.asc())
+    async def get_all_teachers_by_group(self, page: int, limit: int, group_name: str) -> list[Teacher]:
+        group_query = select(Group).where(Group.group_name == group_name)
+        group_result = await self.db_session.execute(group_query)
+        group_obj = group_result.scalar_one_or_none()
+        if not group_obj:
+            return []
+    
+        query = select(Teacher).where(Teacher.id == group_obj.group_advisor_id).order_by(Teacher.surname.asc())
         if page > 0:
             query = query.offset((page - 1) * limit).limit(limit)
 

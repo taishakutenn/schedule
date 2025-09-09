@@ -35,56 +35,17 @@ session_router = APIRouter() # Create router for Session
 
 
 '''
-============================
-CRUD operations for teachers
-============================
+===========================
+CRUD operations for Teacher
+===========================
 '''
-
-
-# async def _create_new_teacher(body: CreateTeacher, db) -> ShowTeacher:
-#     async with db as session:
-#         async with session.begin():
-#             teacher_dal = TeacherDAL(session)
-#             teacher = await teacher_dal.create_teacher(
-#                 name=body.name,
-#                 surname=body.surname,
-#                 phone_number=body.phone_number,
-#                 email=str(body.email),
-#                 fathername=body.fathername
-#             )
-#             return ShowTeacher.from_orm(teacher)
-
-
-# async def _get_teacher_by_id(teacher_id, db) -> ShowTeacher:
-#     async with db as session:
-#         async with session.begin():
-#             teacher_dal = TeacherDAL(session)
-#             teacher = await teacher_dal.get_teacher_by_id(teacher_id)
-
-#             # if teacher doesn't exist
-#             if not teacher:
-#                 raise HTTPException(status_code=404, detail=f"Учитель с id: {teacher_id} не найден")
-
-#             return ShowTeacher.from_orm(teacher)
-
-
-# async def _get_teacher_by_name_and_surname(name, surname, db) -> ShowTeacher:
-#     async with db as session:
-#         async with session.begin():
-#             teacher_dal = TeacherDAL(session)
-#             teacher = await teacher_dal.get_teacher_by_name_surname(name, surname)
-
-#             # if teacher exist
-#             if not teacher:
-#                 raise HTTPException(status_code=404, detail=f"Учитель {name, surname} не найден")
-
-#             return ShowTeacher.from_orm(teacher)
 
 
 async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> ShowTeacherWithHATEOAS:
     async with db as session:
         async with session.begin():
             teacher_dal = TeacherDAL(session)
+
             try:
                 teacher = await teacher_dal.create_teacher(
                     name=body.name,
@@ -99,12 +60,12 @@ async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> Show
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
-                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update',
+                    "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update/{teacher_id}',
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -116,6 +77,7 @@ async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> Show
                 return ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=hateoas_links)
             
             except IntegrityError as e:
+                await session.rollback()
                 error_msg = str(e.orig).lower()
                 if "email" in error_msg and 'already_exists' in error_msg:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Преподаватель с таким email уже существует.")
@@ -124,11 +86,15 @@ async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> Show
                 else:
                     logger.error(f"Ошибка целостности БД при создании преподавателя: {e}")
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Невозможно создать преподавателя из-за конфликта данных.")
-                     
+            
+            except HTTPException:
+                raise
+
             except Exception as e:
-                 logger.error(f"Неожиданная ошибка при создании преподавателя: {e}", exc_info=True)
-                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")
-        
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании преподавателя: {e}", exc_info=True)
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")
+    
 
 async def _get_teacher_by_id(teacher_id, request: Request, db) -> ShowTeacherWithHATEOAS:
     async with db as session:
@@ -145,12 +111,12 @@ async def _get_teacher_by_id(teacher_id, request: Request, db) -> ShowTeacherWit
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
-                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update',
+                    "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "update": f'{api_base_url}/teachers/update/{teacher_id}',
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -185,12 +151,12 @@ async def _get_teacher_by_name_and_surname(name, surname, request: Request, db) 
 
                 # Add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
                     "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update',
+                    "update": f'{api_base_url}/teachers/update/{teacher_id}',
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -217,7 +183,7 @@ async def _get_all_teachers(page: int, limit: int, request: Request, db) -> Show
                 teachers = await teacher_dal.get_all_teachers(page, limit)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 teachers_with_hateoas = []
@@ -227,8 +193,8 @@ async def _get_all_teachers(page: int, limit: int, request: Request, db) -> Show
                     # add HATEOAS
                     teacher_id = teacher.id
                     teacher_links = {
-                        "self": f'{api_base_url}/teachers/search/{teacher_id}',
-                        "update": f'{api_base_url}/teachers/update',
+                        "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "update": f'{api_base_url}/teachers/update/{teacher_id}',
                         "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
                         "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
                         "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
@@ -244,7 +210,59 @@ async def _get_all_teachers(page: int, limit: int, request: Request, db) -> Show
 
                 collection_links = {
                     "self": f'{api_base_url}/teachers?page={page}&limit={limit}',
-                    "create": f'{api_base_url}/teachers'
+                    "create": f'{api_base_url}/teachers/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowTeacherListWithHATEOAS(
+                    teachers=teachers_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение преподавателей отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+            
+
+async def _get_all_teachers_by_group(page: int, limit: int, group_name, request: Request, db) -> ShowTeacherListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_dal = TeacherDAL(session)
+            try:
+                teachers = await teacher_dal.get_all_teachers_by_group(page, limit, group_name)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teachers_with_hateoas = []
+                for teacher in teachers:
+                    teacher_pydantic = ShowTeacher.model_validate(teacher)
+
+                    # add HATEOAS
+                    teacher_id = teacher.id
+                    teacher_links = {
+                        "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "update": f'{api_base_url}/teachers/update/{teacher_id}',
+                        "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
+                        "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
+                        "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
+                        "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
+                        "requests": f'{api_base_url}/requests/search/by_teacher/{teacher_id}'
+                    }
+
+                    teacher_with_links = ShowTeacherWithHATEOAS(
+                        teacher=teacher_pydantic,
+                        links=teacher_links
+                    )
+                    teachers_with_hateoas.append(teacher_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers/create'
                 }
                 collection_links = {k: v for k, v in collection_links.items() if v is not None}
 
@@ -279,11 +297,11 @@ async def _delete_teacher(teacher_id: int, request: Request, db) -> ShowTeacherW
 
                 # add HATEOAS
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
-                    "self": f'{api_base_url}/teachers/search/{teacher_id}',
+                    "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
                     "teachers": f'{api_base_url}/teachers/search',
                     "create": f'{api_base_url}/teachers/create',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
@@ -298,6 +316,7 @@ async def _delete_teacher(teacher_id: int, request: Request, db) -> ShowTeacherW
             raise
 
         except Exception as e:
+            await session.rollback()
             logger.error(f"Неожиданная ошибка при удалении преподавателя {teacher_id}: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500,
@@ -326,19 +345,18 @@ async def _update_teacher(body: UpdateTeacher, request:Request, db) -> ShowTeach
                 if not teacher:
                     raise HTTPException(status_code=404, detail=f"Преподаватель с id: {body.teacher_id} не найден")
 
+                
+                teacher_id = body.teacher_id 
                 teacher_pydantic = ShowTeacher.model_validate(teacher)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = '/schedule'
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
-
-                teacher_id = body.teacher_id 
 
                 hateoas_links = {
                     "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
-                    "update": f'{api_base_url}/teachers/update/', 
                     "delete": f'{api_base_url}/teachers/delete/{teacher_id}',
-                    "teachers": f'{api_base_url}/teachers',
+                    "teachers": f'{api_base_url}/teachers/search',
                     "group": f'{api_base_url}/groups/search/by_teacher/{teacher_id}',
                     "sessions": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}',
                     "employments": f'{api_base_url}/employments/search/by_teacher/{teacher_id}',
@@ -348,19 +366,17 @@ async def _update_teacher(body: UpdateTeacher, request:Request, db) -> ShowTeach
                 return ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=hateoas_links)
             
         except HTTPException:
+            await session.rollback()
             raise   
 
         except Exception as e:
+            await session.rollback()
             logger.error(f"Неожиданная ошибка при обновлении преподавателя {body.teacher_id}: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail="Внутренняя ошибка сервера при обновлении преподавателя."
             )
 
-
-# @teacher_router.post("/create", response_model=ShowTeacher)
-# async def create_teacher(body: CreateTeacher, db: AsyncSession = Depends(get_db)):
-#     return await _create_new_teacher(body, db)
 
 @teacher_router.post("/create", response_model=ShowTeacherWithHATEOAS, status_code=201) # 201 Created standard code
 async def create_teacher(body: CreateTeacher, request: Request, db: AsyncSession = Depends(get_db)):
@@ -380,7 +396,7 @@ async def get_teacher_by_name_and_surname(name: str, surname: str, request: Requ
 
 
 @teacher_router.get("/search", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})
-async def get_all_teachers(request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], request: Request,  db: AsyncSession = Depends(get_db)):
     """
     query_param set via Annotated so that fastapi understands
     that the pydantic model QueryParam refers to the query parameters,
@@ -392,7 +408,12 @@ async def get_all_teachers(request: Request, query_param: Annotated[QueryParams,
     return await _get_all_teachers(query_param.page, query_param.limit, request, db)
 
 
-@teacher_router.put("/delete/{teacher_id}", response_model=ShowTeacherWithHATEOAS,
+@teacher_router.get("/search/by_group/{group_name}", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})
+async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], group_name: str, request: Request,  db: AsyncSession = Depends(get_db)):
+    return await _get_all_teachers_by_group(query_param.page, query_param.limit, group_name, request, db)
+
+
+@teacher_router.delete("/delete/{teacher_id}", response_model=ShowTeacherWithHATEOAS,
                     responses={404: {"description": "Преподаватель не найден"}})
 async def delete_teacher(teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await _delete_teacher(teacher_id, request, db)
@@ -404,80 +425,224 @@ async def update_teacher(body: UpdateTeacher, request: Request, db: AsyncSession
 
 
 '''
-=============================
-CRUD operations for buildings
-=============================
+============================
+CRUD operations for Building
+============================
 '''
 
 
-async def _create_new_building(body: CreateBuilding, db) -> ShowBuilding:
+async def _create_new_building(body: CreateBuilding, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
-            building = await building_dal.create_building(
-                building_number=body.building_number,
-                city=body.city,
-                building_address=body.building_address
-            )
+            try: 
+                building = await building_dal.create_building(
+                    building_number=body.building_number,
+                    city=body.city,
+                    building_address=body.building_address
+                )
 
-            return ShowBuilding.from_orm(building)
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update/{building_number}',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+            
+            except IntegrityError as e:
+                await session.rollback()
+                logger.error(f"Ошибка целостности БД при создании здания: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Невозможно создать здание из-за конфликта данных."
+                )
+            
+            except HTTPException:
+                raise
+                
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании здания: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_building_by_number(number, db) -> ShowBuilding:
+async def _get_building_by_number(building_number, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
-            building = await building_dal.get_building_by_number(number)
 
-            # if building exist
-            if not building:
-                raise HTTPException(status_code=404, detail=f"Здание с номером: {number} не найдено")
+            try: 
+                building = await building_dal.get_building_by_number(building_number)
 
-            return ShowBuilding.from_orm(building)
+                # if building exist
+                if not building:
+                    raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
+
+                building_pydantic = ShowBuilding.model_validate(building)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update/{building_number}',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение здания отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_building_by_address(address, db) -> ShowBuilding:
+async def _get_building_by_address(address, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
-            building = await building_dal.get_building_by_address(address)
 
-            # if building exist
-            if not building:
-                raise HTTPException(status_code=404, detail=f"Здание по адресу: {address} не найдено")
+            try: 
+                building = await building_dal.get_building_by_address(address)
 
-            return ShowBuilding.from_orm(building)
+                # if building exist
+                if not building:
+                    raise HTTPException(status_code=404, detail=f"Здание по адресу: {address} не найдено")
+                
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update/{building_number}',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+                
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение здания отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_all_buildings(page: int, limit: int, db) -> list[ShowBuilding]:
+async def _get_all_buildings(page: int, limit: int, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
-            buildings = await building_dal.get_all_buildings(page, limit)
 
-            return [ShowBuilding.from_orm(building) for building in buildings]
+            try:
+                buildings = await building_dal.get_all_buildings(page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                buildings_with_hateoas = []
+                for building in buildings:
+                    building_pydantic = ShowBuilding.model_validate(building)
+
+                    # add HATEOAS
+                    building_number = building.building_number
+                    building_links = {
+                        "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                        "update": f'{api_base_url}/buildings/update/{building_number}',
+                        "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                        "buildings": f'{api_base_url}/buildings/search',
+                        "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                    }
+
+                    building_with_links = ShowBuildingWithHATEOAS(
+                        building=building_pydantic,
+                        links=building_links
+                    )
+                    buildings_with_hateoas.append(building_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/building?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/buildings/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowBuildingListWithHATEOAS(
+                    buildings=buildings_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение зданий отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _delete_building(building_number: int, db) -> ShowBuilding:
+async def _delete_building(building_number: int, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
                 building_dal = BuildingDAL(session)
                 building = await building_dal.delete_building(building_number)
-                # save changed data
-                await session.commit()
 
                 if not building:
                     raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
+                
+                building_pydantic = ShowBuilding.model_validate(building)
 
-                return ShowBuilding.from_orm(building)
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "create": f'{api_base_url}/buildings/create',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
 
         except Exception as e:
-            logger.warning(f"Удаление данных о здании отменено (Ошибка: {e})")
-            raise e
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении здания {building_number}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при удалении здания."
+            )
 
 
-async def _update_building(body: UpdateBuilding, db) -> ShowBuilding:
+async def _update_building(body: UpdateBuilding, request: Request, db) -> ShowBuildingWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -497,13 +662,30 @@ async def _update_building(body: UpdateBuilding, db) -> ShowBuilding:
                     **update_data
                 )
 
-                # save changed data
-                await session.commit()
-
                 if not building:
                     raise HTTPException(status_code=404, detail=f"Здание с номером: {body.building_number} не найдено")
+                
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building)
 
-                return ShowBuilding.from_orm(building)
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update/{building_number}',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings/search',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
 
         except Exception as e:
             await session.rollback()
@@ -511,131 +693,290 @@ async def _update_building(body: UpdateBuilding, db) -> ShowBuilding:
             raise e
 
 
-@building_router.post("/create", response_model=ShowBuilding)
-async def create_building(body: CreateBuilding, db: AsyncSession = Depends(get_db)):
-    return await _create_new_building(body, db)
+@building_router.post("/create", response_model=ShowBuildingWithHATEOAS, status_code=201)
+async def create_building(body: CreateBuilding, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_building(body, request, db)
 
 
-@building_router.get("/search/by_number/{building_number}", response_model=ShowBuilding,
+@building_router.get("/search/by_number/{building_number}", response_model=ShowBuildingWithHATEOAS,
                      responses={404: {"description": "Здание не найдено"}})
-async def get_building_by_number(building_number: int, db: AsyncSession = Depends(get_db)):
-    return await _get_building_by_number(building_number, db)
+async def get_building_by_number(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_building_by_number(building_number, request, db)
 
 
-@building_router.get("/search/by_address", response_model=ShowBuilding | None,
+@building_router.get("/search/by_address/{building_address}", response_model=ShowBuildingWithHATEOAS,
                      responses={404: {"description": "Здание не найдено"}})
-async def get_building_by_address(address: str, db: AsyncSession = Depends(get_db)):
-    return await _get_building_by_address(address, db)
+async def get_building_by_address(address: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_building_by_address(address, request, db)
 
 
-@building_router.get("/search", response_model=list[ShowBuilding])
-async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    """
-    query_param set via Annotated so that fastapi understands
-    that the pydantic model QueryParam refers to the query parameters,
-    we specify this as the second argument for Annotated.
-    Wherever there will be pagination and the number of elements on the page,
-    it is better to use this pydantic model, so as not to manually enter these parameters each time.
-    Link to documentation: https://fastapi.tiangolo.com/ru/tutorial/query-param-models/
-    """
-    return await _get_all_buildings(query_param.page, query_param.limit, db)
+@building_router.get("/search", response_model=ShowBuildingListWithHATEOAS)
+async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_buildings(query_param.page, query_param.limit, request, db)
 
 
-@building_router.put("/delete/{building_number}", response_model=ShowBuilding,
+@building_router.delete("/delete/{building_number}", response_model=ShowBuildingWithHATEOAS,
                      responses={404: {"description": "Здание не найдено"}})
-async def delete_building(building_number: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_building(building_number, db)
+async def delete_building(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_building(building_number, request, db)
 
 
-@building_router.put("/update", response_model=ShowBuilding, responses={404: {"description": "Здание не найдено"}})
-async def update_building(body: UpdateBuilding, db: AsyncSession = Depends(get_db)):
-    return await _update_building(body, db)
+@building_router.put("/update", response_model=ShowBuildingWithHATEOAS, 
+                    responses={404: {"description": "Здание не найдено"}})
+async def update_building(body: UpdateBuilding, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_building(body, request, db)
 
 
 '''
-============================
-CRUD operations for cabinets
-============================
+===========================
+CRUD operations for Cabinet
+===========================
 '''
 
 
-async def _create_cabinet(body: CreateCabinet, db) -> ShowCabinet:
+async def _create_cabinet(body: CreateCabinet, request: Request, db) -> ShowCabinetWithHATEOAS:
     async with db as session:
         async with session.begin():
             building_dal = BuildingDAL(session)
             cabinet_dal = CabinetDAL(session)
+            
+            try: 
+                # Check that the building exists
+                # Check that the cabinet is unique
+                # By using helpers
+                if not await ensure_building_exists(building_dal, body.building_number):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Здание с номером {body.building_number} не найдено"
+                    )
 
-            # Check that the building exists
-            # Check that the cabinet is unique
-            # By using helpers
-            if not await ensure_building_exists(building_dal, body.building_number):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Здание с номером {body.building_number} не найдено"
+                if not await ensure_cabinet_unique(cabinet_dal, body.building_number, body.cabinet_number):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Кабинет {body.cabinet_number} уже существует в здании {body.building_number}"
+                    )
+
+                # Create cabinet
+                cabinet = await cabinet_dal.create_cabinet(
+                    cabinet_number=body.cabinet_number,
+                    building_number=body.building_number,
+                    capacity=body.capacity,
+                    cabinet_state=body.cabinet_state
                 )
 
-            if not await ensure_cabinet_unique(cabinet_dal, body.building_number, body.cabinet_number):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Кабинет {body.cabinet_number} уже существует в здании {body.building_number}"
+                cabinet_number = cabinet.cabinet_number
+                building_number = cabinet.building_number
+                cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                    "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                    "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                    "cabinets": f'{api_base_url}/cabinets',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+
+                return ShowCabinetWithHATEOAS(cabinet=cabinet_pydantic, links=hateoas_links)
+            
+            except IntegrityError as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании кабинета: {e}", exc_info=True)
+                raise HTTPException(status_code=400, detail="Кабинет с таким номером уже существует.")
+            
+            except HTTPException:
+                await session.rollback()
+                raise
+
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании кабинета: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")        
+
+
+async def _get_all_cabinets(page: int, limit: int, request: Request, db) -> ShowBuildingListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            cabinet_dal = CabinetDAL(session)
+            try:
+                cabinets = await cabinet_dal.get_all_cabinets(page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                cabinets_with_hateoas = []
+                for cabinet in cabinets:
+                    cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                    # add HATEOAS
+                    cabinet_number = cabinet.cabinet_number
+                    building_number = cabinet.building_number
+                    cabinet_links = {
+                        "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                        "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                        "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                        "cabinets": f'{api_base_url}/cabinets',
+                        "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                    }
+
+                    cabinet_with_links = ShowCabinetWithHATEOAS(
+                        cabinet=cabinet_pydantic,
+                        links=cabinet_links
+                    )
+                    cabinets_with_hateoas.append(cabinet_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/cabinets?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/cabinets/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowCabinetListWithHATEOAS(
+                    cabinets=cabinets_with_hateoas,
+                    links=collection_links
                 )
+            
+            except HTTPException:
+                raise
 
-            # Create cabinet
-            new_cabinet = await cabinet_dal.create_cabinet(
-                cabinet_number=body.cabinet_number,
-                building_number=body.building_number,
-                capacity=body.capacity,
-                cabinet_state=body.cabinet_state
-            )
-
-            return ShowCabinet.from_orm(new_cabinet)
+            except Exception as e:
+                logger.warning(f"Получение кабинета отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_all_cabinets(page: int, limit: int, db) -> list[ShowCabinet]:
+async def _get_cabinets_by_building(building_number: int, page: int, limit: int, request: Request, db) -> ShowCabinetListWithHATEOAS:
     async with db as session:
         async with session.begin():
             cabinet_dal = CabinetDAL(session)
-            cabinets = await cabinet_dal.get_all_cabinets(page, limit)
 
-            return [ShowCabinet.from_orm(cabinet) for cabinet in cabinets]
+            try:
+                cabinets = await cabinet_dal.get_cabinets_by_building(building_number, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                cabinets_with_hateoas = []
+                for cabinet in cabinets:
+                    cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                    # add HATEOAS
+                    cabinet_number = cabinet.cabinet_number
+                    cabinet_links = {
+                        "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                        "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                        "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                        "cabinets": f'{api_base_url}/cabinets',
+                        "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                    }
+
+                    cabinet_with_links = ShowCabinetWithHATEOAS(
+                        cabinet=cabinet_pydantic,
+                        links=cabinet_links
+                    )
+                    cabinets_with_hateoas.append(cabinet_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/cabinets?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/cabinets/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowCabinetListWithHATEOAS(
+                    cabinets=cabinets_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение кабинета отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_cabinets_by_building(building_number: int, page: int, limit: int, db) -> list[ShowCabinet]:
+async def _get_cabinet_by_building_and_number(building_number: int, cabinet_number: int, request: Request, db) -> ShowCabinetWithHATEOAS:
     async with db as session:
         async with session.begin():
             cabinet_dal = CabinetDAL(session)
-            cabinets = await cabinet_dal.get_cabinets_by_building(building_number, page, limit)
 
-            return [ShowCabinet.from_orm(cabinet) for cabinet in cabinets]
+            try:
+                cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
+
+                if not cabinet:
+                    raise HTTPException(status_code=404,
+                                        detail=f"Кабинет с номером: {cabinet_number} в здании с номером: {building_number} - не найден")
+                
+                cabinet_number = cabinet.cabinet_number
+                building_number = cabinet.building_number
+                cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                    "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                    "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                    "cabinets": f'{api_base_url}/cabinets',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+
+                return ShowCabinetWithHATEOAS(cabinet=cabinet_pydantic, links=hateoas_links)
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение кабинета отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_cabinet_by_building_and_number(building_number: int, cabinet_number: int, db) -> ShowCabinet:
+async def _delete_cabinet(building_number: int, cabinet_number: int, request: Request, db) -> ShowCabinetWithHATEOAS:
     async with db as session:
-        async with session.begin():
-            cabinet_dal = CabinetDAL(session)
-            cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
+        try:
+            async with session.begin():
+                cabinet_dal = CabinetDAL(session)
+                cabinet = await cabinet_dal.delete_cabinet(building_number, cabinet_number)
 
-            if not cabinet:
-                raise HTTPException(status_code=404,
-                                    detail=f"Кабинет с номером: {cabinet_number} в здании с номером: {building_number} - не найден")
+                if not cabinet:
+                    raise HTTPException(status_code=404,
+                                        detail=f"Кабинет с номером: {cabinet_number} в здании {building_number} не может быть удалён, т.к. не найден")
 
-            return ShowCabinet.from_orm(cabinet)
+                cabinet_pydantic = ShowCabinet.model_validate(cabinet)
+
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                    "cabinets": f'{api_base_url}/cabinets',
+                    "create": f'{api_base_url}/cabinets/create',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+
+                return ShowCabinetWithHATEOAS(cabinet=cabinet_pydantic, links=hateoas_links)
+        
+        except HTTPException:
+            await session.rollback()
+            raise
+
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Получение кабинета отменено (Ошибка: {e})")
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _delete_cabinet(building_number: int, cabinet_number: int, db) -> ShowCabinet:
-    async with db as session:
-        async with session.begin():
-            cabinet_dal = CabinetDAL(session)
-            cabinet = await cabinet_dal.delete_cabinet(building_number, cabinet_number)
-
-            if not cabinet:
-                raise HTTPException(status_code=404,
-                                    detail=f"Кабинет с номером: {cabinet_number} в здании {building_number} не может быть удалён, т.к. не найден")
-
-            return ShowCabinet.from_orm(cabinet)
-
-
-async def _update_cabinet(body: UpdateCabinet, db) -> ShowCabinet:
+async def _update_cabinet(body: UpdateCabinet, request: Request, db) -> ShowCabinetWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -673,107 +1014,253 @@ async def _update_cabinet(body: UpdateCabinet, db) -> ShowCabinet:
 
                 if not updated_cabinet:
                     raise HTTPException(status_code=404, detail="Кабинет не был обновлён")
+                
+                cabinet_number = updated_cabinet.cabinet_number
+                building_number = updated_cabinet.building_number
+                cabinet_pydantic = ShowCabinet.model_validate(updated_cabinet)
 
-                return ShowCabinet.from_orm(updated_cabinet)
+                # add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-        # Because "Exception" will catch and the api route will not return an error when updating
-        except HTTPException as e:
-            raise e
+                hateoas_links = {
+                    "self": f'{api_base_url}/cabinets/search/by_building_and_number/{building_number}/{cabinet_number}',
+                    "update": f'{api_base_url}/cabinets/update/{building_number}/{cabinet_number}',
+                    "delete": f'{api_base_url}/cabinets/delete/{building_number}/{cabinet_number}',
+                    "cabinets": f'{api_base_url}/cabinets',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+
+                return ShowCabinetWithHATEOAS(cabinet=cabinet_pydantic, links=hateoas_links)
+            
+        except HTTPException:
+            await session.rollback()
+            raise   
+
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Изменение данных о кабинете отменено (Ошибка: {e})")
-            raise HTTPException(status_code=500, detail="Произошла непредвиденная ошибка")
+            logger.error(f"Неожиданная ошибка при обновлении кабинета {cabinet_number}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при обновлении кабинета."
+            )
 
 
-@cabinet_router.post("/create", response_model=ShowCabinet)
-async def create_cabinet(body: CreateCabinet, db: AsyncSession = Depends(get_db)):
-    return await _create_cabinet(body, db)
+@cabinet_router.post("/create", response_model=ShowCabinetWithHATEOAS)
+async def create_cabinet(body: CreateCabinet, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_cabinet(body, request, db)
 
 
-@cabinet_router.get("/search", response_model=list[ShowCabinet])
-async def get_all_cabinets(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_cabinets(query_param.page, query_param.limit, db)
+@cabinet_router.get("/search", response_model=ShowCabinetListWithHATEOAS, responses={404: {"description": "Кабинеты не найдены"}})
+async def get_all_cabinets(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_cabinets(query_param.page, query_param.limit, request, db)
 
 
-@cabinet_router.get("/search/by_building/{building_number}", response_model=list[ShowCabinet])
+@cabinet_router.get("/search/by_building/{building_number}", response_model=ShowCabinetListWithHATEOAS,
+                    responses={404: {"description": "Кабинеты не найдены"}})
 async def get_cabinets_by_building(building_number: int,
                                    query_param: Annotated[QueryParams, Depends()],
+                                   request: Request,
                                    db: AsyncSession = Depends(get_db)):
-    return await _get_cabinets_by_building(building_number, query_param.page, query_param.limit, db)
+    return await _get_cabinets_by_building(building_number, query_param.page, query_param.limit, request, db)
 
 
-@cabinet_router.get("/search/by_building_and_number", response_model=ShowCabinet,
+@cabinet_router.get("/search/by_building_and_number", response_model=ShowCabinetWithHATEOAS,
                     responses={404: {"description": "Кабинет не найден"}})
 async def get_cabinet_by_building_and_number(building_number: int,
                                              cabinet_number: int,
+                                             request: Request,
                                              db: AsyncSession = Depends(get_db)):
-    return await _get_cabinet_by_building_and_number(building_number, cabinet_number, db)
+    return await _get_cabinet_by_building_and_number(building_number, cabinet_number, request, db)
 
 
-@cabinet_router.put("/delete/{building_number}/{cabinet_number}", response_model=ShowCabinet,
+@cabinet_router.delete("/delete/{building_number}/{cabinet_number}", response_model=ShowCabinetWithHATEOAS,
                     responses={404: {"description": "Не удаётся удалить кабинет"}})
-async def delete_cabinet(building_number: int, cabinet_number: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_cabinet(building_number, cabinet_number, db)
+async def delete_cabinet(building_number: int, cabinet_number: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_cabinet(building_number, cabinet_number, request, db)
 
 
-@cabinet_router.put("/update", response_model=ShowCabinet,
+@cabinet_router.put("/update", response_model=ShowCabinetWithHATEOAS,
                     responses={404: {"description": "Кабинет не найден или нет возможности изменить его параметры"}})
-async def update_cabinet(body: UpdateCabinet, db: AsyncSession = Depends(get_db)):
-    return await _update_cabinet(body, db)
+async def update_cabinet(body: UpdateCabinet, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_cabinet(body, request, db)
 
 
 '''
 ==============================
-CRUD operations for speciality
+CRUD operations for Speciality
 ==============================
 '''
 
 
-async def _create_speciality(body: CreateSpeciality, db) -> ShowSpeciality:
+async def _create_speciality(body: CreateSpeciality, request: Request, db) -> ShowSpecialityWithHATEOAS:
     async with db as session:
         async with session.begin():
             speciality_dal = SpecialityDAL(session)
-            new_speciality = await speciality_dal.create_speciality(speciality_code=body.speciality_code)
 
-            return ShowSpeciality.from_orm(new_speciality)
+            try:
+                speciality = await speciality_dal.create_speciality(speciality_code=body.speciality_code)
+
+                speciality_code = speciality.speciality_code
+                speciality_pydantic = ShowSpeciality.model_validate(speciality)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update/{speciality_code}',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+
+            except IntegrityError as e:
+                await session.rollback()
+                logger.error(f"Ошибка целостности БД при создании специальности: {e}")
+                raise HTTPException(status_code=400, detail="Невозможно создать специальность из-за конфликта данных.")
+                     
+            except HTTPException:
+                await session.rollback()
+                raise
+
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании специальности: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+        
 
 
-async def _get_all_specialties(page: int, limit: int, db) -> list[ShowSpeciality]:
+async def _get_all_specialties(page: int, limit: int, request: Request, db) -> ShowSpecialityListWithHATEOAS:
     async with db as session:
         async with session.begin():
             speciality_dal = SpecialityDAL(session)
-            specialities = await speciality_dal.get_all_specialties(page, limit)
 
-            return [ShowSpeciality.from_orm(speciality) for speciality in specialities]
+            try:
+                specialities = await speciality_dal.get_all_specialties(page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                specialities_with_hateoas = []
+                for speciality in specialities:
+                    speciality_pydantic = ShowSpeciality.model_validate(speciality)
+
+                    # add HATEOAS
+                    speciality_code = speciality.speciality_code
+                    speciality_links = {
+                        "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                        "update": f'{api_base_url}/specialities/update/{speciality_code}',
+                        "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                        "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                    speciality_with_links = ShowSpecialityWithHATEOAS(
+                        speciality=speciality_pydantic,
+                        links=speciality_links
+                    )
+                    specialities_with_hateoas.append(speciality_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/specialities?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/specialities/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowSpecialityListWithHATEOAS(
+                    specialities=specialities_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение специальностей отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _get_speciality(speciality_code: str, db) -> list[ShowSpeciality]:
+async def _get_speciality(speciality_code: str, request: Request, db) -> ShowSpecialityWithHATEOAS:
     async with db as session:
         async with session.begin():
             speciality_dal = SpecialityDAL(session)
-            speciality = await speciality_dal.get_speciality(speciality_code)
 
-            # if speciality doesn't exist
-            if not speciality:
-                raise HTTPException(status_code=404, detail=f"Специальность с кодом: {speciality_code} не найдена")
+            try:
+                speciality = await speciality_dal.get_speciality(speciality_code)
 
-            return ShowSpeciality.from_orm(speciality)
+                # if speciality doesn't exist
+                if not speciality:
+                    raise HTTPException(status_code=404, detail=f"Специальность с кодом: {speciality_code} не найдена")
+
+                speciality_pydantic = ShowSpeciality.model_validate(speciality)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update/{speciality_code}',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение специальности отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-async def _delete_speciality(speciality_code: str, db) -> ShowSpeciality:
+async def _delete_speciality(speciality_code: str, request: Request, db) -> ShowSpecialityWithHATEOAS:
     async with db as session:
-        async with session.begin():
-            speciality_dal = SpecialityDAL(session)
-            speciality = await speciality_dal.delete_speciality(speciality_code)
+        try:
+            async with session.begin():
+                speciality_dal = SpecialityDAL(session)
+                speciality = await speciality_dal.delete_speciality(speciality_code)
 
-            if not speciality:
-                raise HTTPException(status_code=404,
-                                    detail=f"Специальность с кодом: {speciality_code} не может быть удалена, т.к. не найдена")
+                if not speciality:
+                    raise HTTPException(status_code=404,
+                                        detail=f"Специальность с кодом: {speciality_code} не может быть удалена, т.к. не найдена")
 
-            return ShowSpeciality.from_orm(speciality)
+                speciality_pydantic = ShowSpeciality.model_validate(speciality)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "create": f'{api_base_url}/specialities/create',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+            
+        except HTTPException:
+            await session.rollback()
+            raise
+
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Неожиданная ошибка при удалении специальности {speciality_code}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении специальности.")
 
 
-async def _update_speciality(body: UpdateSpeciality, db) -> ShowSpeciality:
+async def _update_speciality(body: UpdateSpeciality, request: Request, db) -> ShowSpecialityWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -790,136 +1277,301 @@ async def _update_speciality(body: UpdateSpeciality, db) -> ShowSpeciality:
                     update_data["speciality_code"] = update_data.pop("new_speciality_code")
 
                 # Change data
-                updated_speciality = await speciality_dal.update_speciality(
+                speciality = await speciality_dal.update_speciality(
                     target_code=body.speciality_code, 
                     **update_data
                     )
-                
-                # save changed data
-                await session.commit()
 
-                if not updated_speciality:
+                if not speciality:
                     raise HTTPException(status_code=404, detail="Специальность не была обновлена")
+                
+                speciality_code = body.speciality_code
+                speciality_pydantic = ShowSpeciality.model_validate(speciality)
 
-                return ShowSpeciality.from_orm(updated_speciality)
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-        # Because "Exception" will catch and the api route will not return an error when updating
-        except HTTPException as e:
-            raise e
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update/{speciality_code}',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise   
+
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Изменение данных о специальности отменено (Ошибка: {e})")
-            raise HTTPException(status_code=500, detail="Произошла непредвиденная ошибка")
+            logger.error(f"Неожиданная ошибка при обновлении специальности {body.speciality_code}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при обновлении специальности."
+            )
 
 
-@speciality_router.post("/create", response_model=ShowSpeciality)
-async def create_speciality(body: CreateSpeciality, db: AsyncSession = Depends(get_db)):
-    return await _create_speciality(body, db)
+@speciality_router.post("/create", response_model=ShowSpecialityWithHATEOAS, status_code=201)
+async def create_speciality(body: CreateSpeciality, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_speciality(body, request, db)
 
 
-@speciality_router.get("/search", response_model=list[ShowSpeciality])
-async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_specialties(query_param.page, query_param.limit, db)
+@speciality_router.get("/search", response_model=ShowSpecialityListWithHATEOAS, responses={404: {"description": "Специальность не найдена"}})
+async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_specialties(query_param.page, query_param.limit, request, db)
 
 
-@speciality_router.get("/search/by_speciality_code", response_model=ShowSpeciality,
+@speciality_router.get("/search/by_code/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Специальность не найдена"}})
-async def get_speciality_by_code(speciality_code: str, db: AsyncSession = Depends(get_db)):
-    return await _get_speciality(speciality_code, db)
+async def get_speciality_by_code(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_speciality(speciality_code, request, db)
 
 
-@speciality_router.put("/delete/{speciality_code}", response_model=ShowSpeciality,
+@speciality_router.delete("/delete/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Не удаётся удалить специальность"}})
-async def delete_speciality(speciality_code: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_speciality(speciality_code, db)
+async def delete_speciality(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_speciality(speciality_code, request, db)
 
 
-@speciality_router.put("/update", response_model=ShowSpeciality,
+@speciality_router.put("/update", response_model=ShowSpecialityWithHATEOAS,
                     responses={404: {"description": "Специальность не найдена или нет возможности изменить её параметры"}})
-async def update_speciality(body: UpdateSpeciality, db: AsyncSession = Depends(get_db)):
-    return await _update_speciality(body, db)
+async def update_speciality(body: UpdateSpeciality, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_speciality(body, request, db)
 
 
 '''
 =========================
-CRUD operations for group
+CRUD operations for Group
 =========================
 '''
 
 
-async def _create_new_group(body: CreateGroup, db) -> ShowGroup:
+async def _create_new_group(body: CreateGroup, request: Request, db) -> ShowGroupWithHATEOAS:
     async with db as session:
         async with session.begin():
             group_dal = GroupDAL(session)
             teacher_dal = TeacherDAL(session)
             speciality_dal = SpecialityDAL(session)
 
-            # Check that the teacher and speciality exists
-            # Check that the group is unique
-            # By using helpers
-            if body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Специальность с кодом {body.speciality_code} не найдена"
+            try:
+                # Check that the teacher and speciality exists
+                # Check that the group is unique
+                # By using helpers
+                if body.speciality_code != None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Специальность с кодом {body.speciality_code} не найдена"
+                    )
+                
+                if body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Учитель с id {body.group_advisor_id} не найден"
+                    )
+
+                if not await ensure_group_unique(group_dal, body.group_name):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Группа {body.group_name} уже существует"
+                    )
+
+                group = await group_dal.create_group(
+                    group_name=body.group_name,
+                    speciality_code=body.speciality_code,
+                    quantity_students=body.quantity_students,
+                    group_advisor_id=body.group_advisor_id
                 )
+
+                group_name = group.group_name
+                group_pydantic = ShowGroup.model_validate(group)
+
+                # Add HATEOAS
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "update": f'{api_base_url}/groups/update/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/by_group/{group_name}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
             
-            if body.group_advisor_id != None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
+            except IntegrityError as e:
+                await session.rollback()
+                logger.error(f"Ошибка целостности БД при создании группы: {e}")
+                raise HTTPException(status_code=400, detail="Невозможно создать группу из-за конфликта данных.")
+                     
+            except HTTPException:
+                await session.rollback()
+                raise
+                     
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании группы: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+        
+
+
+async def _get_group_by_name(group_name: str, request: Request, db) -> ShowGroupWithHATEOAS:
+    async with db as session:
+        async with db as session:
+            group_dal = GroupDAL(session)
+            try:
+                group = await group_dal.get_group(group_name)
+
+                # if group doesn't exist
+                if not group:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Группа с названием: {group_name} не найдена"
+                    )
+
+                group_pydantic = ShowGroup.model_validate(group)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "update": f'{api_base_url}/groups/update/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении группы {group_name}: {e}", exc_info=True)
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Учитель с id {body.group_advisor_id} не найден"
+                    status_code=500,
+                    detail="Внутренняя ошибка сервера при получении группы."
                 )
+        
 
-            if not await ensure_group_unique(group_dal, body.group_name):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Группа {body.group_name} уже существует"
-                )
-
-            group = await group_dal.create_group(
-                group_name=body.group_name,
-                speciality_code=body.speciality_code,
-                quantity_students=body.quantity_students,
-                group_advisor_id=body.group_advisor_id
-            )
-            return ShowGroup.from_orm(group)
-
-
-async def _get_group_by_name(group_name: str, db) -> ShowGroup:
+async def _get_group_by_advisor(advisor_id: int, request: Request, db) -> ShowGroupWithHATEOAS:
     async with db as session:
         async with session.begin(): 
             group_dal = GroupDAL(session)
-            group = await group_dal.get_group(group_name)
 
-            # if group doesn't exist
-            if not group:
-                raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
+            try:
+                group = await group_dal.get_group_by_advisor_id(advisor_id)
 
-            return ShowGroup.from_orm(group) 
+                # if group doesn't exist
+                if not group:
+                    raise HTTPException(status_code=404, detail=f"Группа с преподавателем: {advisor_id} не найдена")
+
+                group_pydantic = ShowGroup.model_validate(group)
+                group_name = group.group_name
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "update": f'{api_base_url}/groups/update/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении группы {group_name}: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail="Внутренняя ошибка сервера при получении группы."
+                )
         
 
-async def _get_group_by_advisor(advisor_id: int, db) -> ShowGroup:
-    async with db as session:
-        async with session.begin(): 
-            group_dal = GroupDAL(session)
-            group = await group_dal.get_group_by_advisor_id(advisor_id)
-
-            # if group doesn't exist
-            if not group:
-                raise HTTPException(status_code=404, detail=f"Группа с преподавателем: {advisor_id} не найдена")
-
-            return ShowGroup.from_orm(group) 
-        
-
-async def _get_all_groups(page: int, limit: int, db) -> list[ShowGroup]:
+async def _get_all_groups(page: int, limit: int, request: Request, db) -> ShowGroupListWithHATEOAS:
     async with db as session:
         async with session.begin():
             group_dal = GroupDAL(session)
-            groups = await group_dal.get_all_groups(page, limit)
 
-            return [ShowGroup.from_orm(group) for group in groups]
+            try:
+                groups = await group_dal.get_all_groups(page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                groups_with_hateoas = []
+                for group in groups:
+                    group_pydantic = ShowGroup.model_validate(group)
+
+                    # add HATEOAS
+                    group_name = group.group_name
+                    group_links = {
+                        "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                        "update": f'{api_base_url}/groups/update/{group_name}',
+                        "delete": f'{api_base_url}/groups/delete/{group_name}',
+                        "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                        "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                        "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                        "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                        "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                    }
+                    group_links = {k: v for k, v in group_links.items() if v is not None}
+
+                    group_with_links = ShowGroupWithHATEOAS(
+                        group=group_pydantic,
+                        links=group_links
+                    )
+                    groups_with_hateoas.append(group_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/groups?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/groups/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowGroupListWithHATEOAS(
+                    groups=groups_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение групп отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
         
 
-async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: int, db) -> list[ShowGroup]:
+async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: int, request: Request, db) -> ShowGroupListWithHATEOAS:
     async with db as session:
         async with session.begin():
             group_dal = GroupDAL(session)
@@ -930,13 +1582,58 @@ async def _get_all_groups_by_speciality(speciality_code: str, page: int, limit: 
                     status_code=404,
                     detail=f"Специальность с кодом {speciality_code} не найдена"
                 )
+            
+            try:
+                groups = await group_dal.get_all_groups_by_speciality(speciality_code, page, limit)
 
-            groups = await group_dal.get_all_groups_by_speciality(speciality_code, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return [ShowGroup.from_orm(group) for group in groups]
+                groups_with_hateoas = []
+                for group in groups:
+                    group_pydantic = ShowGroup.model_validate(group)
 
+                    # add HATEOAS
+                    group_name = group.group_name
+                    group_links = {
+                        "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                        "update": f'{api_base_url}/groups/update/{group_name}',
+                        "delete": f'{api_base_url}/groups/delete/{group_name}',
+                        "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                        "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                        "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                        "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                        "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                    }
+                    group_links = {k: v for k, v in group_links.items() if v is not None}
 
-async def _delete_group(group_name: str, db) -> ShowGroup:
+                    group_with_links = ShowGroupWithHATEOAS(
+                        group=group_pydantic,
+                        links=group_links
+                    )
+                    groups_with_hateoas.append(group_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/groups?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/groups/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowGroupListWithHATEOAS(
+                    groups=groups_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.warning(f"Получение групп отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+                
+
+async def _delete_group(group_name: str, request: Request, db) -> ShowGroupWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -946,14 +1643,41 @@ async def _delete_group(group_name: str, db) -> ShowGroup:
                 if not group:
                     raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
 
-            return ShowGroup.from_orm(group)
+                group_pydantic = ShowGroup.model_validate(group)
 
-        except Exception as e:
-            logger.warning(f"Удаление группы отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "update": f'{api_base_url}/groups/update/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
+        
+        except HTTPException:
+            await session.rollback()
             raise
 
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении группы {group_name}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при удалении группы."
+            )
 
-async def _update_group(body: UpdateGroup, db) -> ShowGroup:
+
+async def _update_group(body: UpdateGroup, request: Request, db) -> ShowGroupWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -994,127 +1718,367 @@ async def _update_group(body: UpdateGroup, db) -> ShowGroup:
                     **update_data
                 )
 
-                # save changed data
-                await session.commit()
+                group_pydantic = ShowGroup.model_validate(group)
+                group_name = group.group_name
 
-                if not group:
-                    raise HTTPException(status_code=404, detail=f"Группа с названием: {body.group_name} не найдена")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return ShowGroup.from_orm(group)
+                hateoas_links = {
+                    "self": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "delete": f'{api_base_url}/groups/delete/{group_name}',
+                    "groups": f'{api_base_url}/groups',
+                    "advisor": f'{api_base_url}/teachers/search/{group.group_advisor_id}' if group.group_advisor_id else None,
+                    "speciality": f'{api_base_url}/specialities/search/{group.speciality_code}' if group.speciality_code else None,
+                    "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_group/{group_name}',
+                    "requests": f'{api_base_url}/requests/search/by_group/{group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowGroupWithHATEOAS(group=group_pydantic, links=hateoas_links)
+            
+        except HTTPException:
+            await session.rollback()
+            raise   
 
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Изменение данных о группе отменено (Ошибка: {e})")
-            raise
+            logger.error(f"Неожиданная ошибка при обновлении группы {body.group_name}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при обновлении группы."
+            )
 
 
-@group_router.post("/create", response_model=ShowGroup)
-async def create_group(body: CreateGroup, db: AsyncSession = Depends(get_db)):
-    return await _create_new_group(body, db)
+@group_router.post("/create", response_model=ShowGroupWithHATEOAS, status_code=201)
+async def create_group(body: CreateGroup, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_group(body, request, db)
 
 
-@group_router.get("/search/by_group_name/{group_name}", response_model=ShowGroup,
+@group_router.get("/search/by_group_name/{group_name}", response_model=ShowGroupWithHATEOAS,
                     responses={404: {"description": "Группа не найдена"}})
-async def get_group_by_name(group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _get_group_by_name(group_name, db)
+async def get_group_by_name(group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_group_by_name(group_name, request, db)
 
 
-@group_router.get("/search/by_group_name/{advisor_id}", response_model=ShowGroup,
+@group_router.get("/search/by_advisor/{advisor_id}", response_model=ShowGroupWithHATEOAS,
                     responses={404: {"description": "Группа не найдена"}})
-async def get_group_by_name(advisor_id: int, db: AsyncSession = Depends(get_db)):
-    return await _get_group_by_name(advisor_id, db)
+async def get_group_by_advisor(advisor_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_group_by_advisor(advisor_id, request, db)
 
 
-@group_router.get("/search", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
-async def get_all_groups(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_groups(query_param.page, query_param.limit, db)
+@group_router.get("/search", response_model=ShowGroupListWithHATEOAS, 
+                  responses={404: {"description": "Группы не найдены"}})
+async def get_all_groups(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_groups(query_param.page, query_param.limit, request, db)
 
 
-@group_router.get("/search/by_speciality/{speciality_code}", response_model=list[ShowGroup], responses={404: {"description": "Группы не найдены"}})
-async def get_all_groups_by_speciality(speciality_code: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_groups_by_speciality(speciality_code, query_param.page, query_param.limit, db)
+@group_router.get("/search/by_speciality/{speciality_code}", response_model=ShowGroupListWithHATEOAS, 
+                  responses={404: {"description": "Группы не найдены"}})
+async def get_all_groups_by_speciality(speciality_code: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_groups_by_speciality(speciality_code, query_param.page, query_param.limit, request, db)
 
 
-@group_router.put("/delete/{group_name}", response_model=ShowGroup,
+@group_router.delete("/delete/{group_name}", response_model=ShowGroupWithHATEOAS,
                     responses={404: {"description": "Группа не найдена"}})
-async def delete_group(group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_group(group_name, db)
+async def delete_group(group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_group(group_name, request, db)
 
 
-@group_router.put("/update", response_model=ShowGroup, responses={404: {"description": "Группа не найдена"}})
-async def update_group(body: UpdateGroup, db: AsyncSession = Depends(get_db)):
-    return await _update_group(body, db)
+@group_router.put("/update", response_model=ShowGroupWithHATEOAS, 
+                  responses={404: {"description": "Группа не найдена"}})
+async def update_group(body: UpdateGroup, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_group(body, request, db)
 
 
 '''
 ==============================
-CRUD operations for curriculum
+CRUD operations for Curriculum
 ==============================
 '''
 
 
-async def _create_new_curriculum(body: CreateCurriculum, db) -> ShowCurriculum:
+async def _create_new_curriculum(body: CreateCurriculum, request: Request, db) -> ShowCurriculumWithHATEOAS:
     async with db as session:
         async with session.begin():
             group_dal = GroupDAL(session)
             subject_dal = SubjectDAL(session)
             curriculum_dal = CurriculumDAL(session)
 
-            # Check that the group and subject exists
-            # Check that the curriculum is unique
-            # By using helpers
-            if body.group_name != None and not await ensure_group_exists(group_dal, body.group_name):
+            try:
+                # Check that the group and subject exists
+                # Check that the curriculum is unique
+                # By using helpers
+                if body.group_name != None and not await ensure_group_exists(group_dal, body.group_name):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Группа с названием {body.group_name} не найдена"
+                    )
+                
+                if body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Предмет с кодом {body.subject_code} не найден"
+                    )
+
+                if not await ensure_curriculum_unique(curriculum_dal, body.semester_number, body.group_name, body.subject_code):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"План для предмета {body.subject_code} в группе {body.group_name} на семестр {body.semester_number} уже существует"
+                    )
+
+                curriculum = await curriculum_dal.create_curriculum(
+                    semester_number=body.semester_number,
+                    group_name=body.group_name,
+                    subject_code=body.subject_code,
+                    lectures_hours=body.lectures_hours,
+                    laboratory_hours=body.laboratory_hours,
+                    practical_hours=body.practical_hours
+                )
+
+                curriculum_pydantic = ShowCurriculum.model_validate(curriculum)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                semester_number = curriculum.semester_number
+                group_name = curriculum.group_name
+                subject_code = curriculum.subject_code
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/curriculums/search/{semester_number}/{group_name}/{subject_code}',
+                    "update": f'{api_base_url}/curriculums/update/{semester_number}/{group_name}/{subject_code}',
+                    "delete": f'{api_base_url}/curriculums/delete/{semester_number}/{group_name}/{subject_code}',
+                    "curriculums": f'{api_base_url}/curriculums',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}'
+                }
+
+                return ShowCurriculumWithHATEOAS(curriculum=curriculum_pydantic, links=hateoas_links)
+
+            except IntegrityError as e:
+                await session.rollback()
+                logger.error(f"Ошибка целостности БД при создании учебного плана: {e}", exc_info=True)
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Группа с названием {body.group_name} не найдена"
+                    status_code=400, 
+                    detail="Невозможно создать учебный план из-за конфликта данных."
                 )
             
-            if body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
+            except HTTPException:
+                await session.rollback()
+                raise
+
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании учебного плана: {e}", exc_info=True)
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Предмет с кодом {body.subject_code} не найден"
+                    status_code=500, 
+                    detail="Внутренняя ошибка сервера при создании учебного плана."
                 )
-
-            if not await ensure_curriculum_unique(curriculum_dal, body.semester_number, body.group_name, body.subject_code):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"План для предмета {body.subject_code} в группе {body.group_name} на семестр {body.semester_number} уже существует"
-                )
-
-            curriculum = await curriculum_dal.create_curriculum(
-                semester_number=body.semester_number,
-                group_name=body.group_name,
-                subject_code=body.subject_code,
-                lectures_hours=body.lectures_hours,
-                laboratory_hours=body.laboratory_hours,
-                practical_hours=body.practical_hours
-            )
-            return ShowCurriculum.from_orm(curriculum)
+            
 
 
-async def _get_curriculum(semester_number: int, group_name: str, subject_code: str, db) -> ShowCurriculum:
+async def _get_curriculum(semester_number: int, group_name: str, subject_code: str, request: Request, db) -> ShowCurriculumWithHATEOAS:
     async with db as session:
-        async with session.begin(): 
-            curriculum_dal = CurriculumDAL(session)
+        curriculum_dal = CurriculumDAL(session)
+        try:
             curriculum = await curriculum_dal.get_curriculum(semester_number, group_name, subject_code)
 
             # if curriculum doesn't exist
             if not curriculum:
-                raise HTTPException(status_code=404, detail=f"План для предмета: {subject_code} в группе: {group_name} на семестр: {semester_number} не найден")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"План для предмета: {subject_code} в группе: {group_name} на семестр: {semester_number} не найден"
+                )
 
-            return ShowCurriculum.from_orm(curriculum) 
+            curriculum_pydantic = ShowCurriculum.model_validate(curriculum)
+
+            base_url = str(request.base_url).rstrip('/')
+            api_prefix = ''
+            api_base_url = f'{base_url}{api_prefix}'
+
+            hateoas_links = {
+                "self": f'{api_base_url}/curriculums/search/{semester_number}/{group_name}/{subject_code}',
+                "update": f'{api_base_url}/curriculums/update/{semester_number}/{group_name}/{subject_code}',
+                "delete": f'{api_base_url}/curriculums/delete/{semester_number}/{group_name}/{subject_code}',
+                "curriculums": f'{api_base_url}/curriculums',
+                "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}'
+            }
+
+            return ShowCurriculumWithHATEOAS(curriculum=curriculum_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при получении учебного плана ({semester_number}, {group_name}, {subject_code}): {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Внутренняя ошибка сервера при получении учебного плана."
+            )
 
 
-async def _get_all_curriculums(page: int, limit: int, db) -> list[ShowCurriculum]:
+async def _get_all_curriculums(page: int, limit: int, request: Request, db) -> ShowCurriculumListWithHATEOAS: # <-- Изменен тип возврата и добавлен request
+    """
+    Получает страницу списка учебных планов с HATEOAS-ссылками.
+    """
     async with db as session:
         async with session.begin():
             curriculum_dal = CurriculumDAL(session)
-            curriculums = await curriculum_dal.get_all_curriculums(page, limit)
+            try:
+                curriculums_orm_list = await curriculum_dal.get_all_curriculums(page, limit)
 
-            return [ShowCurriculum.from_orm(curriculum) for curriculum in curriculums]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                curriculums_with_hateoas = []
+                for curriculum_orm in curriculums_orm_list:
+                    curriculum_pydantic = ShowCurriculum.model_validate(curriculum_orm)
+
+                    semester_number = curriculum_orm.semester_number
+                    group_name = curriculum_orm.group_name
+                    subject_code = curriculum_orm.subject_code
+
+                    curriculum_links = {
+                        "self": f'{api_base_url}/curriculums/search/{semester_number}/{group_name}/{subject_code}',
+                        "update": f'{api_base_url}/curriculums/update/{semester_number}/{group_name}/{subject_code}',
+                        "delete": f'{api_base_url}/curriculums/delete/{semester_number}/{group_name}/{subject_code}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                    }
+
+                    curriculum_with_links = ShowCurriculumWithHATEOAS( 
+                        curriculum=curriculum_pydantic,
+                        links=curriculum_links
+                    )
+                    curriculums_with_hateoas.append(curriculum_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/curriculums?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/curriculums',
+                }
+
+                return ShowCurriculumListWithHATEOAS( 
+                    curriculums=curriculums_with_hateoas,
+                    links=collection_links
+                )
+            
+            except HTTPException:
+                raise             
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка учебных планов (страница {page}, лимит {limit}): {e}", exc_info=True)
+                raise
 
 
-async def _delete_curriculum(semester_number: int, group_name: str, subject_code: str, db) -> ShowCurriculum:
+async def _get_all_curriculums_by_group(group_name: str, page: int, limit: int, request: Request, db) -> ShowCurriculumListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            curriculum_dal = CurriculumDAL(session)
+            try:
+                curriculums_orm_list = await curriculum_dal.get_all_curriculums_by_group(group_name, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                curriculums_with_hateoas = []
+                for curriculum_orm in curriculums_orm_list:
+                    curriculum_pydantic = ShowCurriculum.model_validate(curriculum_orm)
+
+                    semester_number = curriculum_orm.semester_number
+                    group_name_from_obj = curriculum_orm.group_name 
+                    subject_code = curriculum_orm.subject_code
+
+                    curriculum_links = {
+                        "self": f'{api_base_url}/curriculums/search/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "update": f'{api_base_url}/curriculums/update/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "delete": f'{api_base_url}/curriculums/delete/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name_from_obj}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                    }
+
+                    curriculum_with_links = ShowCurriculumWithHATEOAS( 
+                        curriculum=curriculum_pydantic,
+                        links=curriculum_links
+                    )
+                    curriculums_with_hateoas.append(curriculum_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/curriculums/search/by_group/{group_name}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/curriculums',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}', 
+                }
+
+                return ShowCurriculumListWithHATEOAS( 
+                    curriculums=curriculums_with_hateoas,
+                    links=collection_links
+                )
+            except HTTPException:
+                raise             
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка учебных планов для группы '{group_name}' (страница {page}, лимит {limit}): {e}", exc_info=True)
+                raise 
+
+
+async def _get_all_curriculums_by_subject(subject_code: str, page: int, limit: int, request: Request, db) -> ShowCurriculumListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            curriculum_dal = CurriculumDAL(session)
+            try:
+                curriculums_orm_list = await curriculum_dal.get_all_curriculums_by_subject(subject_code, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                curriculums_with_hateoas = []
+                for curriculum_orm in curriculums_orm_list:
+                    curriculum_pydantic = ShowCurriculum.model_validate(curriculum_orm)
+
+                    semester_number = curriculum_orm.semester_number
+                    group_name_from_obj = curriculum_orm.group_name 
+                    subject_code = curriculum_orm.subject_code
+
+                    curriculum_links = {
+                        "self": f'{api_base_url}/curriculums/search/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "update": f'{api_base_url}/curriculums/update/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "delete": f'{api_base_url}/curriculums/delete/{semester_number}/{group_name_from_obj}/{subject_code}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name_from_obj}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                    }
+
+                    curriculum_with_links = ShowCurriculumWithHATEOAS( 
+                        curriculum=curriculum_pydantic,
+                        links=curriculum_links
+                    )
+                    curriculums_with_hateoas.append(curriculum_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/curriculums/search/by_subject/{subject_code}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/curriculums',
+                    "subject": f'{api_base_url}/subjects/search/by_subject_code/{subject_code}', 
+                }
+
+                return ShowCurriculumListWithHATEOAS( 
+                    curriculums=curriculums_with_hateoas,
+                    links=collection_links
+                )
+            except HTTPException:
+                raise             
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка учебных планов для предмета '{subject_code}' (страница {page}, лимит {limit}): {e}", exc_info=True)
+                raise 
+
+
+async def _delete_curriculum(semester_number: int, group_name: str, subject_code: str, request: Request, db) -> ShowCurriculumWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -1122,22 +2086,46 @@ async def _delete_curriculum(semester_number: int, group_name: str, subject_code
                 curriculum = await curriculum_dal.delete_curriculum(semester_number, group_name, subject_code)
 
                 if not curriculum:
-                    raise HTTPException(status_code=404, detail=f"План для предмета: {subject_code} в группе: {group_name} на семестр: {semester_number} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"План для предмета: {subject_code} в группе: {group_name} на семестр: {semester_number} не найден"
+                    )
 
-            return ShowCurriculum.from_orm(curriculum)
+                curriculum_pydantic = ShowCurriculum.model_validate(curriculum)
 
-        except Exception as e:
-            logger.warning(f"Удаление плана отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/curriculums/search/{semester_number}/{group_name}/{subject_code}',
+                    "curriculums": f'{api_base_url}/curriculums',
+                    "create": f'{api_base_url}/curriculums',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}'
+                }
+
+                return ShowCurriculumWithHATEOAS(curriculum=curriculum_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
             raise
 
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении учебного плана ({semester_number}, {group_name}, {subject_code}): {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при удалении учебного плана."
+            )
 
-async def _update_curriculum(body: UpdateCurriculum, db) -> ShowCurriculum:
+
+async def _update_curriculum(body: UpdateCurriculum, request: Request, db) -> ShowCurriculumWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
-                # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() 
+                    key: value for key, value in body.dict().items()
                     if value is not None and key not in ["semester_number", "group_name", "subject_code"]
                 }
 
@@ -1145,228 +2133,467 @@ async def _update_curriculum(body: UpdateCurriculum, db) -> ShowCurriculum:
                 subject_dal = SubjectDAL(session)
                 curriculum_dal = CurriculumDAL(session)
 
-                if body.new_group_name != None and not await ensure_group_exists(group_dal, body.new_group_name):
+                if "new_group_name" in update_data and not await ensure_group_exists(group_dal, update_data["new_group_name"]):
                     raise HTTPException(
-                        status_code=404,
-                        detail=f"Группа с названием {body.new_group_name} не найдена"
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Группа с названием {update_data['new_group_name']} не найдена"
+                    )
+
+                if "new_subject_code" in update_data and not await ensure_subject_exists(subject_dal, update_data["new_subject_code"]):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмет с кодом {update_data['new_subject_code']} не найден"
                     )
                 
-                if body.new_subject_code != None and not await ensure_subject_exists(subject_dal, body.new_subject_code):
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Предмет с кодом {body.new_subject_code} не найден"
-                    )
-
-                if not await ensure_curriculum_unique(curriculum_dal, body.new_semester_number, body.group_name, body.subject_code):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"План для предмета: {body.subject_code} в группе: {body.group_name} на семестр: {body.new_semester_number} уже существует"
-                    )
-
-                # Rename field new_semester_number to semester_number
                 if "new_semester_number" in update_data:
                     update_data["semester_number"] = update_data.pop("new_semester_number")
-                # Rename field new_group_name to group_name
                 if "new_group_name" in update_data:
                     update_data["group_name"] = update_data.pop("new_group_name")
-                # Rename field new_subject_code to subject_code
                 if "new_subject_code" in update_data:
                     update_data["subject_code"] = update_data.pop("new_subject_code")
 
+                new_semester_number = update_data.get("semester_number", body.semester_number)
+                new_group_name = update_data.get("group_name", body.group_name)
+                new_subject_code = update_data.get("subject_code", body.subject_code)
+
+                if not (
+                    new_semester_number == body.semester_number and
+                    new_group_name == body.group_name and
+                    new_subject_code == body.subject_code
+                ):
+                    if not await ensure_curriculum_unique(curriculum_dal, new_semester_number, new_group_name, new_subject_code):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"План для предмета {new_subject_code} в группе {new_group_name} на семестр {new_semester_number} уже существует"
+                        )
+
                 curriculum = await curriculum_dal.update_curriculum(
-                    tg_semester_number = body.semester_number,
-                    tg_group_name = body.group_name,
-                    tg_subject_code = body.subject_code,
+                    tg_semester_number=body.semester_number,
+                    tg_group_name=body.group_name,
+                    tg_subject_code=body.subject_code,
                     **update_data
                 )
 
-                # save changed data
-                await session.commit()
+                curriculum_pydantic = ShowCurriculum.model_validate(curriculum) 
 
-                if not curriculum:
-                    raise HTTPException(status_code=404, detail=f"План для предмета: {body.subject_code} в группе: {body.group_name} на семестр: {body.semester_number} не найден")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return ShowCurriculum.from_orm(curriculum)
+                final_semester_number = curriculum.semester_number
+                final_group_name = curriculum.group_name
+                final_subject_code = curriculum.subject_code
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/curriculums/search/{final_semester_number}/{final_group_name}/{final_subject_code}',
+                    "update": f'{api_base_url}/curriculums/update/{final_semester_number}/{final_group_name}/{final_subject_code}',
+                    "delete": f'{api_base_url}/curriculums/delete/{final_semester_number}/{final_group_name}/{final_subject_code}',
+                    "curriculums": f'{api_base_url}/curriculums',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{final_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{final_subject_code}'
+                }
+
+                return ShowCurriculumWithHATEOAS(curriculum=curriculum_pydantic, links=hateoas_links)
+
+        except IntegrityError as e:
+            await session.rollback()
+            logger.error(f"Ошибка целостности БД при обновлении учебного плана ({body.semester_number}, {body.group_name}, {body.subject_code}): {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Невозможно обновить учебный план из-за конфликта данных (например, нарушение внешнего ключа или уникальности)."
+            )
+        
+        except HTTPException:
+            await session.rollback()
+            raise
 
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Изменение данных о плане отменено (Ошибка: {e})")
-            raise
+            logger.error(f"Неожиданная ошибка при обновлении учебного плана ({body.semester_number}, {body.group_name}, {body.subject_code}): {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при обновлении учебного плана."
+            )
 
 
-@curriculum_router.post("/create", response_model=ShowCurriculum)
-async def create_curriculum(body: CreateCurriculum, db: AsyncSession = Depends(get_db)):
-    return await _create_new_curriculum(body, db)
+@curriculum_router.post("/create/", response_model=ShowCurriculumWithHATEOAS, status_code=status.HTTP_201_CREATED) 
+async def create_curriculum(body: CreateCurriculum, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _create_new_curriculum(body, request, db)
 
 
-@curriculum_router.get("/search/{group_name}/{subject_code}/{semester_number}", response_model=ShowCurriculum,
+@curriculum_router.get("/search/{semester_number}/{group_name}/{subject_code}", response_model=ShowCurriculumWithHATEOAS,
                     responses={404: {"description": "План не найден"}})
-async def get_curriculum(semester_number: int, group_name: str, subject_code: str, db: AsyncSession = Depends(get_db)):
-    return await _get_curriculum(semester_number, group_name, subject_code, db)
+async def get_curriculum(semester_number: int, group_name: str, subject_code: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_curriculum(semester_number, group_name, subject_code, request, db) 
 
 
-@curriculum_router.get("/search", response_model=list[ShowCurriculum], responses={404: {"description": "Планы не найдены"}})
-async def get_all_curriculums(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_curriculums(query_param.page, query_param.limit, db)
+@curriculum_router.get("/search/", response_model=ShowCurriculumListWithHATEOAS, responses={404: {"description": "Планы не найдены"}}) 
+async def get_all_curriculums(request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)): 
+    return await _get_all_curriculums(query_param.page, query_param.limit, request, db) 
 
 
-@curriculum_router.put("/delete/{group_name}/{subject_code}/{semester_number}", response_model=ShowCurriculum,
+@curriculum_router.get("/search/by_group/{group_name}", response_model=ShowCurriculumListWithHATEOAS, responses={404: {"description": "Планы не найдены"}})
+async def get_all_curriculums_by_group(group_name: str, request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_curriculums_by_group(group_name, query_param.page, query_param.limit, request, db)
+
+
+@curriculum_router.get("/search/by_subject/{subject_code}", response_model=ShowCurriculumListWithHATEOAS, responses={404: {"description": "Планы не найдены"}})
+async def get_all_curriculums_by_subject(subject_code: str, request: Request, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
+    return await _get_all_curriculums_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
+
+
+@curriculum_router.delete("/delete/{semester_number}/{group_name}/{subject_code}", response_model=ShowCurriculumWithHATEOAS,
                     responses={404: {"description": "План не найден"}})
-async def delete_curriculum(semester_number: int, group_name: str, subject_code: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_curriculum(semester_number, group_name, subject_code, db)
+async def delete_curriculum(semester_number: int, group_name: str, subject_code: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _delete_curriculum(semester_number, group_name, subject_code, request, db)
 
 
-@curriculum_router.put("/update", response_model=ShowCurriculum, responses={404: {"description": "План не найден"}})
-async def update_curriculum(body: UpdateCurriculum, db: AsyncSession = Depends(get_db)):
-    return await _update_curriculum(body, db)
+@curriculum_router.put("/update", response_model=ShowCurriculumWithHATEOAS, responses={404: {"description": "План не найден"}})
+async def update_curriculum(body: UpdateCurriculum, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_curriculum(body, request, db)
 
 
 '''
 ===========================
-CRUD operations for subject
+CRUD operations for Subject
 ===========================
 '''
 
 
-async def _create_new_subject(body: CreateSubject, db) -> ShowSubject:
+async def _create_new_subject(body: CreateSubject, request: Request, db) -> ShowSubjectWithHATEOAS:
     async with db as session:
         async with session.begin():
             subject_dal = SubjectDAL(session)
 
-            # Check that the subject is unique
-            # By using helpers
-            if not await ensure_subject_unique(subject_dal, body.subject_code):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Предмет {body.subject_code} уже существует"
+            try:
+                if not await ensure_subject_unique(subject_dal, body.subject_code):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Предмет {body.subject_code} уже существует"
+                    )
+
+                subject = await subject_dal.create_subject(
+                    subject_code=body.subject_code,
+                    name=body.name
                 )
 
-            subject = await subject_dal.create_subject(
-                subject_code=body.subject_code,
-                name=body.name
-            )
-            return ShowSubject.from_orm(subject)
+                subject_pydantic = ShowSubject.model_validate(subject) 
+                
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                subject_code = subject.subject_code
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects/search/{subject_code}',
+                    "update": f'{api_base_url}/subjects/update/{subject_code}',
+                    "delete": f'{api_base_url}/subjects/delete/{subject_code}',
+                    "subjects": f'{api_base_url}/subjects',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                    "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                    "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}',
+                }
+
+                return ShowSubjectWithHATEOAS(subject=subject_pydantic, links=hateoas_links)
+
+            except IntegrityError as e:
+                await session.rollback() 
+                logger.error(f"Ошибка целостности БД при создании предмета '{body.subject_code}': {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Невозможно создать предмет из-за конфликта данных (возможно, он уже существует)."
+                )
+            
+            except HTTPException:
+                await session.rollback() 
+                raise
+
+            except Exception as e:
+                await session.rollback() 
+                logger.error(f"Неожиданная ошибка при создании предмета '{body.subject_code}': {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при создании предмета."
+                )
 
 
-async def _get_subject(subject_code: str, db) -> ShowSubject:
-    async with db as session:
-        async with session.begin(): 
-            subject_dal = SubjectDAL(session)
-            subject = await subject_dal.get_subject(subject_code)
-
-            # if curriculum doesn't exist
-            if not subject:
-                raise HTTPException(status_code=404, detail=f"Предмет {subject_code} не найден")
-
-            return ShowSubject.from_orm(subject) 
-
-
-async def _get_all_subjects(page: int, limit: int, db) -> list[ShowSubject]:
+async def _get_subject(subject_code: str, request: Request, db) -> ShowSubjectWithHATEOAS:
     async with db as session:
         async with session.begin():
             subject_dal = SubjectDAL(session)
-            subjects = await subject_dal.get_all_subjects(page, limit)
+            try:
+                subject = await subject_dal.get_subject(subject_code)
 
-            return [ShowSubject.from_orm(subject) for subject in subjects]
+                # if subject doesn't exist
+                if not subject:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмет {subject_code} не найден"
+                    )
+
+                subject_pydantic = ShowSubject.model_validate(subject) 
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects/search/{subject_code}',
+                    "update": f'{api_base_url}/subjects/update/{subject_code}',
+                    "delete": f'{api_base_url}/subjects/delete/{subject_code}',
+                    "subjects": f'{api_base_url}/subjects',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                    "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                    "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}',
+                }
+
+                return ShowSubjectWithHATEOAS(subject=subject_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении предмета {subject_code}: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении предмета."
+                )
 
 
-async def _get_all_subjects_by_name(name: str, page: int, limit: int, db) -> list[ShowSubject]:
+async def _get_all_subjects(page: int, limit: int, request: Request, db) -> ShowSubjectListWithHATEOAS: 
     async with db as session:
         async with session.begin():
             subject_dal = SubjectDAL(session)
-            subjects = await subject_dal.get_subjects_by_name(name, page, limit)
+            try:
+                subjects_orm_list = await subject_dal.get_all_subjects(page, limit)
 
-            return [ShowSubject.from_orm(subject) for subject in subjects]
-        
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-async def _delete_subject(subject_code: str, db) -> ShowSubject:
+                subjects_with_hateoas = []
+                for subject_orm in subjects_orm_list:
+                    subject_pydantic = ShowSubject.model_validate(subject_orm)
+
+                    subject_code = subject_orm.subject_code
+                    subject_links = {
+                        "self": f'{api_base_url}/subjects/search/{subject_code}',
+                        "update": f'{api_base_url}/subjects/update/{subject_code}',
+                        "delete": f'{api_base_url}/subjects/delete/{subject_code}',
+                        "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                        "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                        "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}',
+                    }
+
+                    subject_with_links = ShowSubjectWithHATEOAS( 
+                        subject=subject_pydantic,
+                        links=subject_links
+                    )
+                    subjects_with_hateoas.append(subject_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/subjects?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/subjects',
+                }
+
+                return ShowSubjectListWithHATEOAS(
+                    subjects=subjects_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка предметов (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка предметов.")
+
+
+async def _get_all_subjects_by_name(
+    name: str, page: int, limit: int, request: Request, db) -> ShowSubjectListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            subject_dal = SubjectDAL(session)
+            try:
+                subjects_orm_list = await subject_dal.get_subjects_by_name(name, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                subjects_with_hateoas = []
+                for subject_orm in subjects_orm_list:
+                    subject_pydantic = ShowSubject.model_validate(subject_orm)
+
+                    subject_code = subject_orm.subject_code
+                    subject_links = {
+                        "self": f'{api_base_url}/subjects/search/{subject_code}',
+                        "update": f'{api_base_url}/subjects/update/{subject_code}',
+                        "delete": f'{api_base_url}/subjects/delete/{subject_code}',
+                        "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                        "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                        "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}',
+                    }
+
+                    subject_with_links = ShowSubjectWithHATEOAS(
+                        subject=subject_pydantic,
+                        links=subject_links
+                    )
+                    subjects_with_hateoas.append(subject_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/subjects/search/by_name/{name}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/subjects',
+                    "subjects": f'{api_base_url}/subjects',
+                }
+
+                return ShowSubjectListWithHATEOAS( 
+                    subjects=subjects_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка предметов по имени '{name}' (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка предметов.")
+ 
+
+async def _delete_subject(subject_code: str, request: Request, db) -> ShowSubjectWithHATEOAS:
     async with db as session:
         try:
-            async with session.begin():
+            async with session.begin(): 
                 subject_dal = SubjectDAL(session)
                 subject = await subject_dal.delete_subject(subject_code)
 
                 if not subject:
-                    raise HTTPException(status_code=404, detail=f"План: {subject_code} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмет: {subject_code} не найден"
+                    )
 
-            return ShowSubject.from_orm(subject)
+                subject_pydantic = ShowSubject.model_validate(subject) 
 
-        except Exception as e:
-            logger.warning(f"Удаление предмета отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects/search/{subject_code}',
+                    "subjects": f'{api_base_url}/subjects',
+                    "create": f'{api_base_url}/subjects',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_subject/{subject_code}',
+                    "requests": f'{api_base_url}/requests/search/by_subject/{subject_code}',
+                    "sessions": f'{api_base_url}/sessions/search/by_subject/{subject_code}'
+                }
+
+                return ShowSubjectWithHATEOAS(subject=subject_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback() 
             raise
 
+        except Exception as e:
+            await session.rollback() 
+            logger.error(f"Неожиданная ошибка при удалении предмета {subject_code}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при удалении предмета."
+            )
 
-async def _update_subject(body: UpdateSubject, db) -> ShowSubject:
+
+async def _update_subject(body: UpdateSubject, request: Request, db) -> ShowSubjectWithHATEOAS: 
     async with db as session:
         try:
             async with session.begin():
-                # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() 
-                    if value is not None and key not in ["subject_code"]
+                    key: value for key, value in body.dict().items()
+                    if value is not None and key not in ["subject_code", "new_subject_code"]
                 }
 
                 subject_dal = SubjectDAL(session)
 
-                if not await ensure_subject_unique(subject_dal, body.new_subject_code):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Предмет: {body.new_subject_code} уже существует"
-                    )
+                if body.new_subject_code is not None and body.new_subject_code != body.subject_code:
+                    if not await ensure_subject_unique(subject_dal, body.new_subject_code):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Предмет: {body.new_subject_code} уже существует"
+                        )
                 
-                # Rename field new_subject_code to subject_code
-                if "new_subject_code" in update_data:
-                    update_data["subject_code"] = update_data.pop("new_subject_code")
-
+                if body.new_subject_code is not None and body.new_subject_code != body.subject_code:
+                     update_data["subject_code"] = body.new_subject_code
+                
                 subject = await subject_dal.update_subject(
-                    tg_subject_code = body.subject_code,
+                    tg_subject_code=body.subject_code,
                     **update_data
                 )
 
-                # save changed data
-                await session.commit()
-
                 if not subject:
-                    raise HTTPException(status_code=404, detail=f"Предмет: {body.subject_code} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмет: {body.subject_code} не найден"
+                    )
 
-            return ShowSubject.from_orm(subject)
+                subject_pydantic = ShowSubject.model_validate(subject) 
 
-        except Exception as e:
-            await session.rollback()
-            logger.warning(f"Изменение данных о предмете отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                final_subject_code = subject.subject_code 
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects/search/{final_subject_code}',
+                    "update": f'{api_base_url}/subjects/update/{final_subject_code}', 
+                    "delete": f'{api_base_url}/subjects/delete/{final_subject_code}',
+                    "subjects": f'{api_base_url}/subjects',
+                    "curriculums": f'{api_base_url}/curriculums/search/by_subject/{final_subject_code}',
+                    "requests": f'{api_base_url}/requests/search/by_subject/{final_subject_code}',
+                    "sessions": f'{api_base_url}/sessions/search/by_subject/{final_subject_code}'
+                }
+
+                return ShowSubjectWithHATEOAS(subject=subject_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback() 
             raise
+        except Exception as e:
+            await session.rollback() 
+            logger.error(f"Неожиданная ошибка при обновлении предмета {body.subject_code}: {e}", exc_info=True) 
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при обновлении предмета."
+            )
 
 
-@subject_router.post("/create", response_model=ShowSubject)
-async def create_subject(body: CreateSubject, db: AsyncSession = Depends(get_db)):
-    return await _create_new_subject(body, db)
+@subject_router.post("/create", response_model=ShowSubjectWithHATEOAS, status_code=status.HTTP_201_CREATED)
+async def create_subject(body: CreateSubject, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_subject(body, request, db)
 
 
-@subject_router.get("/search/{subject_code}", response_model=ShowSubject,
+@subject_router.get("/search/by_code/{subject_code}", response_model=ShowSubjectWithHATEOAS, 
                     responses={404: {"description": "Предмет не найден"}})
-async def get_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
-    return await _get_subject(subject_code, db)
+async def get_subject(subject_code: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_subject(subject_code, request, db) 
 
 
-@subject_router.get("/search", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
-async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_subjects(query_param.page, query_param.limit, db)
+@subject_router.get("/search", response_model=ShowSubjectListWithHATEOAS,
+                    responses={404: {"description": "Предметы не найдены"}})
+async def get_all_subjects(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_subjects(query_param.page, query_param.limit, request, db) 
 
 
-@subject_router.get("/search/by_name/{name}", response_model=list[ShowSubject], responses={404: {"description": "Предметы не найдены"}})
-async def get_all_subjects(name: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_subjects_by_name(name, query_param.page, query_param.limit, db)
+@subject_router.get("/search/by_name/{name}", response_model=ShowSubjectListWithHATEOAS, 
+                    responses={404: {"description": "Предметы не найдены"}})
+async def get_all_subjects_by_name(name: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_subjects_by_name(name, query_param.page, query_param.limit, request, db) 
 
 
-@subject_router.put("/delete/{subject_code}", response_model=ShowSubject,
+@subject_router.delete("/delete/{subject_code}", response_model=ShowSubjectWithHATEOAS, 
                     responses={404: {"description": "Предмет не найден"}})
-async def delete_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_subject(subject_code, db)
+async def delete_subject(subject_code: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _delete_subject(subject_code, request, db)
 
 
-@subject_router.put("/update", response_model=ShowSubject, responses={404: {"description": "Предмет не найден"}})
-async def update_subject(body: UpdateSubject, db: AsyncSession = Depends(get_db)):
-    return await _update_subject(body, db)
+@subject_router.put("/update", response_model=ShowSubjectWithHATEOAS,
+                    responses={404: {"description": "Предмет не найден"}})
+async def update_subject(body: UpdateSubject, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _update_subject(body, request, db) 
 
 
 '''
@@ -1376,72 +2603,229 @@ CRUD operations for EmploymentTeacher
 '''
 
 
-async def _create_new_employment(body: CreateEmployment, db) -> ShowEmployment:
+async def _create_new_employment(body: CreateEmployment, request: Request, db) -> ShowEmploymentWithHATEOAS: 
     async with db as session:
         async with session.begin():
             employment_dal = EmployTeacherDAL(session)
             teacher_dal = TeacherDAL(session)
 
-            # Check that the employment is unique
-            # By using helpers
-            if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Учитель: {body.teacher_id} не существует"
+            try:
+                if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Учитель: {body.teacher_id} не существует"
+                    )
+                
+                if not await ensure_employment_unique(
+                    employment_dal, 
+                    body.date_start_period, 
+                    body.date_end_period, 
+                    body.teacher_id
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} уже существует"
+                    )
+
+                employment = await employment_dal.create_employTeacher(
+                    date_start_period=body.date_start_period,
+                    date_end_period=body.date_end_period,
+                    teacher_id=body.teacher_id,
+                    monday=body.monday,
+                    tuesday=body.tuesday,
+                    wednesday=body.wednesday,
+                    thursday=body.thursday,
+                    friday=body.friday,
+                    saturday=body.saturday
                 )
-            if not await ensure_employment_unique(employment_dal, body.date_start_period, body.date_end_period, body.teacher_id):
+
+                employment_pydantic = ShowEmployment.model_validate(employment)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                date_start = employment.date_start_period.isoformat()
+                date_end = employment.date_end_period.isoformat()
+                teacher_id = employment.teacher_id
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/employments/search/{teacher_id}/{date_start}/{date_end}',
+                    "update": f'{api_base_url}/employments/update/{teacher_id}/{date_start}/{date_end}',
+                    "delete": f'{api_base_url}/employments/delete/{teacher_id}/{date_start}/{date_end}',
+                    "employments": f'{api_base_url}/employments',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}'
+                }
+
+                return ShowEmploymentWithHATEOAS(employment=employment_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback() 
+                raise
+
+            except Exception as e:
+                await session.rollback() 
+                logger.error(f"Неожиданная ошибка при создании графика занятости для учителя {body.teacher_id}: {e}", exc_info=True)
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} уже существует"
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail="Внутренняя ошибка сервера при создании графика занятости."
                 )
 
-            employment = await employment_dal.create_employTeacher(
-                date_start_period=body.date_start_period,
-                date_end_period=body.date_end_period,
-                teacher_id=body.teacher_id,
-                monday=body.monday,
-                tuesday=body.tuesday,
-                wednesday=body.wednesday,
-                thursday=body.thursday,
-                friday=body.friday,
-                saturday=body.saturday
-            )
-            return ShowEmployment.from_orm(employment)
+
+async def _get_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db) -> ShowEmploymentWithHATEOAS: 
+    async with db as session:
+        async with session.begin():
+            employment_dal = EmployTeacherDAL(session)
+            try:
+                employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
+
+                # if employment doesn't exist
+                if not employment:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден"
+                    )
+
+                employment_pydantic = ShowEmployment.model_validate(employment) 
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                start_date_str = date_start_period.isoformat()
+                end_date_str = date_end_period.isoformat()
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/employments/search/{teacher_id}/{start_date_str}/{end_date_str}',
+                    "update": f'{api_base_url}/employments/update/{teacher_id}/{start_date_str}/{end_date_str}',
+                    "delete": f'{api_base_url}/employments/delete/{teacher_id}/{start_date_str}/{end_date_str}',
+                    "employments": f'{api_base_url}/employments',
+                    "teacher": f'{api_base_url}/teachers/search/{teacher_id}'
+                }
+
+                return ShowEmploymentWithHATEOAS(employment=employment_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении графика занятости преподавателя {teacher_id} с {date_start_period} по {date_end_period}: {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении графика занятости."
+                )
 
 
-async def _get_employment(date_start_period: date, date_end_period: date, teacher_id: int, db) -> ShowEmployment:
+async def _get_all_employments(page: int, limit: int, request: Request, db) -> ShowEmploymentListWithHATEOAS:
     async with db as session:
         async with session.begin(): 
             employment_dal = EmployTeacherDAL(session)
-            employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
+            try:
+                employments_orm_list = await employment_dal.get_all_employTeacher(page, limit)
 
-            # if curriculum doesn't exist
-            if not employment:
-                raise HTTPException(status_code=404, detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return ShowEmployment.from_orm(employment) 
+                employments_with_hateoas = []
+                for employment_orm in employments_orm_list:
+                    employment_pydantic = ShowEmployment.model_validate(employment_orm) 
+
+                    emp_date_start = employment_orm.date_start_period.isoformat() 
+                    emp_date_end = employment_orm.date_end_period.isoformat()
+                    emp_teacher_id = employment_orm.teacher_id
+
+                    employment_links = {
+                        "self": f'{api_base_url}/employments/search/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "update": f'{api_base_url}/employments/update/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "delete": f'{api_base_url}/employments/delete/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "teacher": f'{api_base_url}/teachers/search/{emp_teacher_id}'
+                    }
+
+                    employment_with_links = ShowEmploymentWithHATEOAS( 
+                        employment=employment_pydantic,
+                        links=employment_links
+                    )
+                    employments_with_hateoas.append(employment_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/employments/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/employments/create',
+                    "employments": f'{api_base_url}/employments'
+                }
+
+                return ShowEmploymentListWithHATEOAS( 
+                    employments=employments_with_hateoas, 
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка графиков занятости (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка графиков занятости.")
 
 
-async def _get_all_employments(page: int, limit: int, db) -> list[ShowEmployment]:
+async def _get_all_employments_by_date(
+    date_start_period: date, date_end_period: date, page: int, limit: int, request: Request, db) -> ShowEmploymentListWithHATEOAS:
     async with db as session:
-        async with session.begin():
+        async with session.begin(): 
             employment_dal = EmployTeacherDAL(session)
-            employments = await employment_dal.get_all_employTeacher(page, limit)
+            try:
+                employments_orm_list = await employment_dal.get_all_employTeacher_by_date(date_start_period, date_end_period, page, limit)
 
-            return [ShowEmployment.from_orm(employment) for employment in employments]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
 
+                employments_with_hateoas = []
+                for employment_orm in employments_orm_list:
+                    employment_pydantic = ShowEmployment.model_validate(employment_orm) 
 
-async def _get_all_employments_by_date(date_start_period: date, date_end_period: date, 
-                                        page: int, limit: int, db) -> list[ShowEmployment]:
-    async with db as session:
-        async with session.begin():
-            employment_dal = EmployTeacherDAL(session)
-            employments = await employment_dal.get_all_employTeacher_by_date(date_start_period, date_end_period, page, limit)
+                    emp_date_start = employment_orm.date_start_period.isoformat()
+                    emp_date_end = employment_orm.date_end_period.isoformat()
+                    emp_teacher_id = employment_orm.teacher_id
 
-            return [ShowEmployment.from_orm(employment) for employment in employments]
+                    employment_links = {
+                        "self": f'{api_base_url}/employments/search/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "update": f'{api_base_url}/employments/update/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "delete": f'{api_base_url}/employments/delete/{emp_teacher_id}/{emp_date_start}/{emp_date_end}',
+                        "teacher": f'{api_base_url}/teachers/search/{emp_teacher_id}'
+                    }
+
+                    employment_with_links = ShowEmploymentWithHATEOAS(
+                        employment=employment_pydantic,
+                        links=employment_links
+                    )
+                    employments_with_hateoas.append(employment_with_links)
+
+                # Форматируем даты для использования в URL
+                start_date_str = date_start_period.isoformat()
+                end_date_str = date_end_period.isoformat()
+                
+                collection_links = {
+                    "self": f'{api_base_url}/employments/search/by_date/{start_date_str}/{end_date_str}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/employments/create',
+                    "employments": f'{api_base_url}/employments'
+                }
+
+                return ShowEmploymentListWithHATEOAS(
+                    employments=employments_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка графиков занятости с {date_start_period} по {date_end_period} (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка графиков занятости.")
+
         
 
-async def _delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, db) -> ShowEmployment:
+async def _delete_employment(
+    date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db) -> ShowEmploymentWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
@@ -1449,102 +2833,168 @@ async def _delete_employment(date_start_period: date, date_end_period: date, tea
                 employment = await employment_dal.delete_employTeacher(date_start_period, date_end_period, teacher_id)
 
                 if not employment:
-                    raise HTTPException(status_code=404, detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"График преподавателя {teacher_id} начиная с {date_start_period} и заканчивая {date_end_period} не найден"
+                    )
 
-            return ShowEmployment.from_orm(employment)
+                employment_pydantic = ShowEmployment.model_validate(employment)
 
-        except Exception as e:
-            logger.warning(f"Удаление графика отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                start_date_str = date_start_period.isoformat()
+                end_date_str = date_end_period.isoformat()
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/employments/search/{teacher_id}/{start_date_str}/{end_date_str}',
+                    "employments": f'{api_base_url}/employments',
+                    "create": f'{api_base_url}/employments/create',
+                    "teacher": f'{api_base_url}/teachers/search/{teacher_id}'
+                }
+
+                return ShowEmploymentWithHATEOAS(employment=employment_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
             raise
 
+        except Exception as e:
+            await session.rollback()
+            logger.error(
+                f"Неожиданная ошибка при удалении графика занятости преподавателя {teacher_id} с {date_start_period} по {date_end_period}: {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при удалении графика занятости." 
+            )
 
-async def _update_employment(body: UpdateEmployment, db) -> ShowEmployment:
+
+async def _update_employment(body: UpdateEmployment, request: Request, db) -> ShowEmploymentWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
-                # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() 
-                    if value is not None and key not in ["date_start_period", "date_end_period", "teacher_id"]
+                    key: value for key, value in body.dict().items()
+                    if value is not None and key not in ["date_start_period", "date_end_period", "teacher_id", "new_date_start_period", "new_date_end_period", "new_teacher_id"]
                 }
 
                 employment_dal = EmployTeacherDAL(session)
                 teacher_dal = TeacherDAL(session)
-
-                # Check that the employment is unique
-                # By using helpers
-                if not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Учитель: {body.new_teacher_id} не существует"
-                    )
-                if not await ensure_employment_unique(employment_dal, body.new_date_start_period, body.new_date_end_period, body.new_teacher_id):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"График преподавателя {body.new_teacher_id} начиная с {body.new_date_start_period} и заканчивая {body.new_date_end_period} уже существует"
-                    )
                 
-                # Rename field new_date_start_period to date_start_period
-                if "new_date_start_period" in update_data:
-                    update_data["date_start_period"] = update_data.pop("new_date_start_period")
-                # Rename field new_date_end_period to date_end_period
-                if "new_subject_code" in update_data:
-                    update_data["date_end_period"] = update_data.pop("new_date_end_period")
-                # Rename field new_teacher_id to teacher_id
-                if "new_teacher_id" in update_data:
-                    update_data["teacher_id"] = update_data.pop("new_teacher_id")
+                new_date_start = body.new_date_start_period if body.new_date_start_period is not None else body.date_start_period
+                new_date_end = body.new_date_end_period if body.new_date_end_period is not None else body.date_end_period
+                new_teacher_id = body.new_teacher_id if body.new_teacher_id is not None else body.teacher_id
+
+                if body.new_teacher_id is not None and body.new_teacher_id != body.teacher_id:
+                    if not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=f"Учитель: {body.new_teacher_id} не существует"
+                        )
+                
+                if (new_date_start != body.date_start_period or 
+                    new_date_end != body.date_end_period or 
+                    new_teacher_id != body.teacher_id):
+                    
+                    if not await ensure_employment_unique(employment_dal, new_date_start, new_date_end, new_teacher_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"График преподавателя {new_teacher_id} начиная с {new_date_start} и заканчивая {new_date_end} уже существует"
+                        )
+
+                if body.new_date_start_period is not None:
+                    update_data["date_start_period"] = body.new_date_start_period
+                if body.new_date_end_period is not None:
+                    update_data["date_end_period"] = body.new_date_end_period
+                if body.new_teacher_id is not None:
+                    update_data["teacher_id"] = body.new_teacher_id
 
                 employment = await employment_dal.update_employTeacher(
-                    tg_date_start_period = body.date_start_period,
-                    tg_date_end_period = body.date_end_period,
-                    tg_teacher_id = body.teacher_id,
-                    **update_data
+                    tg_date_start_period=body.date_start_period,
+                    tg_date_end_period=body.date_end_period,
+                    tg_teacher_id=body.teacher_id,
+                    **update_data 
                 )
 
-                # save changed data
-                await session.commit()
-
                 if not employment:
-                    raise HTTPException(status_code=404, detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} не найден")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"График преподавателя {body.teacher_id} начиная с {body.date_start_period} и заканчивая {body.date_end_period} не найден"
+                    )
 
-            return ShowEmployment.from_orm(employment)
+                employment_pydantic = ShowEmployment.model_validate(employment)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                final_date_start = employment.date_start_period.isoformat()
+                final_date_end = employment.date_end_period.isoformat()
+                final_teacher_id = employment.teacher_id
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/employments/search/{final_teacher_id}/{final_date_start}/{final_date_end}',
+                    "update": f'{api_base_url}/employments/update/{final_teacher_id}/{final_date_start}/{final_date_end}', 
+                    "delete": f'{api_base_url}/employments/delete/{final_teacher_id}/{final_date_start}/{final_date_end}', 
+                    "employments": f'{api_base_url}/employments',
+                    "teacher": f'{api_base_url}/teachers/search/{final_teacher_id}'
+                }
+
+                return ShowEmploymentWithHATEOAS(employment=employment_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
 
         except Exception as e:
             await session.rollback()
-            logger.warning(f"Изменение данных о графике отменено (Ошибка: {e})")
-            raise
+            logger.error(
+                f"Неожиданная ошибка при обновлении графика занятости преподавателя {body.teacher_id} с {body.date_start_period} по {body.date_end_period}: {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при обновлении графика занятости."
+            )
 
 
-@employment_router.post("/create", response_model=ShowEmployment)
-async def create_employment(body: CreateEmployment, db: AsyncSession = Depends(get_db)):
-    return await _create_new_employment(body, db)
+@employment_router.post("/create", response_model=ShowEmploymentWithHATEOAS, status_code=status.HTTP_201_CREATED) 
+async def create_employment(body: CreateEmployment, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_employment(body, request, db) 
 
 
-@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmployment,
+@employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=ShowEmploymentListWithHATEOAS,  
+                    responses={404: {"description": "Графики не найдены"}}) 
+async def get_all_employments_by_date(date_start_period: date, date_end_period: date, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, request, db)
+
+
+@employment_router.get("/search/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS, 
                     responses={404: {"description": "График не найден"}})
-async def get_employment(date_start_period: date, date_end_period: date, teacher_id: int, db: AsyncSession = Depends(get_db)):
-    return await _get_employment(date_start_period, date_end_period, teacher_id, db)
+async def get_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_employment(date_start_period, date_end_period, teacher_id, request, db)  
 
 
-@employment_router.get("/search", response_model=list[ShowEmployment], responses={404: {"description": "График не найден"}})
-async def get_all_employments(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_employments(query_param.page, query_param.limit, db)
+@employment_router.get("/search", response_model=ShowEmploymentListWithHATEOAS,  
+                    responses={404: {"description": "Графики не найдены"}}) 
+async def get_all_employments(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_employments(query_param.page, query_param.limit, request, db)  
 
 
-@employment_router.get("/search/by_date/{date_start_period}/{date_end_period}", response_model=list[ShowEmployment], responses={404: {"description": "Графики не найдены"}})
-async def get_all_employments_by_date(date_start_period: date, date_end_period: date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_employments_by_date(date_start_period, date_end_period, query_param.page, query_param.limit, db)
-
-
-@employment_router.put("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmployment,
+@employment_router.delete("/delete/{teacher_id}/{date_start_period}/{date_end_period}", response_model=ShowEmploymentWithHATEOAS,  
                     responses={404: {"description": "График не найден"}})
-async def delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, db: AsyncSession = Depends(get_db)):
-    return await _delete_employment(date_start_period, date_end_period, teacher_id, db)
+async def delete_employment(date_start_period: date, date_end_period: date, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_employment(date_start_period, date_end_period, teacher_id, request, db)  
 
 
-@employment_router.put("/update", response_model=ShowEmployment, responses={404: {"description": "График не найден"}})
-async def update_employment(body: UpdateEmployment, db: AsyncSession = Depends(get_db)):
-    return await _update_employment(body, db)
+@employment_router.put("/update", response_model=ShowEmploymentWithHATEOAS,  
+                    responses={404: {"description": "График не найден"}})
+async def update_employment(body: UpdateEmployment, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_employment(body, request, db)  
+
 
 
 '''
@@ -1554,7 +3004,7 @@ CRUD operations for TeacherRequest
 '''
 
 
-async def _create_new_request(body: CreateTeacherRequest, db) -> ShowTeacherRequest:
+async def _create_new_request(body: CreateTeacherRequest, request: Request, db) -> ShowTeacherRequestWithHATEOAS: 
     async with db as session:
         async with session.begin():
             request_dal = TeacherRequestDAL(session)
@@ -1562,195 +3012,565 @@ async def _create_new_request(body: CreateTeacherRequest, db) -> ShowTeacherRequ
             teacher_dal = TeacherDAL(session)
             subject_dal = SubjectDAL(session)
 
-            # Check that the teacher, subject, group exists
-            # Check that the employment is unique
-            # By using helpers
-            if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Учитель: {body.teacher_id} не существует"
-                )
-            if not await ensure_subject_exists(subject_dal, body.subject_code):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Предмет: {body.subject_code} не существует"
-                )
-            if not await ensure_group_exists(group_dal, body.group_name):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Группа: {body.group_name} не существует"
-                )
-            if not await ensure_request_unique(request_dal, body.date_request, body.teacher_id, body.subject_code, body.group_name):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Запрос преподавателя {body.teacher_id} на предмет {body.subject_code} для группы {body.group_name} на дату {body.date_request} уже существует"
+            try:
+                if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Учитель: {body.teacher_id} не существует"
+                    )
+                
+                if not await ensure_subject_exists(subject_dal, body.subject_code):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмет: {body.subject_code} не существует"
+                    )
+                 
+                if not await ensure_group_exists(group_dal, body.group_name):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Группа: {body.group_name} не существует"
+                    )
+                
+                if not await ensure_request_unique(
+                    request_dal, 
+                    body.date_request, 
+                    body.teacher_id, 
+                    body.subject_code, 
+                    body.group_name
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Запрос преподавателя {body.teacher_id} на предмет {body.subject_code} для группы {body.group_name} на дату {body.date_request} уже существует"
+                    )
+
+                request_obj = await request_dal.create_teacherRequest(
+                    date_request=body.date_request,
+                    teacher_id=body.teacher_id,
+                    subject_code=body.subject_code,
+                    group_name=body.group_name,
+                    lectures_hours=body.lectures_hours,
+                    laboratory_hours=body.laboratory_hours,
+                    practice_hours=body.practice_hours
                 )
 
-            request = await request_dal.create_teacherRequest(
-                date_request=body.date_request,
-                teacher_id=body.teacher_id,
-                subject_code=body.subject_code,
-                group_name=body.group_name,
-                lectures_hours=body.lectures_hours,
-                laboratory_hours=body.laboratory_hours,
-                practice_hours=body.practice_hours
-            )
-            return ShowTeacherRequest.from_orm(request)
+                request_pydantic = ShowTeacherRequest.model_validate(request_obj) 
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                date_req_str = request_obj.date_request.isoformat()
+                teacher_id = request_obj.teacher_id
+                subject_code = request_obj.subject_code
+                group_name = request_obj.group_name
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/requests/search/{date_req_str}/{teacher_id}/{subject_code}/{group_name}',
+                    "update": f'{api_base_url}/requests/update/{date_req_str}/{teacher_id}/{subject_code}/{group_name}',
+                    "delete": f'{api_base_url}/requests/delete/{date_req_str}/{teacher_id}/{subject_code}/{group_name}',
+                    "requests": f'{api_base_url}/requests',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}'
+                }
+
+                return ShowTeacherRequestWithHATEOAS(request=request_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+
+            except Exception as e:
+                await session.rollback()
+                logger.error(
+                    f"Неожиданная ошибка при создании запроса преподавателя {body.teacher_id} на предмет {body.subject_code} для группы {body.group_name} на дату {body.date_request}: {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при создании запроса преподавателя."
+                )
 
 
-async def _get_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db) -> ShowTeacherRequest:
+async def _get_request(
+    date_request: date, teacher_id: int, subject_code: str, group_name: str, request: Request, db) -> ShowTeacherRequestWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            request_dal = TeacherRequestDAL(session)
+            try:
+                request_obj = await request_dal.get_teacherRequest(date_request, teacher_id, subject_code, group_name)
+
+                # if request doesn't exist
+                if not request_obj:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Запрос преподавателя {teacher_id} на предмет {subject_code} для группы {group_name} на дату {date_request} не найден"
+                    )
+
+                request_pydantic = ShowTeacherRequest.model_validate(request_obj) 
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                date_req_str = date_request.isoformat()
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/requests/search/{date_req_str}/{teacher_id}/{subject_code}/{group_name}',
+                    "update": f'{api_base_url}/requests/update/{date_req_str}/{teacher_id}/{subject_code}/{group_name}',
+                    "delete": f'{api_base_url}/requests/delete/{date_req_str}/{teacher_id}/{subject_code}/{group_name}',
+                    "requests": f'{api_base_url}/requests',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}', 
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}', 
+                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}' 
+                }
+
+                return ShowTeacherRequestWithHATEOAS(request=request_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении запроса преподавателя {teacher_id} на предмет {subject_code} для группы {group_name} на дату {date_request}: {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail="Внутренняя ошибка сервера при получении запроса преподавателя."
+                )
+
+
+async def _get_all_requests(page: int, limit: int, request: Request, db) -> ShowTeacherRequestListWithHATEOAS: 
+    async with db as session:
+        async with session.begin():
+            request_dal = TeacherRequestDAL(session)
+            try:
+                requests_orm_list = await request_dal.get_all_teachersRequests(page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                requests_with_hateoas = []
+                for request_orm in requests_orm_list:
+                    request_pydantic = ShowTeacherRequest.model_validate(request_orm)
+
+                    req_date_str = request_orm.date_request.isoformat()
+                    req_teacher_id = request_orm.teacher_id
+                    req_subject_code = request_orm.subject_code
+                    req_group_name = request_orm.group_name
+
+                    request_links = {
+                        "self": f'{api_base_url}/requests/search/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "update": f'{api_base_url}/requests/update/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "delete": f'{api_base_url}/requests/delete/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{req_teacher_id}', 
+                        "subject": f'{api_base_url}/subjects/search/by_code/{req_subject_code}', 
+                        "group": f'{api_base_url}/groups/search/by_group_name/{req_group_name}', 
+                    }
+
+                    request_with_links = ShowTeacherRequestWithHATEOAS(
+                        request=request_pydantic,
+                        links=request_links
+                    )
+                    requests_with_hateoas.append(request_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/requests/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/requests/create', 
+                    "requests": f'{api_base_url}/requests', 
+                }
+
+                return ShowTeacherRequestListWithHATEOAS(
+                    requests=requests_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка запросов преподавателей (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка запросов преподавателей.")
+
+
+
+async def _get_all_requests_by_teacher(
+    teacher_id: int, page: int, limit: int, request: Request, db) -> ShowTeacherRequestListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            request_dal = TeacherRequestDAL(session)
+            try:
+                requests_orm_list = await request_dal.get_all_requests_by_teacher(teacher_id, page, limit)
+ 
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                requests_with_hateoas = []
+                for request_orm in requests_orm_list:
+                    request_pydantic = ShowTeacherRequest.model_validate(request_orm) 
+
+                    req_date_str = request_orm.date_request.isoformat()
+                    req_teacher_id = request_orm.teacher_id
+                    req_subject_code = request_orm.subject_code
+                    req_group_name = request_orm.group_name
+
+                    request_links = {
+                        "self": f'{api_base_url}/requests/search/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "update": f'{api_base_url}/requests/update/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "delete": f'{api_base_url}/requests/delete/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{req_teacher_id}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{req_subject_code}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{req_group_name}',
+                    }
+
+                    request_with_links = ShowTeacherRequestWithHATEOAS(
+                        request=request_pydantic,
+                        links=request_links
+                    )
+                    requests_with_hateoas.append(request_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/requests/search/by_teacher/{teacher_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/requests/create', 
+                    "requests": f'{api_base_url}/requests', 
+                    "teacher": f'{api_base_url}/teachers/search/{teacher_id}', 
+                }
+
+                return ShowTeacherRequestListWithHATEOAS(
+                    requests=requests_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка запросов преподавателя {teacher_id} (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка запросов преподавателя.")
+
+        
+
+async def _get_all_requests_by_group(group_name: str, page: int, limit: int, request: Request, db) -> ShowTeacherRequestListWithHATEOAS: 
+    async with db as session:
+        async with session.begin():
+            request_dal = TeacherRequestDAL(session)
+            try:
+                requests_orm_list = await request_dal.get_all_requests_by_group(group_name, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                requests_with_hateoas = []
+                for request_orm in requests_orm_list:
+                    request_pydantic = ShowTeacherRequest.model_validate(request_orm) 
+
+                    req_date_str = request_orm.date_request.isoformat() 
+                    req_teacher_id = request_orm.teacher_id
+                    req_subject_code = request_orm.subject_code
+                    req_group_name = request_orm.group_name 
+
+                    request_links = {
+                        "self": f'{api_base_url}/requests/search/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "update": f'{api_base_url}/requests/update/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "delete": f'{api_base_url}/requests/delete/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{req_teacher_id}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{req_subject_code}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{req_group_name}',
+                    }
+                    request_with_links = ShowTeacherRequestWithHATEOAS(
+                        request=request_pydantic,
+                        links=request_links
+                    )
+                    requests_with_hateoas.append(request_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/requests/search/by_group/{group_name}?page={page}&limit={limit}', 
+                    "create": f'{api_base_url}/requests/create', 
+                    "requests": f'{api_base_url}/requests', 
+                    "group": f'{api_base_url}/groups/search/by_group-name/{group_name}'
+                }
+
+                return ShowTeacherRequestListWithHATEOAS(
+                    requests=requests_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка запросов для группы {group_name} (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка запросов для группы.")
+
+        
+
+async def _get_all_requests_by_subject(subject_code: str, page: int, limit: int, request: Request, db) -> ShowTeacherRequestListWithHATEOAS: 
     async with db as session:
         async with session.begin(): 
             request_dal = TeacherRequestDAL(session)
-            request = await request_dal.get_teacherRequest(date_request, teacher_id, subject_code, group_name)
+            try:
+                requests_orm_list = await request_dal.get_all_requests_by_subject(subject_code, page, limit) 
 
-            # if curriculum doesn't exist
-            if not request:
-                raise HTTPException(status_code=404, detail=f"Запрос преподавателя {teacher_id} на предмет {subject_code} для группы {group_name} на дату {date_request} не найден")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return ShowTeacherRequest.from_orm(request) 
+                requests_with_hateoas = []
+                for request_orm in requests_orm_list:
+                    request_pydantic = ShowTeacherRequest.model_validate(request_orm)
 
+                    req_date_str = request_orm.date_request.isoformat() 
+                    req_teacher_id = request_orm.teacher_id
+                    req_subject_code = request_orm.subject_code
+                    req_group_name = request_orm.group_name
 
-async def _get_all_requests(page: int, limit: int, db) -> list[ShowTeacherRequest]:
-    async with db as session:
-        async with session.begin():
-            request_dal = TeacherRequestDAL(session)
-            requests = await request_dal.get_all_teachersRequests(page, limit)
+                    request_links = {
+                        "self": f'{api_base_url}/requests/search/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "update": f'{api_base_url}/requests/update/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "delete": f'{api_base_url}/requests/delete/{req_date_str}/{req_teacher_id}/{req_subject_code}/{req_group_name}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{req_teacher_id}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{req_subject_code}', 
+                        "group": f'{api_base_url}/groups/search/by_group_name/{req_group_name}',
+                    }
 
-            return [ShowTeacherRequest.from_orm(request) for request in requests]
+                    request_with_links = ShowTeacherRequestWithHATEOAS(
+                        request=request_pydantic,
+                        links=request_links
+                    )
+                    requests_with_hateoas.append(request_with_links)
 
+                collection_links = {
+                    "self": f'{api_base_url}/requests/search/by_subject/{subject_code}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/requests/create', 
+                    "requests": f'{api_base_url}/requests', 
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}'
+                }
+                
+                return ShowTeacherRequestListWithHATEOAS(
+                    requests=requests_with_hateoas,
+                    links=collection_links
+                )
 
-async def _get_all_requests_by_teacher(teacher_id: int, page: int, limit: int, db) -> list[ShowTeacherRequest]:
-    async with db as session:
-        async with session.begin():
-            request_dal = TeacherRequestDAL(session)
-            requests = await request_dal.get_all_requests_by_teacher(teacher_id, page, limit)
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка запросов для предмета {subject_code} (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка запросов для предмета.")
 
-            return [ShowTeacherRequest.from_orm(request) for request in requests]
         
 
-async def _delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db) -> ShowTeacherRequest:
+async def _delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, request: Request, db) -> ShowTeacherRequestWithHATEOAS:
     async with db as session:
         try:
-            async with session.begin():
+            async with session.begin(): 
                 request_dal = TeacherRequestDAL(session)
-                request = await request_dal.delete_teacherRequest(date_request, teacher_id, subject_code, group_name)
+                request_obj = await request_dal.delete_teacherRequest(date_request, teacher_id, subject_code, group_name)
 
-                if not request:
-                    raise HTTPException(status_code=404, detail=f"Запрос преподавателя {teacher_id} на предмет {subject_code} для группы {group_name} на дату {date_request} не найден")
+                if not request_obj:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Запрос преподавателя {teacher_id} на предмет {subject_code} для группы {group_name} на дату {date_request} не найден"
+                    )
 
-            return ShowTeacherRequest.from_orm(request)
+                request_pydantic = ShowTeacherRequest.model_validate(request_obj) 
 
-        except Exception as e:
-            logger.warning(f"Удаление запроса отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                date_req_str = date_request.isoformat()
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/requests/search/{date_req_str}/{teacher_id}/{subject_code}/{group_name}',
+                    "requests": f'{api_base_url}/requests',
+                    "create": f'{api_base_url}/requests/create',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}', 
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}', 
+                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                }
+
+                return ShowTeacherRequestWithHATEOAS(request=request_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
             raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(
+                f"Неожиданная ошибка при удалении запроса преподавателя {teacher_id} на предмет {subject_code} для группы {group_name} на дату {date_request}: {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при удалении запроса преподавателя." #
+            )
 
 
-async def _update_request(body: UpdateTeacherRequest, db) -> ShowTeacherRequest:
+async def _update_request(body: UpdateTeacherRequest, request: Request, db) -> ShowTeacherRequestWithHATEOAS: 
     async with db as session:
         try:
-            async with session.begin():
-                # exclusion of None-fields from the transmitted data
+            async with session.begin(): 
                 update_data = {
-                    key: value for key, value in body.dict().items() 
-                    if value is not None and key not in ["date_request", "teacher_id", "subject_code", "group_name"]
+                    key: value for key, value in body.dict().items()
+                    if value is not None and key not in ["date_request", "teacher_id", "subject_code", "group_name", "new_date_request", "new_teacher_id", "new_subject_code", "new_group_name"]
                 }
 
                 request_dal = TeacherRequestDAL(session)
                 group_dal = GroupDAL(session)
                 teacher_dal = TeacherDAL(session)
                 subject_dal = SubjectDAL(session)
-
-                # Check that the teacher, subject, group exists
-                # Check that the request is unique
-                # By using helpers
-                if body.new_teacher_id != None and not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Учитель: {body.new_teacher_id} не существует"
-                    )
-                if body.new_subject_code != None and not await ensure_subject_exists(subject_dal, body.new_subject_code):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Предмет: {body.new_subject_code} не существует"
-                    )
-                if body.new_group_name != None and not await ensure_group_exists(group_dal, body.new_group_name):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Группа: {body.new_group_name} не существует"
-                    )
-                if not await ensure_request_unique(request_dal, body.new_date_request, body.new_teacher_id, body.new_subject_code, body.new_group_name):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Запрос преподавателя {body.new_teacher_id} на предмет {body.new_subject_code} для группы {body.new_group_name} на дату {body.new_date_request} уже существует"
-                    )
                 
-                # Rename field new_date_request to date_request
-                if "new_date_request" in update_data:
-                    update_data["date_request"] = update_data.pop("new_date_request")
-                # Rename field new_teacher_id to teacher_id
-                if "new_teacher_id" in update_data:
-                    update_data["teacher_id"] = update_data.pop("new_teacher_id")
-                # Rename field new_subject_code to subject_code
-                if "new_subject_code" in update_data:
-                    update_data["subject_code"] = update_data.pop("new_subject_code")
-                # Rename field new_group_name to group_name
-                if "new_group_name" in update_data:
-                    update_data["group_name"] = update_data.pop("new_group_name")
+                new_date_req = body.new_date_request if body.new_date_request is not None else body.date_request
+                new_teacher_id = body.new_teacher_id if body.new_teacher_id is not None else body.teacher_id
+                new_subject_code = body.new_subject_code if body.new_subject_code is not None else body.subject_code
+                new_group_name = body.new_group_name if body.new_group_name is not None else body.group_name
 
-                request = await request_dal.update_teacherRequest(
-                    tg_date_request = body.date_request,
-                    tg_teacher_id = body.teacher_id,
-                    tg_subject_code = body.subject_code,
-                    tg_group_name = body.group_name,
-                    **update_data
+                if body.new_teacher_id is not None and body.new_teacher_id != body.teacher_id:
+                    if not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=f"Учитель: {body.new_teacher_id} не существует"
+                        )
+                if body.new_subject_code is not None and body.new_subject_code != body.subject_code:
+                    if not await ensure_subject_exists(subject_dal, body.new_subject_code):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=f"Предмет: {body.new_subject_code} не существует"
+                        )
+                if body.new_group_name is not None and body.new_group_name != body.group_name:
+                    if not await ensure_group_exists(group_dal, body.new_group_name):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=f"Группа: {body.new_group_name} не существует"
+                        )
+                
+                if (new_date_req != body.date_request or 
+                    new_teacher_id != body.teacher_id or 
+                    new_subject_code != body.subject_code or 
+                    new_group_name != body.group_name):
+                    
+                    if not await ensure_request_unique(
+                        request_dal, 
+                        new_date_req, 
+                        new_teacher_id, 
+                        new_subject_code, 
+                        new_group_name
+                    ):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Запрос преподавателя {new_teacher_id} на предмет {new_subject_code} для группы {new_group_name} на дату {new_date_req} уже существует"
+                        )
+
+                if body.new_date_request is not None:
+                    update_data["date_request"] = body.new_date_request
+                if body.new_teacher_id is not None:
+                    update_data["teacher_id"] = body.new_teacher_id
+                if body.new_subject_code is not None:
+                    update_data["subject_code"] = body.new_subject_code
+                if body.new_group_name is not None:
+                    update_data["group_name"] = body.new_group_name
+
+                request_obj = await request_dal.update_teacherRequest(
+                    tg_date_request=body.date_request, 
+                    tg_teacher_id=body.teacher_id,
+                    tg_subject_code=body.subject_code,
+                    tg_group_name=body.group_name,
+                    **update_data 
                 )
 
-                # save changed data
-                await session.commit()
+                if not request_obj:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Запрос преподавателя {body.teacher_id} на предмет {body.subject_code} для группы {body.group_name} на дату {body.date_request} не найден"
+                    )
 
-                if not request:
-                    raise HTTPException(status_code=404, detail=f"Запрос преподавателя {body.teacher_id} на предмет {body.subject_code} для группы {body.group_name} на дату {body.date_request} не найден")
+                request_pydantic = ShowTeacherRequest.model_validate(request_obj) 
 
-            return ShowTeacherRequest.from_orm(request)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
 
-        except Exception as e:
-            await session.rollback()
-            logger.warning(f"Изменение данных о запросе отменено (Ошибка: {e})")
+                final_date_req_str = request_obj.date_request.isoformat()
+                final_teacher_id = request_obj.teacher_id
+                final_subject_code = request_obj.subject_code
+                final_group_name = request_obj.group_name
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/requests/search/{final_date_req_str}/{final_teacher_id}/{final_subject_code}/{final_group_name}',
+                    "update": f'{api_base_url}/requests/update/{final_date_req_str}/{final_teacher_id}/{final_subject_code}/{final_group_name}', 
+                    "delete": f'{api_base_url}/requests/delete/{final_date_req_str}/{final_teacher_id}/{final_subject_code}/{final_group_name}', 
+                    "requests": f'{api_base_url}/requests',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{final_teacher_id}', 
+                    "subject": f'{api_base_url}/subjects/search/by_code/{final_subject_code}', 
+                    "group": f'{api_base_url}/groups/search/by_group_name/{final_group_name}'
+                }
+
+                return ShowTeacherRequestWithHATEOAS(request=request_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback() 
             raise
+        except Exception as e:
+            await session.rollback() 
+            logger.error(
+                f"Неожиданная ошибка при обновлении запроса преподавателя {body.teacher_id} на предмет {body.subject_code} для группы {body.group_name} на дату {body.date_request}: {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при обновлении запроса преподавателя."
+            )
 
 
-@request_router.post("/create", response_model=ShowTeacherRequest)
-async def create_request(body: CreateTeacherRequest, db: AsyncSession = Depends(get_db)):
-    return await _create_new_request(body, db)
+@request_router.post("/create", response_model=ShowTeacherRequestWithHATEOAS, status_code=status.HTTP_201_CREATED) 
+async def create_request(body: CreateTeacherRequest, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _create_new_request(body, request, db) 
 
 
-@request_router.get("/search/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,
+@request_router.get("/search/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequestWithHATEOAS, 
                     responses={404: {"description": "Запрос не найден"}})
-async def get_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _get_request(date_request, teacher_id, subject_code, group_name, db)
+async def get_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_request(date_request, teacher_id, subject_code, group_name, request, db) 
 
 
-@request_router.get("/search", response_model=list[ShowTeacherRequest], responses={404: {"description": "Запрос не найден"}})
-async def get_all_requests(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_requests(query_param.page, query_param.limit, db)
+@request_router.get("/search", response_model=ShowTeacherRequestListWithHATEOAS, 
+                    responses={404: {"description": "Запросы не найдены"}}) 
+async def get_all_requests(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_requests(query_param.page, query_param.limit, request, db) 
 
 
 @request_router.get("/search/by_teacher/{teacher_id}", 
-                    response_model=list[ShowTeacherRequest], responses={404: {"description": "Запрос не найдены"}})
-async def get_all_requests_by_teacher(teacher_id: int, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_requests_by_teacher(teacher_id, query_param.page, query_param.limit, db)
+                    response_model=ShowTeacherRequestListWithHATEOAS,
+                    responses={404: {"description": "Запросы не найдены"}})
+async def get_all_requests_by_teacher(teacher_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_requests_by_teacher(teacher_id, query_param.page, query_param.limit, request, db) 
 
 
-@request_router.put("/delete/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequest,
+@request_router.get("/search/by_group/{group_name}", 
+                    response_model=ShowTeacherRequestListWithHATEOAS, 
+                    responses={404: {"description": "Запросы не найдены"}})
+async def get_all_requests_by_group(group_name: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_requests_by_group(group_name, query_param.page, query_param.limit, request, db) 
+
+
+@request_router.get("/search/by_subject/{subject_code}", 
+                    response_model=ShowTeacherRequestListWithHATEOAS, 
+                    responses={404: {"description": "Запросы не найдены"}})
+async def get_all_requests_by_subject(subject_code: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_requests_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
+
+
+@request_router.delete("/delete/{date_request}/{teacher_id}/{subject_code}/{group_name}", response_model=ShowTeacherRequestWithHATEOAS, 
                     responses={404: {"description": "Запрос не найден"}})
-async def delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_request(date_request, teacher_id, subject_code, group_name, db)
+async def delete_request(date_request: date, teacher_id: int, subject_code: str, group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_request(date_request, teacher_id, subject_code, group_name, request, db) 
 
 
-@request_router.put("/update", response_model=ShowTeacherRequest, responses={404: {"description": "Запрос не найден"}})
-async def update_request(body: UpdateTeacherRequest, db: AsyncSession = Depends(get_db)):
-    return await _update_request(body, db)
+@request_router.put("/update", response_model=ShowTeacherRequestWithHATEOAS,
+                    responses={404: {"description": "Запрос не найден"}})
+async def update_request(body: UpdateTeacherRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_request(body, request, db) 
 
 
 '''
@@ -1760,7 +3580,7 @@ CRUD operations for Session
 '''
 
 
-async def _create_new_session(body: CreateSession, db) -> ShowSession:
+async def _create_new_session(body: CreateSession, request: Request, db) -> ShowSessionWithHATEOAS:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)
@@ -1769,122 +3589,466 @@ async def _create_new_session(body: CreateSession, db) -> ShowSession:
             subject_dal = SubjectDAL(session)
             teacher_dal = TeacherDAL(session)
 
-            # Check that the group, subject, teacher, cabinet exists
-            # Check that the employment is unique
-            # By using helpers
-            if not await ensure_group_exists(group_dal, body.group_name):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Группа: {body.group_name} не существует"
-                )    
-            if  body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Предмет: {body.subject_code} не существует"
-                )
-            if body.teacher_id != None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Преподаватель: {body.teacher_id} не существует"
-                )     
-            if body.cabinet_number != None and body.building_number != None and not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
-                )
-            if not await ensure_session_unique(session_dal, body.session_number, body.date, body.group_name):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Сессия у преподавателя под номером {body.session_number} для группы {body.group_name} на дату {body.date} уже существует"
+            try:
+                if not await ensure_group_exists(group_dal, body.group_name):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Группа: {body.group_name} не существует"
+                    )    
+                
+                if body.subject_code is not None and not await ensure_subject_exists(subject_dal, body.subject_code):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Предмет: {body.subject_code} не существует"
+                    )
+                
+                if body.teacher_id is not None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Преподаватель: {body.teacher_id} не существует"
+                    )     
+                
+                if (body.cabinet_number is not None and body.building_number is not None and 
+                    not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number)):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
+                    )
+                
+                if not await ensure_session_unique(session_dal, body.session_number, body.date, body.group_name):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Сессия у преподавателя под номером {body.session_number} для группы {body.group_name} на дату {body.date} уже существует"
+                    )
+
+                session_obj = await session_dal.create_session(
+                    session_number=body.session_number,
+                    date=body.date,
+                    group_name=body.group_name,
+                    session_type=body.session_type,
+                    subject_code=body.subject_code,
+                    teacher_id=body.teacher_id,
+                    cabinet_number=body.cabinet_number,
+                    building_number=body.building_number
                 )
 
-            session = await session_dal.create_session(
-            session_number=body.session_number,
-            date=body.date,
-            group_name=body.group_name,
-            session_type=body.session_type,
-            subject_code=body.subject_code,
-            teacher_id=body.teacher_id,
-            cabinet_number=body.cabinet_number,
-            building_number=body.building_number
-            )
-            return ShowSession.from_orm(session)
+                session_pydantic = ShowSession.model_validate(session_obj) 
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                sess_number = session_obj.session_number
+                sess_date_str = session_obj.date.isoformat()
+                sess_group_name = session_obj.group_name
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "sessions": f'{api_base_url}/sessions',
+                    "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/{session_obj.subject_code}' if session_obj.subject_code else None,
+                    "teacher": f'{api_base_url}/teachers/search/{session_obj.teacher_id}' if session_obj.teacher_id else None,
+                    "cabinet": f'{api_base_url}/cabinets/search/{session_obj.building_number}/{session_obj.cabinet_number}' if session_obj.cabinet_number is not None and session_obj.building_number is not None else None
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSessionWithHATEOAS(session=session_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании сессии: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail="Внутренняя ошибка сервера при создании сессии."
+                )
 
 
-async def _get_session(session_number: int, date: date, group_name: str, db) -> ShowSession:
+async def _get_session(
+    session_number: int, date: date, group_name: str, request: Request, db) -> ShowSessionWithHATEOAS:
     async with db as session:
-        async with session.begin(): 
-            session_dal = SessionDAL(session)
+        session_dal = SessionDAL(session)
+        try:
             data_session = await session_dal.get_session(session_number, date, group_name)
 
-            # if session doesn't exist
             if not data_session:
-                raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} уже существует")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, 
+                    detail=f"Сессия под номером {session_number} для группы {group_name} на дату {date} не найдена" 
+                )
 
-            return ShowSession.from_orm(data_session) 
+            session_pydantic = ShowSession.model_validate(data_session) 
+
+            base_url = str(request.base_url).rstrip('/')
+            api_prefix = '' 
+            api_base_url = f'{base_url}{api_prefix}'
+
+            sess_date_str = date.isoformat() 
+            
+            sess_number = session_number 
+            sess_group_name = group_name
+
+            hateoas_links = {
+                "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                "sessions": f'{api_base_url}/sessions',
+                "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                "subject": f'{api_base_url}/subjects/search/{data_session.subject_code}' if data_session.subject_code else None,
+                "teacher": f'{api_base_url}/teachers/search/{data_session.teacher_id}' if data_session.teacher_id else None,
+                "cabinet": f'{api_base_url}/cabinets/search/{data_session.building_number}/{data_session.cabinet_number}' if data_session.cabinet_number is not None and data_session.building_number is not None else None
+            }
+            hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+            return ShowSessionWithHATEOAS(session=session_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка при получении сессии {session_number} для группы {group_name} на дату {date}: {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Внутренняя ошибка сервера при получении сессии."
+            )
 
 
-async def _get_all_sessions(page: int, limit: int, db) -> list[ShowSession]:
+async def _get_all_sessions(page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
+    async with db as session:
+        session_dal = SessionDAL(session)
+        try:
+            data_sessions_orm_list = await session_dal.get_all_sessions(page, limit)
+
+            base_url = str(request.base_url).rstrip('/')
+            api_prefix = '' 
+            api_base_url = f'{base_url}{api_prefix}'
+
+            sessions_with_hateoas = []
+            for session_orm in data_sessions_orm_list:
+                session_pydantic = ShowSession.model_validate(session_orm) 
+
+                sess_number = session_orm.session_number
+                sess_date_str = session_orm.date.isoformat() 
+                sess_group_name = session_orm.group_name
+
+                session_links = {
+                    "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                    "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                    "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                }
+                session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                session_with_links = ShowSessionWithHATEOAS(
+                    session=session_pydantic,
+                    links=session_links
+                )
+                sessions_with_hateoas.append(session_with_links)
+
+            collection_links = {
+                "self": f'{api_base_url}/sessions/search?page={page}&limit={limit}',
+                "create": f'{api_base_url}/sessions/create', 
+                "sessions": f'{api_base_url}/sessions'
+            }
+
+            return ShowSessionListWithHATEOAS(
+                sessions=sessions_with_hateoas, 
+                links=collection_links
+            )
+
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при получении списка сессий (page={page}, limit={limit}): {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+
+
+async def _get_all_sessions_by_date(date: date, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions(page, limit)
+            try:
+                data_sessions_orm_list = await session_dal.get_all_sessions_by_date(date, page, limit)
 
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
+                sessions_with_hateoas = []
+                for session_orm in data_sessions_orm_list:
+                    session_pydantic = ShowSession.model_validate(session_orm)
 
-async def _get_all_sessions_by_date(date: date, page: int, limit: int, db) -> list[ShowSession]:
-    async with db as session:
-        async with session.begin():
-            session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions_by_date(date, page, limit)
+                    sess_number = session_orm.session_number
+                    sess_date_str = session_orm.date.isoformat() 
+                    sess_group_name = session_orm.group_name
 
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+                    session_links = {
+                        "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                        "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                        "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                        "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                    }
+                    session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                    session_with_links = ShowSessionWithHATEOAS(
+                        session=session_pydantic,
+                        links=session_links
+                    )
+                    sessions_with_hateoas.append(session_with_links)
+
+                date_str_for_url = date.isoformat() 
+                collection_links = {
+                    "self": f'{api_base_url}/sessions/search/by_date/{date_str_for_url}?page={page}&limit={limit}', 
+                    "create": f'{api_base_url}/sessions/create',
+                    "sessions": f'{api_base_url}/sessions', 
+                    "by_date": f'{api_base_url}/sessions/search/by_date/{date_str_for_url}'
+                }
+
+                return ShowSessionListWithHATEOAS(
+                    sessions=sessions_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка сессий по дате {date} (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+
         
 
-async def _get_all_sessions_by_teacher(teacher_id: int, page: int, limit: int, db) -> list[ShowSession]:
+async def _get_all_sessions_by_group( group_name: str, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions_by_teacher(teacher_id, page, limit)
+            try:
+                data_sessions_orm_list = await session_dal.get_all_sessions_by_group(group_name, page, limit)
+                
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+                sessions_with_hateoas = []
+                for session_orm in data_sessions_orm_list:
+                    session_pydantic = ShowSession.model_validate(session_orm)
+
+                    sess_number = session_orm.session_number
+                    sess_date_str = session_orm.date.isoformat() 
+                    sess_group_name = session_orm.group_name
+
+                    session_links = {
+                        "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                        "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                        "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                        "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                    }
+                    session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                    session_with_links = ShowSessionWithHATEOAS(
+                        session=session_pydantic,
+                        links=session_links
+                    )
+                    sessions_with_hateoas.append(session_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/sessions/search/by_group/{group_name}?page={page}&limit={limit}', 
+                    "create": f'{api_base_url}/sessions/create', 
+                    "sessions": f'{api_base_url}/sessions', 
+                    "group": f'{api_base_url}/groups/search/by_group-name/{group_name}'
+                }
+
+                return ShowSessionListWithHATEOAS(
+                    sessions=sessions_with_hateoas, 
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка сессий для группы {group_name} (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+
         
 
-async def _get_all_sessions_by_group(group_name: str, page: int, limit: int, db) -> list[ShowSession]:
+async def _get_all_sessions_by_subject(subject_code: str, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
     async with db as session:
         async with session.begin():
             session_dal = SessionDAL(session)
-            data_sessions = await session_dal.get_all_sessions_by_group(group_name, page, limit)
+            try:
+                data_sessions_orm_list = await session_dal.get_all_sessions_by_subject(subject_code, page, limit) 
 
-            return [ShowSession.from_orm(data_session) for data_session in data_sessions]
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                sessions_with_hateoas = []
+                for session_orm in data_sessions_orm_list:
+                    session_pydantic = ShowSession.model_validate(session_orm) 
+
+                    sess_number = session_orm.session_number
+                    sess_date_str = session_orm.date.isoformat() 
+                    sess_group_name = session_orm.group_name
+
+                    session_links = {
+                        "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                        "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                        "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                        "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                    }
+                    session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                    session_with_links = ShowSessionWithHATEOAS(
+                        session=session_pydantic,
+                        links=session_links
+                    )
+                    sessions_with_hateoas.append(session_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/sessions/search/by_subject/{subject_code}?page={page}&limit={limit}', 
+                    "create": f'{api_base_url}/sessions/create', 
+                    "sessions": f'{api_base_url}/sessions',
+                    "subject": f'{api_base_url}/subjects/search/{subject_code}'
+                }
+
+                return ShowSessionListWithHATEOAS(
+                    sessions=sessions_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка сессий для предмета {subject_code} (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка сессий.")
+            
+
+async def _get_all_sessions_by_teacher(teacher_id: int, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            session_dal = SessionDAL(session)
+            try:
+                data_sessions_orm_list = await session_dal.get_all_sessions_by_teacher(teacher_id, page, limit)
+                if data_sessions_orm_list is None:
+                    data_sessions_orm_list = []
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                sessions_with_hateoas = []
+                for session_orm in data_sessions_orm_list:
+                    session_pydantic = ShowSession.model_validate(session_orm) 
+
+                    sess_number = session_orm.session_number
+                    sess_date_str = session_orm.date.isoformat()
+                    sess_group_name = session_orm.group_name
+
+                    session_links = {
+                        "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "update": f'{api_base_url}/sessions/update/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "delete": f'{api_base_url}/sessions/delete/{sess_number}/{sess_date_str}/{sess_group_name}',
+                        "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                        "subject": f'{api_base_url}/subjects/search/{session_orm.subject_code}' if session_orm.subject_code else None,
+                        "teacher": f'{api_base_url}/teachers/search/{session_orm.teacher_id}' if session_orm.teacher_id else None,
+                        "cabinet": f'{api_base_url}/cabinets/search/{session_orm.building_number}/{session_orm.cabinet_number}' if session_orm.cabinet_number is not None and session_orm.building_number is not None else None,
+                    }
+                    session_links = {k: v for k, v in session_links.items() if v is not None}
+
+                    session_with_links = ShowSessionWithHATEOAS(
+                        session=session_pydantic,
+                        links=session_links
+                    )
+                    sessions_with_hateoas.append(session_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/sessions/search/by_teacher/{teacher_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/sessions/create',
+                    "sessions": f'{api_base_url}/sessions',
+                    "teacher": f'{api_base_url}/teachers/search/{teacher_id}'
+                }
+
+                return ShowSessionListWithHATEOAS(
+                    sessions=sessions_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при получении списка сессий для учителя {teacher_id} (page={page}, limit={limit}): {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении списка сессий."
+                )
         
 
-async def _delete_session(session_number: int, date: date, group_name: str, db) -> ShowSession:
+async def _delete_session(session_number: int, date: date, group_name: str, request: Request, db) -> ShowSessionWithHATEOAS:
     async with db as session:
         try:
             async with session.begin():
                 session_dal = SessionDAL(session)
                 data_session = await session_dal.delete_session(session_number, date, group_name)
 
-                if not session:
-                    raise HTTPException(status_code=404, detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} не найден")
+                if not data_session:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Сессия у преподавателя под номером {session_number} для группы {group_name} на дату {date} не найдена" # <-- Исправлено сообщение
+                    )
 
-            return ShowSession.from_orm(data_session)
+                session_pydantic = ShowSession.model_validate(data_session) 
 
-        except Exception as e:
-            logger.warning(f"Удаление сессии отменено (Ошибка: {e})")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                sess_date_str = date.isoformat() 
+
+                sess_number = session_number 
+                sess_group_name = group_name 
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/sessions/search/{sess_number}/{sess_date_str}/{sess_group_name}',
+                    "sessions": f'{api_base_url}/sessions',
+                    "create": f'{api_base_url}/sessions/create',
+                    "group": f'{api_base_url}/groups/search/by_group-name/{sess_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/{data_session.subject_code}' if data_session.subject_code else None,
+                    "teacher": f'{api_base_url}/teachers/search/{data_session.teacher_id}' if data_session.teacher_id else None,
+                    "cabinet": f'{api_base_url}/cabinets/search/{data_session.building_number}/{data_session.cabinet_number}' if data_session.cabinet_number is not None and data_session.building_number is not None else None,
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSessionWithHATEOAS(session=session_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
             raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(
+                f"Неожиданная ошибка при удалении сессии {session_number} для группы {group_name} на дату {date}: {e}",
+                exc_info=True
+            ) 
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Внутренняя ошибка сервера при удалении сессии." 
+            )
 
 
-async def _update_session(body: UpdateSession, db) -> ShowSession:
+async def _update_session(body: UpdateSession, request: Request, db) -> ShowSessionWithHATEOAS: 
     async with db as session:
         try:
             async with session.begin():
-                # exclusion of None-fields from the transmitted data
                 update_data = {
-                    key: value for key, value in body.dict().items() 
-                    if value is not None and key not in ["session_number", "session_date", "group_name"]
+                    key: value for key, value in body.dict().items()
+                    if value is not None and key not in ["session_number", "session_date", "group_name", "new_session_number", "new_session_date", "new_group_name"]
                 }
 
                 session_dal = SessionDAL(session)
@@ -1893,101 +4057,131 @@ async def _update_session(body: UpdateSession, db) -> ShowSession:
                 subject_dal = SubjectDAL(session)
                 teacher_dal = TeacherDAL(session)
 
-                # Check that the group, subject, teacher, cabinet exists
-                # Check that the employment is unique
-                # By using helpers
-                if not await ensure_group_exists(group_dal, body.new_group_name):
+                if body.new_group_name is not None and body.new_group_name != body.group_name:
+                    if not await ensure_group_exists(group_dal, body.new_group_name):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=f"Группа: {body.new_group_name} не существует"
+                        )
+            
+                if body.subject_code is not None and not await ensure_subject_exists(subject_dal, body.subject_code):
                     raise HTTPException(
-                        status_code=400,
-                        detail=f"Группа: {body.new_group_name} не существует"
-                    )    
-                if body.subject_code != None and not await ensure_subject_exists(subject_dal, body.subject_code):
-                    raise HTTPException(
-                        status_code=400,
+                        status_code=status.HTTP_404_NOT_FOUND, 
                         detail=f"Предмет: {body.subject_code} не существует"
                     )
-                if body.teacher_id != None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+            
+                if body.teacher_id is not None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
                     raise HTTPException(
-                        status_code=400,
+                        status_code=status.HTTP_404_NOT_FOUND, 
                         detail=f"Преподаватель: {body.teacher_id} не существует"
-                    )     
-                if body.cabinet_number != None and body.building_number != None and not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number):
+                    )
+                
+                if (body.cabinet_number is not None and body.building_number is not None and
+                    not await ensure_cabinet_exists(cabinet_dal, body.cabinet_number, body.building_number)):
                     raise HTTPException(
-                        status_code=400,
+                        status_code=status.HTTP_404_NOT_FOUND, 
                         detail=f"Кабинет: {body.cabinet_number} в здании номер: {body.building_number} не существует"
                     )
                 
-                # Rename field new_session_number to session_number
-                if "new_session_number" in update_data:
-                    update_data["session_number"] = update_data.pop("new_session_number")
-                # Rename field new_session_date to date
-                if "new_session_date" in update_data:
-                    update_data["date"] = update_data.pop("new_session_date")
-                # Rename field new_group_name to group_name
-                if "new_group_name" in update_data:
-                    update_data["group_name"] = update_data.pop("new_group_name")
+                if body.new_session_number is not None:
+                    update_data["session_number"] = body.new_session_number
+                if body.new_session_date is not None:
+                    update_data["date"] = body.new_session_date 
+                if body.new_group_name is not None:
+                    update_data["group_name"] = body.new_group_name
 
                 session_data = await session_dal.update_session(
-                    tg_session_number = body.session_number,
-                    tg_date = body.session_date,
-                    tg_group_name = body.group_name,
-                    **update_data
+                    tg_session_number=body.session_number, 
+                    tg_date=body.session_date,
+                    tg_group_name=body.group_name,
+                    **update_data 
                 )
 
-                # save changed data
-                await session.commit()
+                if not session_data:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND, 
+                        detail=f"Сессия под номером {body.session_number} для группы {body.group_name} на дату {body.session_date} не найдена" 
+                    )
 
-                if not session:
-                    raise HTTPException(status_code=404, detail=f"Сессия под номером {body.session_number} для группы {body.group_name} на дату {body.session_date} не найдена")
+                session_pydantic = ShowSession.model_validate(session_data)
 
-            return ShowSession.from_orm(session_data)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
 
-        except Exception as e:
+                final_sess_number = session_data.session_number 
+                final_sess_date_str = session_data.date.isoformat() 
+                final_group_name = session_data.group_name 
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/sessions/search/{final_sess_number}/{final_sess_date_str}/{final_group_name}',
+                    "update": f'{api_base_url}/sessions/update/{final_sess_number}/{final_sess_date_str}/{final_group_name}', 
+                    "delete": f'{api_base_url}/sessions/delete/{final_sess_number}/{final_sess_date_str}/{final_group_name}',
+                    "sessions": f'{api_base_url}/sessions', 
+                    "group": f'{api_base_url}/groups/search/by_group-name/{final_group_name}',
+                    "subject": f'{api_base_url}/subjects/search/{session_data.subject_code}' if session_data.subject_code else None, 
+                    "teacher": f'{api_base_url}/teachers/search/{session_data.teacher_id}' if session_data.teacher_id else None, 
+                    "cabinet": f'{api_base_url}/cabinets/search/{session_data.building_number}/{session_data.cabinet_number}' if session_data.cabinet_number is not None and session_data.building_number is not None else None
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSessionWithHATEOAS(session=session_pydantic, links=hateoas_links)
+
+        except HTTPException:
             await session.rollback()
-            logger.warning(f"Изменение данных о сессии отменено (Ошибка: {e})")
             raise
+        except Exception as e:
+            await session.rollback() 
+            logger.error(
+                f"Неожиданная ошибка при обновлении сессии {body.session_number} для группы {body.group_name} на дату {body.session_date}: {e}",
+                exc_info=True
+            ) 
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Внутренняя ошибка сервера при обновлении сессии." 
+            )
 
 
-@session_router.post("/create", response_model=ShowSession)
-async def create_session(body: CreateSession, db: AsyncSession = Depends(get_db)):
-    return await _create_new_session(body, db)
+@session_router.post("/create", response_model=ShowSessionWithHATEOAS, status_code=status.HTTP_201_CREATED) 
+async def create_session(body: CreateSession, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _create_new_session(body, request, db) 
 
-
-@session_router.get("/search/{session_number}/{date}/{group_name}", response_model=ShowSession,
+@session_router.get("/search/{session_number}/{date}/{group_name}", response_model=ShowSessionWithHATEOAS, 
                     responses={404: {"description": "Сессия не найдена"}})
-async def get_session(session_number: int, date: date, group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _get_session(session_number, date, group_name, db)
+async def get_session(session_number: int, date: date, group_name: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_session(session_number, date, group_name, request, db) 
 
+@session_router.get("/search", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions(query_param.page, query_param.limit, request, db) 
 
-@session_router.get("/search", response_model=list[ShowSession], responses={404: {"description": "Сессия не найдена"}})
-async def get_all_sessions(query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_sessions(query_param.page, query_param.limit, db)
+@session_router.get("/search/by_date/{date}", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions_by_date(date: date, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions_by_date(date, query_param.page, query_param.limit, request, db) 
 
+@session_router.get("/search/by_teacher/{teacher_id}", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions_by_teacher(teacher_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions_by_teacher(teacher_id, query_param.page, query_param.limit, request, db) 
 
-@session_router.get("/search/by_date/{date}", 
-                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
-async def get_all_session_by_date(date: date, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_sessions_by_date(date, query_param.page, query_param.limit, db)
+@session_router.get("/search/by_group/{group_name}", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions_by_group(group_name: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions_by_group(group_name, query_param.page, query_param.limit, request, db) 
 
+@session_router.get("/search/by_subject/{subject_code}", response_model=ShowSessionListWithHATEOAS, 
+                    responses={404: {"description": "Сессии не найдены"}}) 
+async def get_all_sessions_by_subject(subject_code: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _get_all_sessions_by_subject(subject_code, query_param.page, query_param.limit, request, db) 
 
-@session_router.get("/search/by_teacher/{teacher_id}", 
-                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
-async def get_all_session_by_date(teacher_id: int, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_sessions_by_teacher(teacher_id, query_param.page, query_param.limit, db)
-
-
-@session_router.get("/search/by_group/{group_name}", 
-                    response_model=list[ShowSession], responses={404: {"description": "Сессии не найдены"}})
-async def get_all_session_by_date(group_name: str, query_param: Annotated[QueryParams, Depends()], db: AsyncSession = Depends(get_db)):
-    return await _get_all_sessions_by_group(group_name, query_param.page, query_param.limit, db)
-
-
-@session_router.put("/delete/{session_number}/{date}/{group_name}", response_model=ShowSession,
+@session_router.delete("/delete/{session_number}/{date}/{group_name}", response_model=ShowSessionWithHATEOAS, 
                     responses={404: {"description": "Сессия не найдена"}})
-async def delete_session(session_number: int, date: date, group_name: str, db: AsyncSession = Depends(get_db)):
-    return await _delete_session(session_number, date, group_name, db)
+async def delete_session(session_number: int, date: date, group_name: str, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _delete_session(session_number, date, group_name, request, db) 
 
-
-@session_router.put("/update", response_model=ShowSession, responses={404: {"description": "Сессия не найдена"}})
-async def update_session(body: UpdateSession, db: AsyncSession = Depends(get_db)):
-    return await _update_session(body, db)
+@session_router.put("/update", response_model=ShowSessionWithHATEOAS, 
+                    responses={404: {"description": "Сессия не найдена"}})
+async def update_session(body: UpdateSession, request: Request, db: AsyncSession = Depends(get_db)): 
+    return await _update_session(body, request, db) 

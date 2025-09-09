@@ -65,7 +65,7 @@ class ShowTeacherWithHATEOAS(TunedModel):
     links: dict[str, str] = {}
 
 
-class ShowTeacherListWithHATEOAS(BaseModel):
+class ShowTeacherListWithHATEOAS(TunedModel):
     teachers: List[ShowTeacherWithHATEOAS]
     links: dict[str, str] = {}
 
@@ -95,6 +95,16 @@ class UpdateBuilding(TunedModel):
     new_building_number: int | None = None
     city: str | None = None
     building_address: str | None = None
+
+
+class ShowBuildingWithHATEOAS(TunedModel):
+    building: ShowBuilding
+    links: dict[str, str] = {}
+
+
+class ShowBuildingListWithHATEOAS(TunedModel):
+    buildings: List[ShowBuildingWithHATEOAS]
+    links: dict[str, str] = {}
 
 
 '''
@@ -129,6 +139,16 @@ class UpdateCabinet(TunedModel):
     new_building_number: int | None = None
 
 
+class ShowCabinetWithHATEOAS(TunedModel):
+    cabinet: ShowCabinet
+    links: dict[str, str] = {}
+
+
+class ShowCabinetListWithHATEOAS(TunedModel):
+    cabinets: List[ShowCabinetWithHATEOAS]
+    links: dict[str, str] = {}
+
+
 '''
 ==========
 Speciality
@@ -150,9 +170,19 @@ class UpdateSpeciality(TunedModel):
     new_speciality_code: str
 
 
+class ShowSpecialityWithHATEOAS(TunedModel):
+    speciality: ShowSpeciality
+    links: dict[str, str] = {}
+
+
+class ShowSpecialityListWithHATEOAS(TunedModel):
+    specialities: List[ShowSpecialityWithHATEOAS]
+    links: dict[str, str] = {}
+
+
 '''
 =====
-GROUP
+Group
 =====
 '''
 
@@ -178,6 +208,16 @@ class UpdateGroup(TunedModel):
     speciality_code: str | None = None
     quantity_students: int | None = None
     group_advisor_id: int | None = None
+
+
+class ShowGroupWithHATEOAS(TunedModel):
+    group: ShowGroup
+    links: dict[str, str] = {}
+
+
+class ShowGroupListWithHATEOAS(TunedModel):
+    groups: List[ShowGroupWithHATEOAS]
+    links: dict[str, str] = {}
 
 
 '''
@@ -218,6 +258,17 @@ class UpdateCurriculum(TunedModel):
     practical_hours: int | None = None
 
 
+class ShowCurriculumWithHATEOAS(TunedModel):
+    curriculum: ShowCurriculum
+    links: dict[str, str] = {}
+
+
+class ShowCurriculumListWithHATEOAS(TunedModel):
+    curriculums: List[ShowCurriculumWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+
 '''
 =======
 Subject
@@ -240,6 +291,16 @@ class UpdateSubject(TunedModel):
     subject_code: str
     new_subject_code: str | None = None 
     name: str | None = None
+
+
+class ShowSubjectWithHATEOAS(TunedModel):
+    subject: ShowSubject
+    links: dict[str, str] = {}
+
+
+class ShowSubjectListWithHATEOAS(TunedModel):
+    subjects: List[ShowSubjectWithHATEOAS]
+    links: dict[str, str] = {}
 
 
 '''
@@ -289,6 +350,16 @@ class UpdateEmployment(TunedModel):
     saturday: str | None = None
 
 
+class ShowEmploymentWithHATEOAS(TunedModel):
+    employment: ShowEmployment
+    links: dict[str, str] = {}
+
+
+class ShowEmploymentListWithHATEOAS(TunedModel):
+    employments: List[ShowEmploymentWithHATEOAS]
+    links: dict[str, str] = {}
+
+
 '''
 ==============
 TeacherRequest
@@ -329,6 +400,16 @@ class UpdateTeacherRequest(TunedModel):
     lectures_hours: int | None = None
     laboratory_hours: int | None = None
     practice_hours: int | None = None
+
+
+class ShowTeacherRequestWithHATEOAS(TunedModel):
+    request: ShowTeacherRequest
+    links: dict[str, str] = {}
+
+
+class ShowTeacherRequestListWithHATEOAS(TunedModel):
+    requests: List[ShowTeacherRequestWithHATEOAS]
+    links: dict[str, str] = {}
 
 
 '''
@@ -372,3 +453,13 @@ class UpdateSession(TunedModel):
     teacher_id: int | None = None
     cabinet_number: int | None = None
     building_number: int | None = None
+
+
+class ShowSessionWithHATEOAS(TunedModel):
+    session: ShowSession
+    links: dict[str, str] = {}
+
+
+class ShowSessionListWithHATEOAS(TunedModel):
+    sessions: List[ShowSessionWithHATEOAS]
+    links: dict[str, str] = {}

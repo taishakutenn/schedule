@@ -2,7 +2,7 @@ from typing import Optional
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session, Subject, TeacherRequest
+from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session, Subject, TeacherRequest, teachers_groups
 from config.decorators import log_exceptions
 
 '''
@@ -882,3 +882,26 @@ class TeacherRequestDAL:
             ).values(**kwargs).returning(TeacherRequest)
         )
         return result.scalar_one_or_none()
+
+
+class TeachersGroupsDAL:
+    """Data Access Layer for operating TeachersGroups table"""
+
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+
+    async def create_teachers_groups_relation(self, teacher_id: int, group_name: str):
+        '''
+        Does not return a table class object, because it does not have a table class
+        (this is not an orm model, but simply a description of the table that sqlaclhemy creates)
+        :return:
+        '''
+        stmt = teachers_groups.insert().values(
+            teacher_id=teacher_id,
+            group_name=group_name
+        ).returning(teachers_groups)
+        result = await self.db_session.execute(stmt)
+        await self.db_session.commit()
+        return result.fetchone()

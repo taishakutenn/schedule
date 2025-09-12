@@ -93,7 +93,7 @@ async def _create_new_teacher(body: CreateTeacher, request: Request, db) -> Show
             except Exception as e:
                 await session.rollback()
                 logger.error(f"Неожиданная ошибка при создании преподавателя: {e}", exc_info=True)
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера.")
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Внутренняя ошибка сервера. {e}")
     
 
 async def _get_teacher_by_id(teacher_id, request: Request, db) -> ShowTeacherWithHATEOAS:

@@ -45,9 +45,3 @@ def generate_fake_email(length=9):
     result += "@gmail.com"
 
     return result
-
-
-print(generate_fake_phone_number())
-
-
-

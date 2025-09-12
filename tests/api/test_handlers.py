@@ -1,45 +1,81 @@
 import pytest
 
+# Import fakers functions and get them aliases for convenience
+from utils.fakers import get_random_fake_line as get_fake_fio
+from utils.fakers import generate_fake_phone_number as gen_fake_number
+from utils.fakers import generate_fake_email
+
+from config.settings import ROOT_PATH
+
+# Converting a path object to a string
+ROOT_PATH = str(ROOT_PATH)
+
+# Create paths to files with fake data
+FAKES_NAMES_PATH = ROOT_PATH + "/utils/fake_data/fake_names.txt"
+FAKES_SURNAMES_PATH = ROOT_PATH + "/utils/fake_data/fake_surnames.txt"
+FAKES_FATHERNAMES_PATH = ROOT_PATH + "/utils/fake_data/fake_fathernames.txt"
+
 
 #############################
 # TESTS FOR TEACHERS HANDLERS
 #############################
 
+# Test checks the api function using 2 sets of data
+@pytest.mark.parametrize("name, surname, fathername, phone_number, email", [
+    (
+            get_fake_fio(FAKES_NAMES_PATH),
+            get_fake_fio(FAKES_SURNAMES_PATH),
+            get_fake_fio(FAKES_FATHERNAMES_PATH),
+            gen_fake_number(),
+            generate_fake_email(15)
+    ),
+    (
+            get_fake_fio(FAKES_NAMES_PATH),
+            get_fake_fio(FAKES_SURNAMES_PATH),
+            get_fake_fio(FAKES_FATHERNAMES_PATH),
+            gen_fake_number(),
+            generate_fake_email(10)
+    ),
+    (
+            get_fake_fio(FAKES_NAMES_PATH),
+            get_fake_fio(FAKES_SURNAMES_PATH),
+            get_fake_fio(FAKES_FATHERNAMES_PATH),
+            gen_fake_number(),
+            generate_fake_email(10)
+    ),
+    (
+            get_fake_fio(FAKES_NAMES_PATH),
+            get_fake_fio(FAKES_SURNAMES_PATH),
+            get_fake_fio(FAKES_FATHERNAMES_PATH),
+            gen_fake_number(),
+            generate_fake_email(10)
+    )
+])
 @pytest.mark.asyncio
-async def test_create_new_teacher(client):
+async def test_create_new_teacher(client, name, surname, fathername, phone_number, email):
     payload = {
-        "name": "name3",
-        "surname": "surname3",
-        "fathername": "fathername3",
-        "phone_number": "phone_number3",
-        "email": "email3@gmail.com"
+        "name": name,
+        "surname": surname,
+        "fathername": fathername,
+        "phone_number": phone_number,
+        "email": email
     }
 
-    # Используйте правильный путь. Если префикс /schedule есть, используйте его.
-    # response = await client.post("/teachers/create", json=payload) # <-- без /schedule
-    response = await client.post("/teachers/create", json=payload)  # <-- с /schedule
+    # Create request for api route
+    response = await client.post("/teachers/create", json=payload)
+    data = response.json()
 
-    print(f"Status Code: {response.status_code}")
-    # Проверим, что статус код успешный, прежде чем пытаться получить JSON
-    assert response.status_code == 201, f"Expected 201, got {response.status_code}. Response text: {response.text}"
+    print("Response status:", response.status_code)
+    print("Response body:", data)
 
-    try:
-        data = response.json()
-        print(f"ОТВЕТ АПИ: {data}")
-    except ValueError:  # Обрабатываем случай, если ответ не JSON
-        pytest.fail(f"Response is not valid JSON. Status: {response.status_code}, Text: {response.text}")
-
-    # Проверки данных
+    # Check result data
     assert data["teacher"]["name"] == payload["name"]
     assert data["teacher"]["surname"] == payload["surname"]
     assert data["teacher"]["fathername"] == payload["fathername"]
     assert data["teacher"]["phone_number"] == payload["phone_number"]
     assert data["teacher"]["email"] == payload["email"]
-    # Проверка наличия HATEOAS ссылок
+    # Check HATEOAS links exist
     assert "links" in data
-    assert "self" in data["links"]
-    # Добавьте другие проверки по необходимости
-
 # def test_create_new_teacher_error():
 #     pass
 

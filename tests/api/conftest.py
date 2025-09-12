@@ -17,7 +17,7 @@ from db.models import Teacher
 from config.settings import TEST_DATABASE_URL
 
 # Create an engine and session for the test database
-test_engine = create_async_engine(TEST_DATABASE_URL, future=True, echo=True)
+test_engine = create_async_engine(TEST_DATABASE_URL, future=True, echo=False)
 TestAsyncSessionLocal = sessionmaker(bind=test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -45,15 +45,12 @@ def apply_migrations():
     yield
 
 
-@pytest_asyncio.fixture(scope="function", autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def clean_database():
-    """Clears tables in the test database before each test"""
-    CLEAN_TABLES = [Teacher]
-
+    """Очищаем БД перед каждым тестом."""
     async with test_engine.begin() as conn:
-        for table in CLEAN_TABLES:
+        for table in [Teacher]:
             await conn.execute(delete(table))
-    yield
 
 
 @pytest.fixture(scope="session")

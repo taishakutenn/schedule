@@ -71,6 +71,13 @@ teacher_subject = Table("teacher_subject", Base.metadata,
                         )
 
 
+# Create many-to-many table for bind teachers and groups where they teach lessons
+teachers_groups = Table("teachers_groups", Base.metadata,
+                       Column("teacher_id", Integer(), ForeignKey("teachers.id")),
+                        Column("group_name", String(), ForeignKey("groups.group_name"))
+                       )
+
+
 class Teacher(Base):
     """
     Represent the teacher in the database

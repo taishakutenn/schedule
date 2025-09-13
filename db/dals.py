@@ -1,9 +1,12 @@
 from typing import Optional
+
+from fastapi import Depends
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session, Subject, TeacherRequest, teachers_groups
 from config.decorators import log_exceptions
+from db.session import get_db
 
 '''
 ================
@@ -50,7 +53,7 @@ class TeacherDAL:
 
         result = await self.db_session.execute(query)
         return list(result.scalars().all())
-    
+
     @log_exceptions
     async def get_all_teachers_by_group(self, page: int, limit: int, group_name: str) -> list[Teacher]:
         group_query = select(Group).where(Group.group_name == group_name)
@@ -58,7 +61,7 @@ class TeacherDAL:
         group_obj = group_result.scalar_one_or_none()
         if not group_obj:
             return []
-    
+
         query = select(Teacher).where(Teacher.id == group_obj.group_advisor_id).order_by(Teacher.surname.asc())
         if page > 0:
             query = query.offset((page - 1) * limit).limit(limit)
@@ -271,7 +274,7 @@ class SpecialityDAL:
         speciality = res.scalar()
         if not speciality:
             return None
-        
+
         return speciality
 
     @log_exceptions
@@ -325,7 +328,7 @@ class GroupDAL:
         query = select(Group).where(Group.group_name == group_name)
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-    
+
     @log_exceptions
     async def get_group_by_advisor_id(self, advisor_id: int) -> Group | None:
         query = select(Group).where(Group.group_advisor_id == advisor_id)
@@ -341,7 +344,7 @@ class GroupDAL:
         result = await self.db_session.execute(query)
         groups = list(result.scalars().all())
         return groups
-    
+
     @log_exceptions
     async def get_all_groups_by_speciality(self, speciality_code: str, page: int, limit: int) -> list[Group] | None:
         if page == 0:
@@ -353,7 +356,7 @@ class GroupDAL:
         result = await self.db_session.execute(query)
         groups = list(result.scalars().all())
         return groups
-    
+
     @log_exceptions
     async def update_group(self, target_group: str, **kwargs) -> Group | None:
         query = (
@@ -421,7 +424,7 @@ class CurriculumDAL:
         result = await self.db_session.execute(query)
         curriculums = list(result.scalars().all())
         return curriculums
-    
+
     @log_exceptions
     async def get_all_curriculums_by_group(self, group: str, page: int, limit: int) -> list[Curriculum] | None:
         if page == 0:
@@ -431,7 +434,7 @@ class CurriculumDAL:
         result = await self.db_session.execute(query)
         curriculums = list(result.scalars().all())
         return curriculums
-    
+
     @log_exceptions
     async def get_all_curriculums_by_subject(self, subject: str, page: int, limit: int) -> list[Curriculum] | None:
         if page == 0:
@@ -451,7 +454,7 @@ class CurriculumDAL:
         )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-    
+
     # tg_ mean target
     @log_exceptions
     async def update_curriculum(self, tg_semester_number: int, tg_group_name: str, tg_subject_code: str, **kwargs) -> Curriculum | None:
@@ -485,7 +488,7 @@ class EmployTeacherDAL:
     @log_exceptions
     async def create_employTeacher(
             self, date_start_period: Date, date_end_period: Date, teacher_id: int,  monday: str = None,
-            tuesday: str = None, wednesday: str = None, thursday: str = None, 
+            tuesday: str = None, wednesday: str = None, thursday: str = None,
             friday: str = None, saturday: str = None
     ) -> EmploymentTeacher:
         new_employTeacher = EmploymentTeacher(
@@ -528,7 +531,7 @@ class EmployTeacherDAL:
         result = await self.db_session.execute(query)
         employs = list(result.scalars().all())
         return employs
-    
+
     @log_exceptions
     async def get_all_employTeacher_by_teacher(self, teacher_id, page: int, limit: int) -> list[EmploymentTeacher] | None:
         if page == 0:
@@ -549,9 +552,9 @@ class EmployTeacherDAL:
         )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-    
+
     @log_exceptions
-    async def get_all_employTeacher_by_date(self, date_start_period: Date, date_end_period: Date, 
+    async def get_all_employTeacher_by_date(self, date_start_period: Date, date_end_period: Date,
                                         page: int, limit: int) -> list[EmploymentTeacher] | None:
         if page == 0:
             query = select(EmploymentTeacher).where(
@@ -563,7 +566,7 @@ class EmployTeacherDAL:
         result = await self.db_session.execute(query)
         employs = list(result.scalars().all())
         return employs
-    
+
     # tg_ mean target
     @log_exceptions
     async def update_employTeacher(self, tg_date_start_period: Date, tg_date_end_period: Date, tg_teacher_id: int, **kwargs) -> EmploymentTeacher | None:
@@ -579,7 +582,7 @@ class EmployTeacherDAL:
         )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-    
+
 
 '''
 ===============
@@ -597,7 +600,7 @@ class SessionDAL:
     @log_exceptions
     async def create_session(
             self, session_number: int, date: Date, group_name: str,  session_type: str,
-            subject_code: str = None, teacher_id: int = None, cabinet_number: int = None, 
+            subject_code: str = None, teacher_id: int = None, cabinet_number: int = None,
             building_number: int = None
     ) -> Session:
         new_session = Session(
@@ -647,7 +650,7 @@ class SessionDAL:
             )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-    
+
     @log_exceptions
     async def get_all_sessions_by_date(self, date: Date, page: int, limit: int) -> list[Session] | None:
         if page == 0:
@@ -657,7 +660,7 @@ class SessionDAL:
         result = await self.db_session.execute(query)
         sessions = list(result.scalars().all())
         return sessions
-    
+
     @log_exceptions
     async def get_all_sessions_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[Session] | None:
         if page == 0:
@@ -667,7 +670,7 @@ class SessionDAL:
         result = await self.db_session.execute(query)
         sessions = list(result.scalars().all())
         return sessions
-    
+
     @log_exceptions
     async def get_all_sessions_by_group(self, group_name: str, page: int, limit: int) -> list[Session] | None:
         if page == 0:
@@ -677,7 +680,7 @@ class SessionDAL:
         result = await self.db_session.execute(query)
         sessions = list(result.scalars().all())
         return sessions
-    
+
     @log_exceptions
     async def get_all_sessions_by_subject(self, subject: str, page: int, limit: int) -> list[Session] | None:
         if page == 0:
@@ -687,7 +690,7 @@ class SessionDAL:
         result = await self.db_session.execute(query)
         sessions = list(result.scalars().all())
         return sessions
-    
+
     # tg_ mean target
     @log_exceptions
     async def update_session(self, tg_session_number: int, tg_date: Date, tg_group_name: str, **kwargs) -> Session | None:
@@ -703,7 +706,7 @@ class SessionDAL:
         )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-    
+
 
 '''
 ===============
@@ -734,7 +737,7 @@ class SubjectDAL:
         res = await self.db_session.execute(query)
         deleted_subject = res.scalar_one_or_none()
         return deleted_subject
-    
+
     @log_exceptions
     async def get_subject(self, subject_code: str) -> Subject | None:
         query = select(Subject).where(
@@ -774,7 +777,7 @@ class SubjectDAL:
         )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-    
+
 
 '''
 ======================
@@ -791,8 +794,8 @@ class TeacherRequestDAL:
 
     @log_exceptions
     async def create_teacherRequest(
-            self, date_request: Date, teacher_id: int, subject_code: str, group_name: str, 
-            lectures_hours: int, laboratory_hours: int, practice_hours: int, 
+            self, date_request: Date, teacher_id: int, subject_code: str, group_name: str,
+            lectures_hours: int, laboratory_hours: int, practice_hours: int,
     ) -> TeacherRequest:
         new_teacherRequest = TeacherRequest(
             date_request=date_request,
@@ -838,7 +841,7 @@ class TeacherRequestDAL:
                 TeacherRequest.subject_code == subject_code,
                 TeacherRequest.group_name == group_name))
         return result.scalar_one_or_none()
-    
+
     @log_exceptions
     async def get_all_requests_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherRequest]:
         query = select(TeacherRequest).where(TeacherRequest.teacher_id == teacher_id
@@ -848,7 +851,7 @@ class TeacherRequestDAL:
 
         result = await self.db_session.execute(query)
         return list(result.scalars().all())
-    
+
     @log_exceptions
     async def get_all_requests_by_group(self, group: str, page: int, limit: int) -> list[TeacherRequest]:
         query = select(TeacherRequest).where(TeacherRequest.group_name == group
@@ -858,7 +861,7 @@ class TeacherRequestDAL:
 
         result = await self.db_session.execute(query)
         return list(result.scalars().all())
-    
+
     @log_exceptions
     async def get_all_requests_by_subject(self, subject: str, page: int, limit: int) -> list[TeacherRequest]:
         query = select(TeacherRequest).where(TeacherRequest.subject_code == subject
@@ -891,12 +894,10 @@ class TeachersGroupsDAL:
         self.db_session = db_session
 
     @log_exceptions
-
     async def create_teachers_groups_relation(self, teacher_id: int, group_name: str):
         '''
         Does not return a table class object, because it does not have a table class
         (this is not an orm model, but simply a description of the table that sqlaclhemy creates)
-        :return:
         '''
         stmt = teachers_groups.insert().values(
             teacher_id=teacher_id,

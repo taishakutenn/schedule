@@ -32,6 +32,7 @@ subject_router = APIRouter() # Create router for subject
 employment_router = APIRouter() # Create router for EmploymentTeacher
 request_router = APIRouter() # Create router for TeacherRequest
 session_router = APIRouter() # Create router for Session
+teachers_groups_router = APIRouter() # Create router for teacher and his groups
 
 
 '''
@@ -4185,3 +4186,14 @@ async def delete_session(session_number: int, date: date, group_name: str, reque
                     responses={404: {"description": "Сессия не найдена"}})
 async def update_session(body: UpdateSession, request: Request, db: AsyncSession = Depends(get_db)): 
     return await _update_session(body, request, db) 
+
+
+'''
+=========================================
+CRUD operations for teachers_groups table
+=========================================
+'''
+
+
+# @teachers_groups_router.get("/create")
+

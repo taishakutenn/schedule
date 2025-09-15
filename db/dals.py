@@ -906,3 +906,64 @@ class TeachersGroupsDAL:
         result = await self.db_session.execute(stmt)
         await self.db_session.commit()
         return result.fetchone()
+    
+    @log_exceptions
+    async def delete_teachers_groups_relation(self, teacher_id: int, group_name: str):
+        query = delete(teachers_groups).where(
+            teachers_groups.c.teacher_id == teacher_id,
+            teachers_groups.c.group_name == group_name
+            ).returning(teachers_groups)
+        res = await self.db_session.execute(query)
+        teachers_groups_relation = res.scalar_one_or_none()
+        return teachers_groups_relation
+
+    @log_exceptions
+    async def get_all_teachers_groups_relation(self, page: int, limit: int):
+        query = select(teachers_groups).order_by(teachers_groups.c.teacher_id.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        return list(result.scalars().all())
+
+    @log_exceptions
+    async def get_teachers_groups_relation(self, teacher_id: int, group_name: str):
+        result = await self.db_session.execute(select(teachers_groups).where(
+                teachers_groups.c.teacher_id == teacher_id,
+                teachers_groups.c.group_name == group_name
+                ))
+        return result.scalar_one_or_none()
+
+    @log_exceptions
+    async def get_all_teachers_groups_relation_by_teacher(self, teacher_id: int, page: int, limit: int):
+        query = select(teachers_groups).where(teachers_groups.c.teacher_id == teacher_id
+            ).order_by(teachers_groups.c.teacher_id.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        return list(result.scalars().all())
+
+    @log_exceptions
+    async def get_all_teachers_groups_relation_by_group(self, group: str, page: int, limit: int):
+        query = select(teachers_groups).where(teachers_groups.c.group_name == group
+            ).order_by(teachers_groups.c.group_name.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        return list(result.scalars().all())
+
+    # tg_ mean target
+    # @log_exceptions
+    # async def update_teachers_groups_relation(self, tg_date_request: Date, tg_teacher_id: int,
+    #                             tg_subject_code: str, tg_group_name: str, **kwargs) -> TeacherRequest | None:
+    #     result = await self.db_session.execute(
+    #         update(TeacherRequest).where(
+    #         TeacherRequest.date_request == tg_date_request,
+    #         TeacherRequest.teacher_id == tg_teacher_id,
+    #         TeacherRequest.subject_code == tg_subject_code,
+    #         TeacherRequest.group_name == tg_group_name
+    #         ).values(**kwargs).returning(TeacherRequest)
+    #     )
+    #     return result.scalar_one_or_none()

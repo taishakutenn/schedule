@@ -463,3 +463,14 @@ class ShowSessionWithHATEOAS(TunedModel):
 class ShowSessionListWithHATEOAS(TunedModel):
     sessions: List[ShowSessionWithHATEOAS]
     links: dict[str, str] = {}
+
+
+'''
+=======
+Teachers-Cabinets
+=======
+'''
+
+class TeachersCabinet(TunedModel):
+    teacher_id: int
+    group_name: str

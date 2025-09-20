@@ -25,7 +25,7 @@ main_api_router.include_router(curriculum_router, prefix="/curriculums", tags=["
 main_api_router.include_router(employment_router, prefix="/employments", tags=["employment"])
 main_api_router.include_router(request_router, prefix="/requests", tags=["request"])
 main_api_router.include_router(session_router, prefix="/sessions", tags=["session"])
-main_api_router.include_router(session_router, prefix="/teachers_groups", tags=["teachers_groups"])
+main_api_router.include_router(teachers_groups_router, prefix="/teachers-groups", tags=["teachers-groups"])
 
 # Add main api router into fastapi app
 app.include_router(main_api_router)

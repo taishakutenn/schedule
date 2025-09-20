@@ -10,7 +10,7 @@ from typing import Annotated, Union
 # from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
 # from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
 from api.models import *
-from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists
+from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique
 from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, CurriculumDAL, SubjectDAL, \
     EmployTeacherDAL, TeacherRequestDAL, SessionDAL, TeachersGroupsDAL
 from db.session import get_db
@@ -4196,48 +4196,554 @@ CRUD operations for teachers_groups table
 '''
 
 
-async def _create_teacher_group_relation(body: TeachersCabinet, db) -> TeachersCabinet:
+async def _create_new_teacher_group_relation(body: CreateTeacherGroup, request: Request, db: AsyncSession) -> ShowTeacherGroupWithHATEOAS:
     async with db as session:
         async with session.begin():
             teacher_group_dal = TeachersGroupsDAL(session)
-            group_dal = GroupDAL(session)
             teacher_dal = TeacherDAL(session)
+            group_dal = GroupDAL(session)
 
             try:
+                if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Учитель с ID {body.teacher_id} не существует"
+                    )
+                
                 if not await ensure_group_exists(group_dal, body.group_name):
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Группа: {body.group_name} не существует"
+                        detail=f"Группа с названием '{body.group_name}' не существует"
                     )
 
-                if body.teacher_id is not None and not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                if not await ensure_teacher_group_relation_unique(
+                    teacher_group_dal, body.teacher_id, body.group_name
+                ):
                     raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Преподаватель: {body.teacher_id} не существует"
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Связь между учителем {body.teacher_id} и группой '{body.group_name}' уже существует"
                     )
 
-                teacher_group_relation_obj = await teacher_group_dal.create_teachers_groups_relation(
+                relation_tuple = await teacher_group_dal.create_teachers_groups_relation(
                     teacher_id=body.teacher_id,
                     group_name=body.group_name
                 )
 
-                session_pydantic = TeachersCabinet.model_validate(teacher_group_relation_obj)
+                if not relation_tuple:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Не удалось создать связь учитель-группа"
+                    )
+                
+                teacher_group_pydantic = ShowTeacherGroup(
+                    teacher_id=body.teacher_id,
+                    group_name=body.group_name
+                )
 
-                return TeachersCabinet(session=session_pydantic, links={})
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
 
+                teacher_id=body.teacher_id
+                group_name=body.group_name
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers-groups/{teacher_id}/{group_name}',
+                    "delete": f'{api_base_url}/teachers-groups/delete/{teacher_id}/{group_name}',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                    "teachers-groups": f'{api_base_url}/teachers-groups',
+                }
+
+                return ShowTeacherGroupWithHATEOAS(
+                    teacher_group=teacher_group_pydantic,
+                    links=hateoas_links
+                )
 
             except HTTPException:
                 await session.rollback()
                 raise
             except Exception as e:
                 await session.rollback()
-                logger.error(f"Неожиданная ошибка при создании сессии: {e}", exc_info=True)
+                logger.error(
+                    f"Неожиданная ошибка при создании связи учитель-группа ({body.teacher_id}, '{body.group_name}'): {e}",
+                    exc_info=True
+                )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Внутренняя ошибка сервера при создании сессии."
+                    detail="Внутренняя ошибка сервера при создании связи учитель-группа."
                 )
 
 
-@teachers_groups_router.get("/create", response_model=TeachersCabinet, status_code=status.HTTP_201_CREATED)
-async def create_teacher_group_relation(body: TeachersCabinet, db: AsyncSession = Depends(get_db)) -> TeachersCabinet:
-    return await _create_teacher_group_relation(body, db)
+async def _get_teacher_group_relation(teacher_id: int, group_name: str, request: Request, db: AsyncSession) -> ShowTeacherGroupWithHATEOAS:
+    async with db as session:
+        async with session.begin(): 
+            teacher_group_dal = TeachersGroupsDAL(session)
+            try:
+                relation_tuple = await teacher_group_dal.get_teachers_groups_relation(teacher_id, group_name)
+
+                # if relation doesn't exist
+                if not relation_tuple:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Связь между учителем {teacher_id} и группой '{group_name}' не найдена"
+                    )
+
+                teacher_group_pydantic = ShowTeacherGroup(
+                    teacher_id=teacher_id,
+                    group_name=group_name 
+                )
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers-groups/{teacher_id}/{group_name}',
+                    "delete": f'{api_base_url}/teachers-groups/delete/{teacher_id}/{group_name}',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "group": f'{api_base_url}/groups/search/by_group-name/{group_name}',
+                    "teachers-groups": f'{api_base_url}/teachers-groups',
+                }
+
+                return ShowTeacherGroupWithHATEOAS(
+                    teacher_group=teacher_group_pydantic,
+                    links=hateoas_links
+                )
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении связи учитель-группа ({teacher_id}, '{group_name}'): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении связи учитель-группа."
+                )
+            
+
+async def _get_all_teacher_group_relations(page: int, limit: int, request: Request, db: AsyncSession) -> ShowTeacherGroupListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_group_dal = TeachersGroupsDAL(session)
+            try:
+                relations_tuples_list = await teacher_group_dal.get_all_teachers_groups_relation(page, limit)
+                
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_groups_with_hateoas = []
+                for relation_tuple in relations_tuples_list:
+                    teacher_group_pydantic = ShowTeacherGroup(
+                        teacher_id=relation_tuple[0],
+                        group_name=relation_tuple[1]  
+                    )
+
+                    teacher_id = relation_tuple[0]
+                    group_name = relation_tuple[1]
+
+                    relation_links = {
+                        "self": f'{api_base_url}/teachers-groups/{teacher_id}/{group_name}',
+                        "delete": f'{api_base_url}/teachers-groups/delete/{teacher_id}/{group_name}',
+                        "teacher": f'{api_base_url}/teachers/search/{teacher_id}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                        "teachers-groups": f'{api_base_url}/teachers-groups',
+                    }
+                    relation_links = {k: v for k, v in relation_links.items() if v is not None}
+
+                    teacher_group_with_links = ShowTeacherGroupWithHATEOAS(
+                        teacher_group=teacher_group_pydantic,
+                        links=relation_links
+                    )
+                    teacher_groups_with_hateoas.append(teacher_group_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers-groups/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers-groups/create',
+                    "teachers-groups": f'{api_base_url}/teachers-groups'
+                }
+
+                return ShowTeacherGroupListWithHATEOAS(
+                    teacher_groups=teacher_groups_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка связей учитель-группа (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении списка связей учитель-группа."
+                )
+            
+
+async def _get_all_teacher_group_relations_by_teacher(teacher_id: int, page: int, limit: int, request: Request, db: AsyncSession) -> ShowTeacherGroupListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_group_dal = TeachersGroupsDAL(session)
+            teacher_dal = TeacherDAL(session)
+            try:
+                if not await ensure_teacher_exists(teacher_dal, teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Учитель с ID {teacher_id} не существует"
+                    )
+
+                relations_tuples_list = await teacher_group_dal.get_all_teachers_groups_relation_by_teacher(teacher_id, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_groups_with_hateoas = []
+                for relation_tuple in relations_tuples_list:
+                    teacher_group_pydantic = ShowTeacherGroup(
+                        teacher_id=relation_tuple[0], 
+                        group_name=relation_tuple[1]  
+                    )
+
+                    group_name = relation_tuple[1]
+
+                    relation_links = {
+                        "self": f'{api_base_url}/teachers-groups/{teacher_id}/{group_name}',
+                        "delete": f'{api_base_url}/teachers-groups/delete/{teacher_id}/{group_name}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                        "teachers-groups": f'{api_base_url}/teachers-groups',
+                    }
+
+                    teacher_group_with_links = ShowTeacherGroupWithHATEOAS(
+                        teacher_group=teacher_group_pydantic,
+                        links=relation_links
+                    )
+                    teacher_groups_with_hateoas.append(teacher_group_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers-groups/search/by_teacher/{teacher_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers-groups/create',
+                    "teachers-groups": f'{api_base_url}/teachers-groups',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}'
+                }
+
+                return ShowTeacherGroupListWithHATEOAS(
+                    teacher_groups=teacher_groups_with_hateoas,
+                    links=collection_links
+                )
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка связей учитель-группа для учителя {teacher_id} (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении списка связей учитель-группа для учителя."
+                )
+
+
+async def _get_all_teacher_group_relations_by_group(group_name: str, page: int, limit: int, request: Request, db: AsyncSession) -> ShowTeacherGroupListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_group_dal = TeachersGroupsDAL(session)
+            group_dal = GroupDAL(session)
+            try:
+                if not await ensure_group_exists(group_dal, group_name):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Группа с названием '{group_name}' не существует"
+                    )
+
+                relations_tuples_list = await teacher_group_dal.get_all_teachers_groups_relation_by_group(group_name, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_groups_with_hateoas = []
+                for relation_tuple in relations_tuples_list:
+                    teacher_group_pydantic = ShowTeacherGroup(
+                        teacher_id=relation_tuple[0], 
+                        group_name=relation_tuple[1]  
+                    )
+
+                    teacher_id = relation_tuple[0]
+
+                    relation_links = {
+                        "self": f'{api_base_url}/teachers-groups/{teacher_id}/{group_name}',
+                        "delete": f'{api_base_url}/teachers-groups/delete/{teacher_id}/{group_name}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                        "teachers-groups": f'{api_base_url}/teachers-groups',
+                    }
+
+                    teacher_group_with_links = ShowTeacherGroupWithHATEOAS(
+                        teacher_group=teacher_group_pydantic,
+                        links=relation_links
+                    )
+                    teacher_groups_with_hateoas.append(teacher_group_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers-groups/search/by_group/{group_name}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers-groups/create',
+                    "teachers-groups": f'{api_base_url}/teachers-groups',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}'
+                }
+
+                return ShowTeacherGroupListWithHATEOAS(
+                    teacher_groups=teacher_groups_with_hateoas,
+                    links=collection_links
+                )
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка связей учитель-группа для группы '{group_name}' (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении списка связей учитель-группа для группы."
+                )
+
+
+async def _delete_teacher_group_relation(teacher_id: int, group_name: str, request: Request, db: AsyncSession) -> ShowTeacherGroupWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                teacher_group_dal = TeachersGroupsDAL(session)
+                
+                relation_tuple = await teacher_group_dal.delete_teachers_groups_relation(teacher_id, group_name)
+
+                # if relation doesn't exist
+                if not relation_tuple:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Связь между учителем {teacher_id} и группой '{group_name}' не найдена для удаления"
+                    )
+
+                teacher_group_pydantic = ShowTeacherGroup(
+                    teacher_id=relation_tuple[0], 
+                    group_name=relation_tuple[1]  
+                )
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                final_teacher_id = relation_tuple[0]
+                final_group_name = relation_tuple[1]
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers-groups/{final_teacher_id}/{final_group_name}',
+                    "update": f'{api_base_url}/teachers-groups/update/{final_teacher_id}/{final_group_name}',
+                    "delete": f'{api_base_url}/teachers-groups/delete/{final_teacher_id}/{final_group_name}',
+                    "teachers-groups": f'{api_base_url}/teachers-groups',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{final_teacher_id}',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{final_group_name}',
+                }
+
+                return ShowTeacherGroupWithHATEOAS(
+                    teacher_group=teacher_group_pydantic,
+                    links=hateoas_links
+                )
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(
+                f"Неожиданная ошибка при удалении связи учитель-группа ({teacher_id}, '{group_name}'): {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при удалении связи учитель-группа."
+            )
+
+
+async def _update_teacher_group_relation(body: UpdateTeacherGroup, request: Request, db: AsyncSession) -> ShowTeacherGroupWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin(): 
+                teacher_group_dal = TeachersGroupsDAL(session)
+                teacher_dal = TeacherDAL(session)
+                group_dal = GroupDAL(session)
+
+                current_relation = await teacher_group_dal.get_teachers_groups_relation(
+                    body.current_teacher_id, body.current_group_name
+                )
+                if not current_relation:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Связь между учителем {body.current_teacher_id} и группой '{body.current_group_name}' не найдена"
+                    )
+
+                new_teacher_id = body.new_teacher_id if body.new_teacher_id is not None else body.current_teacher_id
+                new_group_name = body.new_group_name if body.new_group_name is not None else body.current_group_name
+
+                if (new_teacher_id != body.current_teacher_id or new_group_name != body.current_group_name):
+                    if not await ensure_teacher_group_relation_unique(teacher_group_dal, new_teacher_id, new_group_name):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Связь между учителем {new_teacher_id} и группой '{new_group_name}' уже существует"
+                        )
+                
+                if body.new_teacher_id is not None and body.new_teacher_id != body.current_teacher_id:
+                    if not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Учитель: {body.new_teacher_id} не существует"
+                        )
+                if body.new_group_name is not None and body.new_group_name != body.current_group_name:
+                    if not await ensure_group_exists(group_dal, body.new_group_name):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Группа: {body.new_group_name} не существует"
+                        )
+
+                update_data = {
+                    key: value for key, value in body.dict().items()
+                    if value is not None and key not in ["current_teacher_id", "current_group_name", "new_teacher_id", "new_group_name"]
+                }
+                
+                if body.new_teacher_id is not None:
+                    update_data["teacher_id"] = body.new_teacher_id 
+                if body.new_group_name is not None:
+                    update_data["group_name"] = body.new_group_name 
+                    
+                updated_relation_tuple = await teacher_group_dal.update_teachers_groups_relation(
+                    tg_teacher_id=body.current_teacher_id, 
+                    tg_group_name=body.current_group_name,
+                    **update_data 
+                )
+
+                if not updated_relation_tuple:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Связь между учителем {body.current_teacher_id} и группой '{body.current_group_name}' не найдена для обновления"
+                    )
+
+                final_teacher_id = updated_relation_tuple[0] 
+                final_group_name = updated_relation_tuple[1] 
+
+                teacher_group_pydantic = ShowTeacherGroup(
+                    teacher_id=final_teacher_id,
+                    group_name=final_group_name
+                )
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers-groups/{final_teacher_id}/{final_group_name}',
+                    "update": f'{api_base_url}/teachers-groups/update/{final_teacher_id}/{final_group_name}', 
+                    "delete": f'{api_base_url}/teachers-groups/delete/{final_teacher_id}/{final_group_name}', 
+                    "teachers-groups": f'{api_base_url}/teachers-groups',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{final_teacher_id}',
+                    "group": f'{api_base_url}/groups/search/by_group_name/{final_group_name}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowTeacherGroupWithHATEOAS(
+                    teacher_group=teacher_group_pydantic,
+                    links=hateoas_links
+                )
+
+        except HTTPException:
+            raise
+        except IntegrityError as e:
+            await session.rollback() 
+            logger.error(f"Ошибка целостности БД при обновлении связи учитель-группа ({body.current_teacher_id}, '{body.current_group_name}') -> ({body.new_teacher_id}, '{body.new_group_name}'): {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="Невозможно обновить связь учитель-группа из-за конфликта данных (нарушение внешнего ключа или уникальности)."
+            )
+        except Exception as e:
+            await session.rollback() 
+            logger.error(
+                f"Неожиданная ошибка при обновлении связи учитель-группа ({body.current_teacher_id}, '{body.current_group_name}') -> ({body.new_teacher_id}, '{body.new_group_name}'): {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при обновлении связи учитель-группа."
+            )
+
+
+@teachers_groups_router.post("/create", response_model=ShowTeacherGroupWithHATEOAS, status_code=status.HTTP_201_CREATED)
+async def create_teacher_group_relation(
+    body: CreateTeacherGroup, 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _create_new_teacher_group_relation(body, request, db)
+
+@teachers_groups_router.get("/search/by_teacher/{teacher_id}", response_model=ShowTeacherGroupListWithHATEOAS,
+                            responses={404: {"description": "Связи не найдены"}}
+)
+async def get_all_teacher_group_relations_by_teacher(
+    teacher_id: int,
+    query_param: Annotated[QueryParams, Depends()], 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _get_all_teacher_group_relations_by_teacher( teacher_id, query_param.page, query_param.limit, request, db)
+
+@teachers_groups_router.get("/search/by_group/{group_name}", response_model=ShowTeacherGroupListWithHATEOAS,
+                            responses={404: {"description": "Связи не найдены"}}
+)
+async def get_all_teacher_group_relations_by_group(
+    group_name: str,
+    query_param: Annotated[QueryParams, Depends()], 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _get_all_teacher_group_relations_by_group(group_name, query_param.page, query_param.limit, request, db)
+
+@teachers_groups_router.get("/search/{teacher_id}/{group_name}", response_model=ShowTeacherGroupWithHATEOAS,
+                            responses={404: {"description": "Связь не найдена"}}
+)
+async def get_teacher_group_relation(
+    teacher_id: int, 
+    group_name: str, 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _get_teacher_group_relation(teacher_id, group_name, request, db)
+
+@teachers_groups_router.get("/search", response_model=ShowTeacherGroupListWithHATEOAS,
+                            responses={404: {"description": "Связи не найдены"}}
+)
+async def get_all_teacher_group_relations(
+    query_param: Annotated[QueryParams, Depends()], 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _get_all_teacher_group_relations(query_param.page, query_param.limit, request, db)
+
+@teachers_groups_router.delete("/delete/{teacher_id}/{group_name}", response_model=ShowTeacherGroupWithHATEOAS,
+                                responses={404: {"description": "Связь не найдена"}}
+)
+async def delete_teacher_group_relation(
+    teacher_id: int, 
+    group_name: str, 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _delete_teacher_group_relation(teacher_id, group_name, request, db)
+
+
+@teachers_groups_router.put("/update", response_model=ShowTeacherGroupWithHATEOAS,
+                            responses={404: {"description": "Связь не найдена"}, 400: {"description": "Конфликт данных"}})
+async def update_teacher_group_relation(body: UpdateTeacherGroup, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_teacher_group_relation(body, request, db) 

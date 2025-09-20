@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SubjectDAL, CurriculumDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL
+from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SubjectDAL, CurriculumDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, TeachersGroupsDAL
 from config.logging_config import configure_logging
 
 from sqlalchemy import Date
@@ -88,3 +88,8 @@ async def ensure_request_unique(request_dal: TeacherRequestDAL, date_request: Da
 async def ensure_session_unique(session_dal: SessionDAL, session_number: int, date: Date, group_name: str):
     session = await session_dal.get_session(session_number, date, group_name)
     return session is None
+
+async def ensure_teacher_group_relation_unique(
+    teacher_group_dal: TeachersGroupsDAL, teacher_id: int, group_name: str):
+        existing_relation = await teacher_group_dal.get_teachers_groups_relation(teacher_id, group_name)
+        return existing_relation is None

@@ -65,7 +65,7 @@ class Speciality(Base):
 
 
 # Create many-to-many table for bind teachers and his subjects
-teacher_subject = Table("teacher_subject", Base.metadata,
+teachers_subjects = Table("teacher_subject", Base.metadata,
                         Column("teacher_id", Integer(), ForeignKey("teachers.id")),
                         Column("subject_code", String(), ForeignKey("subjects.subject_code"))
                         )

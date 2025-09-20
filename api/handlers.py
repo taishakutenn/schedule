@@ -10,9 +10,9 @@ from typing import Annotated, Union
 # from api.models import ShowTeacher, CreateTeacher, QueryParams, UpdateTeacher, ShowCabinet, CreateCabinet, UpdateCabinet
 # from api.models import ShowBuilding, CreateBuilding, UpdateBuilding
 from api.models import *
-from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique
+from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_curriculum_unique, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique, ensure_teacher_subject_relation_unique
 from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, CurriculumDAL, SubjectDAL, \
-    EmployTeacherDAL, TeacherRequestDAL, SessionDAL, TeachersGroupsDAL
+    EmployTeacherDAL, TeacherRequestDAL, SessionDAL, TeachersGroupsDAL, TeachersSubjectsDAL
 from db.session import get_db
 
 from sqlalchemy.exc import IntegrityError
@@ -34,6 +34,7 @@ employment_router = APIRouter() # Create router for EmploymentTeacher
 request_router = APIRouter() # Create router for TeacherRequest
 session_router = APIRouter() # Create router for Session
 teachers_groups_router = APIRouter() # Create router for teacher and his groups
+teachers_subjects_router = APIRouter() # Create router for teacher and his subjects
 
 
 '''
@@ -4349,7 +4350,7 @@ async def _get_all_teacher_group_relations(page: int, limit: int, request: Reque
                         "self": f'{api_base_url}/teachers-groups/{teacher_id}/{group_name}',
                         "delete": f'{api_base_url}/teachers-groups/delete/{teacher_id}/{group_name}',
                         "teacher": f'{api_base_url}/teachers/search/{teacher_id}',
-                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                        "subject": f'{api_base_url}/groups/search/by_group_name/{group_name}',
                         "teachers-groups": f'{api_base_url}/teachers-groups',
                     }
                     relation_links = {k: v for k, v in relation_links.items() if v is not None}
@@ -4413,7 +4414,7 @@ async def _get_all_teacher_group_relations_by_teacher(teacher_id: int, page: int
                         "self": f'{api_base_url}/teachers-groups/{teacher_id}/{group_name}',
                         "delete": f'{api_base_url}/teachers-groups/delete/{teacher_id}/{group_name}',
                         "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
-                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                        "subject": f'{api_base_url}/groups/search/by_group_name/{group_name}',
                         "teachers-groups": f'{api_base_url}/teachers-groups',
                     }
 
@@ -4479,7 +4480,7 @@ async def _get_all_teacher_group_relations_by_group(group_name: str, page: int, 
                         "self": f'{api_base_url}/teachers-groups/{teacher_id}/{group_name}',
                         "delete": f'{api_base_url}/teachers-groups/delete/{teacher_id}/{group_name}',
                         "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
-                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                        "subject": f'{api_base_url}/groups/search/by_group_name/{group_name}',
                         "teachers-groups": f'{api_base_url}/teachers-groups',
                     }
 
@@ -4493,7 +4494,7 @@ async def _get_all_teacher_group_relations_by_group(group_name: str, page: int, 
                     "self": f'{api_base_url}/teachers-groups/search/by_group/{group_name}?page={page}&limit={limit}',
                     "create": f'{api_base_url}/teachers-groups/create',
                     "teachers-groups": f'{api_base_url}/teachers-groups',
-                    "group": f'{api_base_url}/groups/search/by_group_name/{group_name}'
+                    "subject": f'{api_base_url}/groups/search/by_group_name/{group_name}'
                 }
 
                 return ShowTeacherGroupListWithHATEOAS(
@@ -4547,7 +4548,7 @@ async def _delete_teacher_group_relation(teacher_id: int, group_name: str, reque
                     "delete": f'{api_base_url}/teachers-groups/delete/{final_teacher_id}/{final_group_name}',
                     "teachers-groups": f'{api_base_url}/teachers-groups',
                     "teacher": f'{api_base_url}/teachers/search/by_id/{final_teacher_id}',
-                    "group": f'{api_base_url}/groups/search/by_group_name/{final_group_name}',
+                    "subject": f'{api_base_url}/groups/search/by_group_name/{final_group_name}',
                 }
 
                 return ShowTeacherGroupWithHATEOAS(
@@ -4650,7 +4651,7 @@ async def _update_teacher_group_relation(body: UpdateTeacherGroup, request: Requ
                     "delete": f'{api_base_url}/teachers-groups/delete/{final_teacher_id}/{final_group_name}', 
                     "teachers-groups": f'{api_base_url}/teachers-groups',
                     "teacher": f'{api_base_url}/teachers/search/by_id/{final_teacher_id}',
-                    "group": f'{api_base_url}/groups/search/by_group_name/{final_group_name}'
+                    "subject": f'{api_base_url}/groups/search/by_group_name/{final_group_name}'
                 }
                 hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
 
@@ -4747,3 +4748,563 @@ async def delete_teacher_group_relation(
                             responses={404: {"description": "Связь не найдена"}, 400: {"description": "Конфликт данных"}})
 async def update_teacher_group_relation(body: UpdateTeacherGroup, request: Request, db: AsyncSession = Depends(get_db)):
     return await _update_teacher_group_relation(body, request, db) 
+
+
+'''
+===========================================
+CRUD operations for teachers_subjects table
+===========================================
+'''
+
+
+async def _create_new_teacher_subject_relation(body: CreateTeacherSubject, request: Request, db: AsyncSession) -> ShowTeacherSubjectWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_subject_dal = TeachersSubjectsDAL(session)
+            teacher_dal = TeacherDAL(session)
+            subject_dal = SubjectDAL(session)
+
+            try:
+                if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Учитель с ID {body.teacher_id} не существует"
+                    )
+                
+                if not await ensure_subject_exists(subject_dal, body.subject_code):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Предмета с названием '{body.subject_code}' не существует"
+                    )
+
+                if not await ensure_teacher_subject_relation_unique(
+                    teacher_subject_dal, body.teacher_id, body.subject_code
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Связь между учителем {body.teacher_id} и предметом '{body.subject_code}' уже существует"
+                    )
+
+                relation_tuple = await teacher_subject_dal.create_teachers_subjects_relation(
+                    teacher_id=body.teacher_id,
+                    subject_code=body.subject_code
+                )
+
+                if not relation_tuple:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Не удалось создать связь учитель-предмет"
+                    )
+                
+                teacher_subject_pydantic = ShowTeacherSubject(
+                    teacher_id=body.teacher_id,
+                    subject_code=body.subject_code
+                )
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_id=body.teacher_id
+                subject_code=body.subject_code
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers-subjects/{teacher_id}/{subject_code}',
+                    "delete": f'{api_base_url}/teachers-subjects/delete/{teacher_id}/{subject_code}',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                    "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                }
+
+                return ShowTeacherSubjectWithHATEOAS(
+                    teacher_subject=teacher_subject_pydantic,
+                    links=hateoas_links
+                )
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(
+                    f"Неожиданная ошибка при создании связи учитель-предмет ({body.teacher_id}, '{body.subject_code}'): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при создании связи учитель-предмет."
+                )
+
+
+async def _get_teacher_subject_relation(teacher_id: int, subject_code: str, request: Request, db: AsyncSession) -> ShowTeacherSubjectWithHATEOAS:
+    async with db as session:
+        async with session.begin(): 
+            teacher_subject_dal = TeachersSubjectsDAL(session)
+            try:
+                relation_tuple = await teacher_subject_dal.get_teachers_subjects_relation(teacher_id, subject_code)
+
+                # if relation doesn't exist
+                if not relation_tuple:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Связь между учителем {teacher_id} и предметом '{subject_code}' не найдена"
+                    )
+
+                teacher_subject_pydantic = ShowTeacherSubject(
+                    teacher_id=teacher_id,
+                    subject_code=subject_code 
+                )
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers-subjects/{teacher_id}/{subject_code}',
+                    "delete": f'{api_base_url}/teachers-subjects/delete/{teacher_id}/{subject_code}',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                    "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                }
+
+                return ShowTeacherSubjectWithHATEOAS(
+                    teacher_subject=teacher_subject_pydantic,
+                    links=hateoas_links
+                )
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении связи учитель-предмет ({teacher_id}, '{subject_code}'): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении связи учитель-предмет."
+                )
+            
+
+async def _get_all_teacher_subject_relations(page: int, limit: int, request: Request, db: AsyncSession) -> ShowTeacherSubjectListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_subject_dal = TeachersSubjectsDAL(session)
+            try:
+                relations_tuples_list = await teacher_subject_dal.get_all_teachers_subjects_relation(page, limit)
+                
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_subjects_with_hateoas = []
+                for relation_tuple in relations_tuples_list:
+                    teacher_subject_pydantic = ShowTeacherSubject(
+                        teacher_id=relation_tuple[0],
+                        subject_code=relation_tuple[1]  
+                    )
+
+                    teacher_id = relation_tuple[0]
+                    subject_code = relation_tuple[1]
+
+                    relation_links = {
+                        "self": f'{api_base_url}/teachers-subjects/{teacher_id}/{subject_code}',
+                        "delete": f'{api_base_url}/teachers-subjects/delete/{teacher_id}/{subject_code}',
+                        "teacher": f'{api_base_url}/teachers/search/{teacher_id}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                        "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                    }
+                    relation_links = {k: v for k, v in relation_links.items() if v is not None}
+
+                    teacher_subject_with_links = ShowTeacherSubjectWithHATEOAS(
+                        teacher_subject=teacher_subject_pydantic,
+                        links=relation_links
+                    )
+                    teacher_subjects_with_hateoas.append(teacher_subject_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers-subjects/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers-subjects/create',
+                    "teachers-subjects": f'{api_base_url}/teachers-subjects'
+                }
+
+                return ShowTeacherSubjectListWithHATEOAS(
+                    teacher_subjects=teacher_subjects_with_hateoas,
+                    links=collection_links
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка связей учитель-предмет (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении списка связей учитель-предмет."
+                )
+            
+
+async def _get_all_teacher_subject_relations_by_teacher(teacher_id: int, page: int, limit: int, request: Request, db: AsyncSession) -> ShowTeacherSubjectListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_subject_dal = TeachersSubjectsDAL(session)
+            teacher_dal = TeacherDAL(session)
+            try:
+                if not await ensure_teacher_exists(teacher_dal, teacher_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Учитель с ID {teacher_id} не существует"
+                    )
+
+                relations_tuples_list = await teacher_subject_dal.get_all_teachers_subjects_relation_by_teacher(teacher_id, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_subjects_with_hateoas = []
+                for relation_tuple in relations_tuples_list:
+                    teacher_subject_pydantic = ShowTeacherSubject(
+                        teacher_id=relation_tuple[0], 
+                        subject_code=relation_tuple[1]  
+                    )
+
+                    subject_code = relation_tuple[1]
+
+                    relation_links = {
+                        "self": f'{api_base_url}/teachers-subjects/{teacher_id}/{subject_code}',
+                        "delete": f'{api_base_url}/teachers-subjects/delete/{teacher_id}/{subject_code}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                        "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                    }
+
+                    teacher_subject_with_links = ShowTeacherSubjectWithHATEOAS(
+                        teacher_subject=teacher_subject_pydantic,
+                        links=relation_links
+                    )
+                    teacher_subjects_with_hateoas.append(teacher_subject_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers-subjects/search/by_teacher/{teacher_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers-subjects/create',
+                    "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}'
+                }
+
+                return ShowTeacherSubjectListWithHATEOAS(
+                    teacher_subjects=teacher_subjects_with_hateoas,
+                    links=collection_links
+                )
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка связей учитель-предмет для учителя {teacher_id} (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении списка связей учитель-предмет для учителя."
+                )
+
+
+async def _get_all_teacher_subject_relations_by_subject(subject_code: str, page: int, limit: int, request: Request, db: AsyncSession) -> ShowTeacherSubjectListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_subject_dal = TeachersSubjectsDAL(session)
+            group_dal = SubjectDAL(session)
+            try:
+                if not await ensure_subject_exists(group_dal, subject_code):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Группа с названием '{subject_code}' не существует"
+                    )
+
+                relations_tuples_list = await teacher_subject_dal.get_all_teachers_subjects_relation_by_subject(subject_code, page, limit)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_subjects_with_hateoas = []
+                for relation_tuple in relations_tuples_list:
+                    teacher_subject_pydantic = ShowTeacherSubject(
+                        teacher_id=relation_tuple[0], 
+                        subject_code=relation_tuple[1]  
+                    )
+
+                    teacher_id = relation_tuple[0]
+
+                    relation_links = {
+                        "self": f'{api_base_url}/teachers-subjects/{teacher_id}/{subject_code}',
+                        "delete": f'{api_base_url}/teachers-subjects/delete/{teacher_id}/{subject_code}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}',
+                        "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                    }
+
+                    teacher_subject_with_links = ShowTeacherSubjectWithHATEOAS(
+                        teacher_subject=teacher_subject_pydantic,
+                        links=relation_links
+                    )
+                    teacher_subjects_with_hateoas.append(teacher_subject_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers-subjects/search/by_subject/{subject_code}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers-subjects/create',
+                    "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{subject_code}'
+                }
+
+                return ShowTeacherSubjectListWithHATEOAS(
+                    teacher_subjects=teacher_subjects_with_hateoas,
+                    links=collection_links
+                )
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Неожиданная ошибка при получении списка связей учитель-предмет для предмета '{subject_code}' (page={page}, limit={limit}): {e}",
+                    exc_info=True
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Внутренняя ошибка сервера при получении списка связей учитель-предмет для предмета."
+                )
+
+
+async def _delete_teacher_subject_relation(teacher_id: int, subject_code: str, request: Request, db: AsyncSession) -> ShowTeacherSubjectWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                teacher_subject_dal = TeachersSubjectsDAL(session)
+                
+                relation_tuple = await teacher_subject_dal.delete_teachers_subjects_relation(teacher_id, subject_code)
+
+                # if relation doesn't exist
+                if not relation_tuple:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Связь между учителем {teacher_id} и предметом '{subject_code}' не найдена для удаления"
+                    )
+
+                teacher_subject_pydantic = ShowTeacherSubject(
+                    teacher_id=relation_tuple[0], 
+                    subject_code=relation_tuple[1]  
+                )
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                final_teacher_id = relation_tuple[0]
+                final_subject_code = relation_tuple[1]
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers-subjects/{final_teacher_id}/{final_subject_code}',
+                    "update": f'{api_base_url}/teachers-subjects/update/{final_teacher_id}/{final_subject_code}',
+                    "delete": f'{api_base_url}/teachers-subjects/delete/{final_teacher_id}/{final_subject_code}',
+                    "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{final_teacher_id}',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{final_subject_code}',
+                }
+
+                return ShowTeacherSubjectWithHATEOAS(
+                    teacher_subject=teacher_subject_pydantic,
+                    links=hateoas_links
+                )
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(
+                f"Неожиданная ошибка при удалении связи учитель-предмет ({teacher_id}, '{subject_code}'): {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при удалении связи учитель-предмет."
+            )
+
+
+async def _update_teacher_subject_relation(body: UpdateTeacherSubject, request: Request, db: AsyncSession) -> ShowTeacherSubjectWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin(): 
+                teacher_subject_dal = TeachersSubjectsDAL(session)
+                teacher_dal = TeacherDAL(session)
+                group_dal = SubjectDAL(session)
+
+                current_relation = await teacher_subject_dal.get_teachers_subjects_relation(
+                    body.current_teacher_id, body.current_subject_code
+                )
+                if not current_relation:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Связь между учителем {body.current_teacher_id} и предметом '{body.current_subject_code}' не найдена"
+                    )
+
+                new_teacher_id = body.new_teacher_id if body.new_teacher_id is not None else body.current_teacher_id
+                new_subject_code = body.new_subject_code if body.new_subject_code is not None else body.current_subject_code
+
+                if (new_teacher_id != body.current_teacher_id or new_subject_code != body.current_subject_code):
+                    if not await ensure_teacher_subject_relation_unique(teacher_subject_dal, new_teacher_id, new_subject_code):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Связь между учителем {new_teacher_id} и предметом '{new_subject_code}' уже существует"
+                        )
+                
+                if body.new_teacher_id is not None and body.new_teacher_id != body.current_teacher_id:
+                    if not await ensure_teacher_exists(teacher_dal, body.new_teacher_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Учитель: {body.new_teacher_id} не существует"
+                        )
+                if body.new_subject_code is not None and body.new_subject_code != body.current_subject_code:
+                    if not await ensure_subject_exists(group_dal, body.new_subject_code):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Предмет: {body.new_subject_code} не существует"
+                        )
+
+                update_data = {
+                    key: value for key, value in body.dict().items()
+                    if value is not None and key not in ["current_teacher_id", "current_subject_code", "new_teacher_id", "new_subject_code"]
+                }
+                
+                if body.new_teacher_id is not None:
+                    update_data["teacher_id"] = body.new_teacher_id 
+                if body.new_subject_code is not None:
+                    update_data["subject_code"] = body.new_subject_code 
+                    
+                updated_relation_tuple = await teacher_subject_dal.update_teachers_subjects_relation(
+                    tg_teacher_id=body.current_teacher_id, 
+                    tg_subject_code=body.current_subject_code,
+                    **update_data 
+                )
+
+                if not updated_relation_tuple:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Связь между учителем {body.current_teacher_id} и предметом '{body.current_subject_code}' не найдена для обновления"
+                    )
+
+                final_teacher_id = updated_relation_tuple[0] 
+                final_subject_code = updated_relation_tuple[1] 
+
+                teacher_subject_pydantic = ShowTeacherSubject(
+                    teacher_id=final_teacher_id,
+                    subject_code=final_subject_code
+                )
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = '' 
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers-subjects/{final_teacher_id}/{final_subject_code}',
+                    "update": f'{api_base_url}/teachers-subjects/update/{final_teacher_id}/{final_subject_code}', 
+                    "delete": f'{api_base_url}/teachers-subjects/delete/{final_teacher_id}/{final_subject_code}', 
+                    "teachers-subjects": f'{api_base_url}/teachers-subjects',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{final_teacher_id}',
+                    "subject": f'{api_base_url}/subjects/search/by_code/{final_subject_code}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowTeacherSubjectWithHATEOAS(
+                    teacher_subject=teacher_subject_pydantic,
+                    links=hateoas_links
+                )
+
+        except HTTPException:
+            raise
+        except IntegrityError as e:
+            await session.rollback() 
+            logger.error(f"Ошибка целостности БД при обновлении связи учитель-предмет ({body.current_teacher_id}, '{body.current_subject_code}') -> ({body.new_teacher_id}, '{body.new_subject_code}'): {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="Невозможно обновить связь учитель-предмет из-за конфликта данных (нарушение внешнего ключа или уникальности)."
+            )
+        except Exception as e:
+            await session.rollback() 
+            logger.error(
+                f"Неожиданная ошибка при обновлении связи учитель-предмет ({body.current_teacher_id}, '{body.current_subject_code}') -> ({body.new_teacher_id}, '{body.new_subject_code}'): {e}",
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Внутренняя ошибка сервера при обновлении связи учитель-предмет."
+            )
+
+
+@teachers_subjects_router.post("/create", response_model=ShowTeacherSubjectWithHATEOAS, status_code=status.HTTP_201_CREATED)
+async def create_teacher_subject_relation(
+    body: CreateTeacherSubject, 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _create_new_teacher_subject_relation(body, request, db)
+
+@teachers_subjects_router.get("/search/by_teacher/{teacher_id}", response_model=ShowTeacherSubjectListWithHATEOAS,
+                            responses={404: {"description": "Связи не найдены"}}
+)
+async def get_all_teacher_subject_relations_by_teacher(
+    teacher_id: int,
+    query_param: Annotated[QueryParams, Depends()], 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _get_all_teacher_subject_relations_by_teacher( teacher_id, query_param.page, query_param.limit, request, db)
+
+@teachers_subjects_router.get("/search/by_subject/{subject_code}", response_model=ShowTeacherSubjectListWithHATEOAS,
+                            responses={404: {"description": "Связи не найдены"}}
+)
+async def get_all_teacher_subject_relations_by_subject(
+    subject_code: str,
+    query_param: Annotated[QueryParams, Depends()], 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _get_all_teacher_subject_relations_by_subject(subject_code, query_param.page, query_param.limit, request, db)
+
+@teachers_subjects_router.get("/search/{teacher_id}/{subject_code}", response_model=ShowTeacherSubjectWithHATEOAS,
+                            responses={404: {"description": "Связь не найдена"}}
+)
+async def get_teacher_subject_relation(
+    teacher_id: int, 
+    subject_code: str, 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _get_teacher_subject_relation(teacher_id, subject_code, request, db)
+
+@teachers_subjects_router.get("/search", response_model=ShowTeacherSubjectListWithHATEOAS,
+                            responses={404: {"description": "Связи не найдены"}}
+)
+async def get_all_teacher_subject_relations(
+    query_param: Annotated[QueryParams, Depends()], 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _get_all_teacher_subject_relations(query_param.page, query_param.limit, request, db)
+
+@teachers_subjects_router.delete("/delete/{teacher_id}/{subject_code}", response_model=ShowTeacherSubjectWithHATEOAS,
+                                responses={404: {"description": "Связь не найдена"}}
+)
+async def delete_teacher_subject_relation(
+    teacher_id: int, 
+    subject_code: str, 
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    return await _delete_teacher_subject_relation(teacher_id, subject_code, request, db)
+
+
+@teachers_subjects_router.put("/update", response_model=ShowTeacherSubjectWithHATEOAS,
+                            responses={404: {"description": "Связь не найдена"}, 400: {"description": "Конфликт данных"}})
+async def update_teacher_subject_relation(body: UpdateTeacherSubject, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_teacher_subject_relation(body, request, db) 

@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session, Subject, TeacherRequest, teachers_groups
+from db.models import Teacher, Group, Cabinet, Building, Speciality, Curriculum, EmploymentTeacher, Session, Subject, TeacherRequest, teachers_groups, teachers_subjects
 from config.decorators import log_exceptions
 from db.session import get_db
 
@@ -887,6 +887,13 @@ class TeacherRequestDAL:
         return result.scalar_one_or_none()
 
 
+'''
+======================
+DAL for TeachersGroups
+======================
+'''
+
+
 class TeachersGroupsDAL:
     """Data Access Layer for operating TeachersGroups table"""
 
@@ -967,6 +974,102 @@ class TeachersGroupsDAL:
             ).values(**kwargs).returning(
                                     teachers_groups.c.teacher_id,
                                     teachers_groups.c.group_name
+                                )
+        )
+        updated_row = result.fetchone()
+        if updated_row:
+            return (updated_row[0], updated_row[1]) 
+        else:
+            return None
+
+
+'''
+========================
+DAL for TeachersSubjects
+========================
+'''
+
+
+class TeachersSubjectsDAL:
+    """Data Access Layer for operating TeachersGroups table"""
+
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_teachers_subjects_relation(self, teacher_id: int, subject_code: str):
+        '''
+        Does not return a table class object, because it does not have a table class
+        (this is not an orm model, but simply a description of the table that sqlaclhemy creates)
+        '''
+        stmt = teachers_subjects.insert().values(
+            teacher_id=teacher_id,
+            subject_code=subject_code
+        ).returning(teachers_subjects)
+        result = await self.db_session.execute(stmt)
+        await self.db_session.commit()
+        return result.fetchone()
+    
+    @log_exceptions
+    async def delete_teachers_subjects_relation(self, teacher_id: int, subject_code: str):
+        query = delete(teachers_subjects).where(
+            teachers_subjects.c.teacher_id == teacher_id,
+            teachers_subjects.c.subject_code == subject_code
+            ).returning(teachers_subjects)
+        res = await self.db_session.execute(query)
+        teachers_subjects_relation = res.fetchone()
+        return teachers_subjects_relation
+
+    @log_exceptions
+    async def get_all_teachers_subjects_relation(self, page: int, limit: int):
+        query = select(teachers_subjects).order_by(teachers_subjects.c.teacher_id.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        rows = result.fetchall() 
+        return rows
+
+    @log_exceptions
+    async def get_teachers_subjects_relation(self, teacher_id: int, subject_code: str):
+        result = await self.db_session.execute(select(teachers_subjects).where(
+                teachers_subjects.c.teacher_id == teacher_id,
+                teachers_subjects.c.subject_code == subject_code
+                ))
+        return result.scalar_one_or_none()
+
+    @log_exceptions
+    async def get_all_teachers_subjects_relation_by_teacher(self, teacher_id: int, page: int, limit: int):
+        query = select(teachers_subjects).where(teachers_subjects.c.teacher_id == teacher_id
+            ).order_by(teachers_subjects.c.teacher_id.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        rows = result.fetchall() 
+        return rows
+
+    @log_exceptions
+    async def get_all_teachers_subjects_relation_by_subject(self, subject_code: str, page: int, limit: int):
+        query = select(teachers_subjects).where(teachers_subjects.c.subject_code == subject_code
+            ).order_by(teachers_subjects.c.subject_code.asc())
+        if page > 0:
+            query = query.offset((page - 1) * limit).limit(limit)
+
+        result = await self.db_session.execute(query)
+        rows = result.fetchall() 
+        return rows
+
+    # tg_ mean target
+    @log_exceptions
+    async def update_teachers_subjects_relation(self, tg_teacher_id: int, tg_subject_code: str, **kwargs):
+        result = await self.db_session.execute(
+            update(teachers_subjects).where(
+            teachers_subjects.c.teacher_id == tg_teacher_id,
+            teachers_subjects.c.subject_code == tg_subject_code
+            ).values(**kwargs).returning(
+                                    teachers_subjects.c.teacher_id,
+                                    teachers_subjects.c.subject_code
                                 )
         )
         updated_row = result.fetchone()

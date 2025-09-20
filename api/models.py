@@ -466,9 +466,9 @@ class ShowSessionListWithHATEOAS(TunedModel):
 
 
 '''
-=======
-Teachers-Group
-=======
+===============
+Teachers-Groups
+===============
 '''
 
 class ShowTeacherGroup(TunedModel):
@@ -491,4 +491,33 @@ class ShowTeacherGroupWithHATEOAS(TunedModel):
 
 class ShowTeacherGroupListWithHATEOAS(TunedModel):
     teacher_groups: List[ShowTeacherGroupWithHATEOAS] 
+    links: dict[str, str] = {}
+
+
+'''
+===============
+Teachers-Groups
+===============
+'''
+
+class ShowTeacherSubject(TunedModel):
+    teacher_id: int
+    subject_code: str
+
+class CreateTeacherSubject(TunedModel):
+    teacher_id: int
+    subject_code: str
+
+class UpdateTeacherSubject(TunedModel):
+    current_teacher_id: int
+    current_subject_code: str
+    new_teacher_id: int | None = None
+    new_subject_code: str | None = None
+
+class ShowTeacherSubjectWithHATEOAS(TunedModel):
+    teacher_subject: ShowTeacherSubject
+    links: dict[str, str] = {}
+
+class ShowTeacherSubjectListWithHATEOAS(TunedModel):
+    teacher_subjects: List[ShowTeacherSubjectWithHATEOAS] 
     links: dict[str, str] = {}

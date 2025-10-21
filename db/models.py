@@ -26,7 +26,6 @@ class Group(Base):
         group_advisor_id: Foreign key linking to the teacher who advises the group
         advisor: Relationship to access the advisor (Teacher) of the group
         speciality: Relationship to access the speciality of the group
-        curriculums: Relationship to access the curriculum for this group
         sessions: Relationship to access the sessions associated with the group
         requests: Relationship to access the teacher requests for sessions associated with the group
         streams: Relationship to access the stream with the group
@@ -45,7 +44,6 @@ class Group(Base):
     # Relationships
     advisor = relationship("Teacher", back_populates="advisory_group", uselist=False)  # uselist for one to one
     speciality = relationship("Speciality", back_populates="groups")
-    curriculums = relationship("Curriculum", back_populates="group")
     sessions = relationship("Session", back_populates="group")
     requests = relationship("TeacherRequest", back_populates="group")
     streams = relationship("Stream", back_populates="group")
@@ -68,18 +66,20 @@ class Speciality(Base):
     plans = relationship("Plan", back_populates="speciality")
 
 
-# Create many-to-many table for bind teachers and his subjects
-teachers_subjects = Table("teacher_subject", Base.metadata,
-                        Column("teacher_id", Integer(), ForeignKey("teachers.id")),
-                        Column("subject_code", String(), ForeignKey("subjects.subject_code"))
-                        )
+class TeacherCategory(Base):
+    """
+    Represents teacher categories (e.g. 'Преподаватель высшей категории')
 
+    Fields:
+        category (str):  The unique name of the category
+        teachers: Relationship to access the teachers of the current category
+    """
+    __tablename__ = "teacher_categories"
 
-# Create many-to-many table for bind teachers and groups where they teach lessons
-teachers_groups = Table("teachers_groups", Base.metadata,
-                       Column("teacher_id", Integer(), ForeignKey("teachers.id")),
-                       Column("group_name", String(), ForeignKey("groups.group_name"))
-                       )
+    teacher_category = Column(String, primary_key=True, unique=True, nullable=False)
+
+    # Relationships
+    teachers = relationship("Teacher", back_populates="category")
 
 
 class Teacher(Base):
@@ -94,9 +94,9 @@ class Teacher(Base):
         phone_number: Phone number to contact the teacher
         email: Work email address to contact the teacher (optional)
         advisory_group: Relationship to access the group in which the teacher is an advisory
-        sessions: Relationship to access the sessions associated with the teacher
         employments: Relationship to access the employments associated with the teacher
         requests: Relationship to access the teacher requests for sessions associated with the teacher
+        category: Relationship to access the category associated with the current teacher
     """
     __tablename__ = "teachers"
 
@@ -105,13 +105,19 @@ class Teacher(Base):
     surname = Column(String, nullable=False)
     fathername = Column(String, nullable=True)
     phone_number = Column(String, unique = True, nullable=False)
-    email = Column(String, unique = True, nullable=True)
+    email = Column(String, unique=True, nullable=True)
+    salary_rate = Column(Numeric, nullable=True)
+
+    # Foreign keys
+    teacher_category = Column(String,
+                              ForeignKey("teacher_categories.teacher_category", onupdate="CASCADE", ondelete="SET NULL"),
+                              nullable=True)
 
     # Relationships
     advisory_group = relationship("Group", back_populates="advisor")
-    sessions = relationship("Session", back_populates="teacher")
     employments = relationship("EmploymentTeacher", back_populates="teacher")
     requests = relationship("TeacherRequest", back_populates="teacher")
+    category = relationship("TeacherCategory", back_populates="teachers")
 
 
 class Subject(Base):
@@ -121,7 +127,6 @@ class Subject(Base):
     Fields:
         subject_code: Stores the subject code in the general structure of the college
         name: Human-readable name of the item
-        curriculum: Relationship to access the curriculum which use this subject
         sessions: Relationship to access the sessions associated with the subject
         requests: Relationship to access the teacher requests for sessions associated with the subject
         streams: Relationship to access the stream with the subject
@@ -132,43 +137,9 @@ class Subject(Base):
     name = Column(String, nullable=True)
 
     # Relationships
-    curriculums = relationship("Curriculum", back_populates="subject")
     sessions = relationship("Session", back_populates="subject")
     requests = relationship("TeacherRequest", back_populates="subject")
     streams = relationship("Stream", back_populates="subject")
-
-
-class Curriculum(Base):
-    """
-    The table in the database represents the curriculum for 1 academic semester
-
-    Fields:
-        semester_number: This is the semester number for a particular group,
-                         by default if the group has no records in this table then it is equal to one (Primary Key)
-        lectures_hours: Field storing the number of hours for lectures
-        laboratory_hours: Field storing the number of hours for laboratory
-        practical_hours: Field storing the number of hours for practical
-        group_name: Foreign key field for linking to the groups table (Primary key)
-        subject_code: Foreign key field for linking to the subjects table (Primary key)
-        group: Relationship to access the group for which it was created curriculum
-        subject: Relationship to access the subject for which it was created curriculum
-    """
-    __tablename__ = "curriculums"
-
-    semester_number = Column(Integer, primary_key=True, nullable=False, default=1)
-    # Numeric(x, y): x - quantity of integer places
-    #                y - quantity of decimal places
-    lectures_hours = Column(Numeric(5, 2), nullable=True)
-    laboratory_hours = Column(Numeric(5, 2), nullable=True)
-    practical_hours = Column(Numeric(5, 2), nullable=True)
-
-    # Foreign keys
-    group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True, nullable=False)
-    subject_code = Column(String, ForeignKey("subjects.subject_code", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True, nullable=False)
-
-    # Relationships
-    group = relationship("Group", back_populates="curriculums")
-    subject = relationship("Subject", back_populates="curriculums")
 
 
 class Cabinet(Base):
@@ -225,7 +196,7 @@ class Building(Base):
 class SessionType(Base):
     __tablename__ = "session_types"
 
-    session_type_name = Column(String, primary_key=True, nullable=False)
+    name = Column(String, primary_key=True)
 
 
 class Session(Base):
@@ -250,14 +221,13 @@ class Session(Base):
 
     session_number = Column(Integer, primary_key=True, nullable=False)
     date = Column(Date, primary_key=True, nullable=False)
-    session_type = Column(String, nullable=False)
-
     # Переделать сабджет на сабджет ин сайкл
+    # БИЛДИНГ НАМБЕР НЕ НУЖЕН ПЕРВЧИНЫЙ КЛЮЧ ТОЛЬКО КАБИНЕТ
 
     # Foreign keys
     group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"), primary_key=True)
-    subject_code = Column(String, ForeignKey("subjects.subject_code", onupdate="CASCADE", ondelete="SET NULL"))
-    teacher_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="SET NULL"))
+    teacher_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="CASCADE"))
+    session_type = Column(String, ForeignKey("session_types.name", onupdate="CASCADE", ondelete="CASCADE"))
     cabinet_number = Column(Integer, nullable=False)
     building_number = Column(Integer, nullable=False)
 
@@ -272,7 +242,6 @@ class Session(Base):
 
     # Relationships
     group = relationship("Group", back_populates="sessions")
-    subject = relationship("Subject", back_populates="sessions")
     teacher = relationship("Teacher", back_populates="sessions")
     cabinet = relationship(
         "Cabinet",
@@ -444,7 +413,6 @@ class SubjectsInCycle(Base):
     id = Column(Integer, primary_key=True)
     code = Column(String, nullable=False)
     title = Column(String, nullable=False)
-    exam = Column(String, nullable=False)
     credit = Column(String, nullable=False)
     differentiated_credit = Column(String, nullable=False)
     course_project = Column(String, nullable=False)
@@ -499,7 +467,7 @@ class TeacherInPlan(Base):
     subject_in_cycle_id = Column(Integer, ForeignKey("subjects_in_cycle_hours.id", onupdate="CASCADE", ondelete="CASCADE"))
     teacher_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="CASCADE"))
     group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"))
-    session_type = Column(String, ForeignKey("session_types.session_type_name", onupdate="CASCADE", ondelete="CASCADE"))
+    session_type = Column(String, ForeignKey("session_types.name", onupdate="CASCADE", ondelete="CASCADE"))
 
 
 class Stream(Base):

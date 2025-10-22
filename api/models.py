@@ -463,3 +463,33 @@ class ShowSessionWithHATEOAS(TunedModel):
 class ShowSessionListWithHATEOAS(TunedModel):
     sessions: List[ShowSessionWithHATEOAS]
     links: dict[str, str] = {}
+
+
+
+'''
+===============
+TeacherCategory
+===============
+'''
+
+class CreateTeacherCategory(BaseModel):
+    teacher_category: str
+
+
+class UpdateTeacherCategory(BaseModel):
+    teacher_category: Optional[str] = None
+    new_teacher_category: Optional[str] = None # Для операций обновления/переименования
+
+
+class ShowTeacherCategory(BaseModel):
+    teacher_category: str
+
+
+class ShowTeacherCategoryWithHATEOAS(BaseModel):
+    category: ShowTeacherCategory
+    links: dict[str, str] # Встроенный словарь для HATEOAS
+
+
+class ShowTeacherCategoryListWithHATEOAS(BaseModel):
+    categories: List[ShowTeacherCategoryWithHATEOAS]
+    links: dict[str, str] # Встроенный словарь для HATEOAS

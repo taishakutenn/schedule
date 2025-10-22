@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SubjectDAL, CurriculumDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, TeachersGroupsDAL, TeachersSubjectsDAL
+from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL, SessionDAL
 from config.logging_config import configure_logging
 
 from sqlalchemy import Date
@@ -39,10 +39,10 @@ async def ensure_group_exists(group_dal: GroupDAL, group_name: str):
     group = await group_dal.get_group(group_name)
     return group
 
-# Subject
-async def ensure_subject_exists(subject_dal: SubjectDAL, subject_code: str):
-    subject = await subject_dal.get_subject(subject_code)
-    return subject
+# # Subject
+# async def ensure_subject_exists(subject_dal: SubjectDAL, subject_code: str):
+#     subject = await subject_dal.get_subject(subject_code)
+#     return subject
 
 
 '''
@@ -61,40 +61,40 @@ async def ensure_cabinet_unique(cabinet_dal: CabinetDAL, building_number: int, c
     cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
     return cabinet is None
 
-# Curriculum
-async def ensure_curriculum_unique(curriculum_dal: CurriculumDAL,
-                                   semester_number: int, group_name: str, subject_code: str):
-    curriculum = await curriculum_dal.get_curriculum(semester_number, group_name, subject_code)
-    return curriculum is None
+# # Curriculum
+# async def ensure_curriculum_unique(curriculum_dal: CurriculumDAL,
+#                                    semester_number: int, group_name: str, subject_code: str):
+#     curriculum = await curriculum_dal.get_curriculum(semester_number, group_name, subject_code)
+#     return curriculum is None
 
-# Subject
-async def ensure_subject_unique(subject_dal: SubjectDAL, subject_code: str):
-    subject = await subject_dal.get_subject(subject_code)
-    return subject is None
+# # Subject
+# async def ensure_subject_unique(subject_dal: SubjectDAL, subject_code: str):
+#     subject = await subject_dal.get_subject(subject_code)
+#     return subject is None
 
-# Employment
-async def ensure_employment_unique(employment_dal: EmployTeacherDAL, 
-                                   date_start_period: Date, date_end_period: Date, teacher_id: int):
-    employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
-    return employment is None
+# # Employment
+# async def ensure_employment_unique(employment_dal: EmployTeacherDAL, 
+#                                    date_start_period: Date, date_end_period: Date, teacher_id: int):
+#     employment = await employment_dal.get_employTeacher(date_start_period, date_end_period, teacher_id)
+#     return employment is None
 
-# TeacherRequest
-async def ensure_request_unique(request_dal: TeacherRequestDAL, date_request: Date, teacher_id: int,
-                                subject_code: str, group_name: str):
-    request = await request_dal.get_teacherRequest(date_request, teacher_id, subject_code, group_name)
-    return request is None
+# # TeacherRequest
+# async def ensure_request_unique(request_dal: TeacherRequestDAL, date_request: Date, teacher_id: int,
+#                                 subject_code: str, group_name: str):
+#     request = await request_dal.get_teacherRequest(date_request, teacher_id, subject_code, group_name)
+#     return request is None
 
 # Session
 async def ensure_session_unique(session_dal: SessionDAL, session_number: int, date: Date, group_name: str):
     session = await session_dal.get_session(session_number, date, group_name)
     return session is None
 
-async def ensure_teacher_group_relation_unique(
-    teacher_group_dal: TeachersGroupsDAL, teacher_id: int, group_name: str):
-        existing_relation = await teacher_group_dal.get_teachers_groups_relation(teacher_id, group_name)
-        return existing_relation is None
+# async def ensure_teacher_group_relation_unique(
+#     teacher_group_dal: TeachersGroupsDAL, teacher_id: int, group_name: str):
+#         existing_relation = await teacher_group_dal.get_teachers_groups_relation(teacher_id, group_name)
+#         return existing_relation is None
 
-async def ensure_teacher_subject_relation_unique(
-    teacher_subject_dal: TeachersSubjectsDAL, teacher_id: int, subject_code: str):
-        existing_relation = await teacher_subject_dal.get_teachers_subjects_relation(teacher_id, subject_code)
-        return existing_relation is None
+# async def ensure_teacher_subject_relation_unique(
+#     teacher_subject_dal: TeachersSubjectsDAL, teacher_id: int, subject_code: str):
+#         existing_relation = await teacher_subject_dal.get_teachers_subjects_relation(teacher_id, subject_code)
+#         return existing_relation is None

@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Teacher, Group, Cabinet, Building, Speciality, EmploymentTeacher, Session, Subject, TeacherRequest
+from db.models import Teacher, Group, Cabinet, Building, Speciality, Session, TeacherCategory
 from config.decorators import log_exceptions
 from db.session import get_db
 
@@ -369,116 +369,116 @@ class GroupDAL:
         return res.scalar_one_or_none()
 
 
-'''
-=========================
-DAL for EmploymentTeacher
-=========================
-'''
+# '''
+# =========================
+# DAL for EmploymentTeacher
+# =========================
+# '''
 
 
-class EmployTeacherDAL:
-    """Data Access Layer for operating teacher's employment info"""
+# class EmployTeacherDAL:
+#     """Data Access Layer for operating teacher's employment info"""
 
-    def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+#     def __init__(self, db_session: AsyncSession):
+#         self.db_session = db_session
 
-    @log_exceptions
-    async def create_employTeacher(
-            self, date_start_period: Date, date_end_period: Date, teacher_id: int,  monday: str = None,
-            tuesday: str = None, wednesday: str = None, thursday: str = None,
-            friday: str = None, saturday: str = None
-    ) -> EmploymentTeacher:
-        new_employTeacher = EmploymentTeacher(
-            date_start_period=date_start_period,
-            date_end_period=date_end_period,
-            teacher_id=teacher_id,
-            monday=monday,
-            tuesday=tuesday,
-            wednesday=wednesday,
-            thursday=thursday,
-            friday=friday,
-            saturday=saturday
-        )
-        self.db_session.add(new_employTeacher)
-        await self.db_session.flush()
-        return new_employTeacher
+#     @log_exceptions
+#     async def create_employTeacher(
+#             self, date_start_period: Date, date_end_period: Date, teacher_id: int,  monday: str = None,
+#             tuesday: str = None, wednesday: str = None, thursday: str = None,
+#             friday: str = None, saturday: str = None
+#     ) -> EmploymentTeacher:
+#         new_employTeacher = EmploymentTeacher(
+#             date_start_period=date_start_period,
+#             date_end_period=date_end_period,
+#             teacher_id=teacher_id,
+#             monday=monday,
+#             tuesday=tuesday,
+#             wednesday=wednesday,
+#             thursday=thursday,
+#             friday=friday,
+#             saturday=saturday
+#         )
+#         self.db_session.add(new_employTeacher)
+#         await self.db_session.flush()
+#         return new_employTeacher
 
-    @log_exceptions
-    async def delete_employTeacher(self, date_start_period: Date, date_end_period: Date,
-                                teacher_id: int) -> EmploymentTeacher | None:
-        query = (
-            delete(EmploymentTeacher)
-            .where(
-                EmploymentTeacher.date_start_period == date_start_period,
-                EmploymentTeacher.date_end_period == date_end_period,
-                EmploymentTeacher.teacher_id == teacher_id
-            )
-            .returning(EmploymentTeacher)
-        )
-        res = await self.db_session.execute(query)
-        deleted_emloyTeacher = res.scalar_one_or_none()
-        return deleted_emloyTeacher
+#     @log_exceptions
+#     async def delete_employTeacher(self, date_start_period: Date, date_end_period: Date,
+#                                 teacher_id: int) -> EmploymentTeacher | None:
+#         query = (
+#             delete(EmploymentTeacher)
+#             .where(
+#                 EmploymentTeacher.date_start_period == date_start_period,
+#                 EmploymentTeacher.date_end_period == date_end_period,
+#                 EmploymentTeacher.teacher_id == teacher_id
+#             )
+#             .returning(EmploymentTeacher)
+#         )
+#         res = await self.db_session.execute(query)
+#         deleted_emloyTeacher = res.scalar_one_or_none()
+#         return deleted_emloyTeacher
 
-    @log_exceptions
-    async def get_all_employTeacher(self, page: int, limit: int) -> list[EmploymentTeacher] | None:
-        if page == 0:
-            query = select(EmploymentTeacher).order_by(EmploymentTeacher.date_start_period.asc())
-        else:
-            query = select(EmploymentTeacher).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        employs = list(result.scalars().all())
-        return employs
+#     @log_exceptions
+#     async def get_all_employTeacher(self, page: int, limit: int) -> list[EmploymentTeacher] | None:
+#         if page == 0:
+#             query = select(EmploymentTeacher).order_by(EmploymentTeacher.date_start_period.asc())
+#         else:
+#             query = select(EmploymentTeacher).offset((page - 1) * limit).limit(limit)
+#         result = await self.db_session.execute(query)
+#         employs = list(result.scalars().all())
+#         return employs
 
-    @log_exceptions
-    async def get_all_employTeacher_by_teacher(self, teacher_id, page: int, limit: int) -> list[EmploymentTeacher] | None:
-        if page == 0:
-            query = select(EmploymentTeacher).where(EmploymentTeacher.teacher_id == teacher_id).order_by(EmploymentTeacher.date_start_period.asc())
-        else:
-            query = select(EmploymentTeacher).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        employs = list(result.scalars().all())
-        return employs
+#     @log_exceptions
+#     async def get_all_employTeacher_by_teacher(self, teacher_id, page: int, limit: int) -> list[EmploymentTeacher] | None:
+#         if page == 0:
+#             query = select(EmploymentTeacher).where(EmploymentTeacher.teacher_id == teacher_id).order_by(EmploymentTeacher.date_start_period.asc())
+#         else:
+#             query = select(EmploymentTeacher).offset((page - 1) * limit).limit(limit)
+#         result = await self.db_session.execute(query)
+#         employs = list(result.scalars().all())
+#         return employs
 
-    @log_exceptions
-    async def get_employTeacher(self, date_start_period: Date, date_end_period: Date,
-                            teacher_id: int) -> EmploymentTeacher | None:
-        query = select(EmploymentTeacher).where(
-            EmploymentTeacher.date_start_period == date_start_period,
-            EmploymentTeacher.date_end_period == date_end_period,
-            EmploymentTeacher.teacher_id == teacher_id
-        )
-        res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
+#     @log_exceptions
+#     async def get_employTeacher(self, date_start_period: Date, date_end_period: Date,
+#                             teacher_id: int) -> EmploymentTeacher | None:
+#         query = select(EmploymentTeacher).where(
+#             EmploymentTeacher.date_start_period == date_start_period,
+#             EmploymentTeacher.date_end_period == date_end_period,
+#             EmploymentTeacher.teacher_id == teacher_id
+#         )
+#         res = await self.db_session.execute(query)
+#         return res.scalar_one_or_none()
 
-    @log_exceptions
-    async def get_all_employTeacher_by_date(self, date_start_period: Date, date_end_period: Date,
-                                        page: int, limit: int) -> list[EmploymentTeacher] | None:
-        if page == 0:
-            query = select(EmploymentTeacher).where(
-                EmploymentTeacher.date_start_period == date_start_period,
-                EmploymentTeacher.date_end_period == date_end_period
-            ).order_by(EmploymentTeacher.date_start_period.asc())
-        else:
-            query = select(EmploymentTeacher).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        employs = list(result.scalars().all())
-        return employs
+#     @log_exceptions
+#     async def get_all_employTeacher_by_date(self, date_start_period: Date, date_end_period: Date,
+#                                         page: int, limit: int) -> list[EmploymentTeacher] | None:
+#         if page == 0:
+#             query = select(EmploymentTeacher).where(
+#                 EmploymentTeacher.date_start_period == date_start_period,
+#                 EmploymentTeacher.date_end_period == date_end_period
+#             ).order_by(EmploymentTeacher.date_start_period.asc())
+#         else:
+#             query = select(EmploymentTeacher).offset((page - 1) * limit).limit(limit)
+#         result = await self.db_session.execute(query)
+#         employs = list(result.scalars().all())
+#         return employs
 
-    # tg_ mean target
-    @log_exceptions
-    async def update_employTeacher(self, tg_date_start_period: Date, tg_date_end_period: Date, tg_teacher_id: int, **kwargs) -> EmploymentTeacher | None:
-        query = (
-            update(EmploymentTeacher)
-            .where(
-                EmploymentTeacher.date_start_period == tg_date_start_period,
-                EmploymentTeacher.date_end_period == tg_date_end_period,
-                EmploymentTeacher.teacher_id == tg_teacher_id
-            )
-            .values(**kwargs)
-            .returning(EmploymentTeacher)
-        )
-        res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
+#     # tg_ mean target
+#     @log_exceptions
+#     async def update_employTeacher(self, tg_date_start_period: Date, tg_date_end_period: Date, tg_teacher_id: int, **kwargs) -> EmploymentTeacher | None:
+#         query = (
+#             update(EmploymentTeacher)
+#             .where(
+#                 EmploymentTeacher.date_start_period == tg_date_start_period,
+#                 EmploymentTeacher.date_end_period == tg_date_end_period,
+#                 EmploymentTeacher.teacher_id == tg_teacher_id
+#             )
+#             .values(**kwargs)
+#             .returning(EmploymentTeacher)
+#         )
+#         res = await self.db_session.execute(query)
+#         return res.scalar_one_or_none()
 
 
 '''
@@ -605,180 +605,236 @@ class SessionDAL:
         return res.scalar_one_or_none()
 
 
+# '''
+# ===============
+# DAL for Subject
+# ===============
+# '''
+
+
+# class SubjectDAL:
+#     """Data Access Layer for operating subject info"""
+
+#     def __init__(self, db_session: AsyncSession):
+#         self.db_session = db_session
+
+#     @log_exceptions
+#     async def create_subject(self, subject_code: str, name: str = None) -> Subject:
+#         new_subject = Subject(
+#             subject_code=subject_code,
+#             name = name
+#         )
+#         self.db_session.add(new_subject)
+#         await self.db_session.flush()
+#         return new_subject
+
+#     @log_exceptions
+#     async def delete_subject(self, subject_code: str) -> Subject | None:
+#         query = delete(Subject).where(Subject.subject_code == subject_code).returning(Subject)
+#         res = await self.db_session.execute(query)
+#         deleted_subject = res.scalar_one_or_none()
+#         return deleted_subject
+
+#     @log_exceptions
+#     async def get_subject(self, subject_code: str) -> Subject | None:
+#         query = select(Subject).where(
+#                 Subject.subject_code == subject_code
+#             )
+#         res = await self.db_session.execute(query)
+#         return res.scalar_one_or_none()
+
+#     @log_exceptions
+#     async def get_all_subjects(self, page: int, limit: int) -> list[Subject] | None:
+#         if page == 0:
+#             query = select(Subject).order_by(Subject.subject_code.asc())
+#         else:
+#             query = select(Subject).offset((page - 1) * limit).limit(limit)
+#         result = await self.db_session.execute(query)
+#         subjects = list(result.scalars().all())
+#         return subjects
+
+#     @log_exceptions
+#     async def get_subjects_by_name(self, name: str, page: int, limit: int) -> list[Subject] | None:
+#         if page == 0:
+#             query = select(Subject).where(Subject.name == name).order_by(Subject.subject_code.asc())
+#         else:
+#             query = select(Subject).where(Subject.name == name).offset((page - 1) * limit).limit(limit)
+#         result = await self.db_session.execute(query)
+#         subjects = list(result.scalars().all())
+#         return subjects
+
+#     # tg_ mean target
+#     @log_exceptions
+#     async def update_subject(self, tg_subject_code: int, **kwargs) -> Subject | None:
+#         query = (
+#             update(Subject)
+#             .where(Subject.subject_code == tg_subject_code)
+#             .values(**kwargs)
+#             .returning(Subject)
+#         )
+#         res = await self.db_session.execute(query)
+#         return res.scalar_one_or_none()
+
+
+# '''
+# ======================
+# DAL for TeacherRequest
+# ======================
+# '''
+
+
+# class TeacherRequestDAL:
+#     """Data Access Layer for operating teachers requests info"""
+
+#     def __init__(self, db_session: AsyncSession):
+#         self.db_session = db_session
+
+#     @log_exceptions
+#     async def create_teacherRequest(
+#             self, date_request: Date, teacher_id: int, subject_code: str, group_name: str,
+#             lectures_hours: int, laboratory_hours: int, practice_hours: int,
+#     ) -> TeacherRequest:
+#         new_teacherRequest = TeacherRequest(
+#             date_request=date_request,
+#             teacher_id=teacher_id,
+#             subject_code=subject_code,
+#             group_name=group_name,
+#             lectures_hours=lectures_hours,
+#             laboratory_hours=laboratory_hours,
+#             practice_hours=practice_hours
+#         )
+#         self.db_session.add(new_teacherRequest)
+#         await self.db_session.flush()
+#         return new_teacherRequest
+
+#     @log_exceptions
+#     async def delete_teacherRequest(self, date_request: Date, teacher_id: int,
+#                                     subject_code: str, group_name: str) -> TeacherRequest | None:
+#         query = delete(TeacherRequest).where(
+#             TeacherRequest.date_request == date_request,
+#             TeacherRequest.teacher_id == teacher_id,
+#             TeacherRequest.subject_code == subject_code,
+#             TeacherRequest.group_name == group_name
+#             ).returning(TeacherRequest)
+#         res = await self.db_session.execute(query)
+#         teacherRequest = res.scalar_one_or_none()
+#         return teacherRequest
+
+#     @log_exceptions
+#     async def get_all_teachersRequests(self, page: int, limit: int) -> list[TeacherRequest]:
+#         query = select(TeacherRequest).order_by(TeacherRequest.date_request.asc())
+#         if page > 0:
+#             query = query.offset((page - 1) * limit).limit(limit)
+
+#         result = await self.db_session.execute(query)
+#         return list(result.scalars().all())
+
+#     @log_exceptions
+#     async def get_teacherRequest(self, date_request: Date, teacher_id: int,
+#                                 subject_code: str, group_name: str) -> TeacherRequest | None:
+#         result = await self.db_session.execute(select(TeacherRequest).
+#             where(TeacherRequest.date_request == date_request,
+#                 TeacherRequest.teacher_id == teacher_id,
+#                 TeacherRequest.subject_code == subject_code,
+#                 TeacherRequest.group_name == group_name))
+#         return result.scalar_one_or_none()
+
+#     @log_exceptions
+#     async def get_all_requests_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherRequest]:
+#         query = select(TeacherRequest).where(TeacherRequest.teacher_id == teacher_id
+#             ).order_by(TeacherRequest.date_request.asc())
+#         if page > 0:
+#             query = query.offset((page - 1) * limit).limit(limit)
+
+#         result = await self.db_session.execute(query)
+#         return list(result.scalars().all())
+
+#     @log_exceptions
+#     async def get_all_requests_by_group(self, group: str, page: int, limit: int) -> list[TeacherRequest]:
+#         query = select(TeacherRequest).where(TeacherRequest.group_name == group
+#             ).order_by(TeacherRequest.date_request.asc())
+#         if page > 0:
+#             query = query.offset((page - 1) * limit).limit(limit)
+
+#         result = await self.db_session.execute(query)
+#         return list(result.scalars().all())
+
+#     @log_exceptions
+#     async def get_all_requests_by_subject(self, subject: str, page: int, limit: int) -> list[TeacherRequest]:
+#         query = select(TeacherRequest).where(TeacherRequest.subject_code == subject
+#             ).order_by(TeacherRequest.date_request.asc())
+#         if page > 0:
+#             query = query.offset((page - 1) * limit).limit(limit)
+
+#         result = await self.db_session.execute(query)
+#         return list(result.scalars().all())
+
+#     # tg_ mean target
+#     @log_exceptions
+#     async def update_teacherRequest(self, tg_date_request: Date, tg_teacher_id: int,
+#                                 tg_subject_code: str, tg_group_name: str, **kwargs) -> TeacherRequest | None:
+#         result = await self.db_session.execute(
+#             update(TeacherRequest).where(
+#             TeacherRequest.date_request == tg_date_request,
+#             TeacherRequest.teacher_id == tg_teacher_id,
+#             TeacherRequest.subject_code == tg_subject_code,
+#             TeacherRequest.group_name == tg_group_name
+#             ).values(**kwargs).returning(TeacherRequest)
+#         )
+#         return result.scalar_one_or_none()
+
+
 '''
-===============
-DAL for Subject
-===============
+================
+DAL for TeacherCategory
+================
 '''
-
-
-class SubjectDAL:
-    """Data Access Layer for operating subject info"""
-
+class TeacherCategoryDAL:
+    """Data Access Layer for operating teacher category info"""
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
     @log_exceptions
-    async def create_subject(self, subject_code: str, name: str = None) -> Subject:
-        new_subject = Subject(
-            subject_code=subject_code,
-            name = name
+    async def create_teacher_category(
+            self, teacher_category: str
+) -> TeacherCategory:
+        new_category = TeacherCategory(
+            teacher_category=teacher_category
         )
-        self.db_session.add(new_subject)
+        self.db_session.add(new_category)
         await self.db_session.flush()
-        return new_subject
+        return new_category
 
     @log_exceptions
-    async def delete_subject(self, subject_code: str) -> Subject | None:
-        query = delete(Subject).where(Subject.subject_code == subject_code).returning(Subject)
+    async def delete_teacher_category(self, teacher_category: str) -> TeacherCategory | None:
+        query = delete(TeacherCategory).where(TeacherCategory.teacher_category == teacher_category).returning(TeacherCategory)
         res = await self.db_session.execute(query)
-        deleted_subject = res.scalar_one_or_none()
-        return deleted_subject
+        deleted_category = res.scalar_one_or_none()
+        return deleted_category
 
     @log_exceptions
-    async def get_subject(self, subject_code: str) -> Subject | None:
-        query = select(Subject).where(
-                Subject.subject_code == subject_code
-            )
+    async def get_all_teacher_categories(self, page: int, limit: int) -> list[TeacherCategory]:
+        if page == 0:
+            query = select(TeacherCategory).order_by(TeacherCategory.teacher_category.asc())
+        else:
+            query = select(TeacherCategory).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        categories = list(result.scalars().all())
+        return categories
+
+    @log_exceptions
+    async def get_teacher_category(self, teacher_category: str) -> TeacherCategory | None:
+        query = select(TeacherCategory).where(TeacherCategory.teacher_category == teacher_category)
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
 
     @log_exceptions
-    async def get_all_subjects(self, page: int, limit: int) -> list[Subject] | None:
-        if page == 0:
-            query = select(Subject).order_by(Subject.subject_code.asc())
-        else:
-            query = select(Subject).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        subjects = list(result.scalars().all())
-        return subjects
-
-    @log_exceptions
-    async def get_subjects_by_name(self, name: str, page: int, limit: int) -> list[Subject] | None:
-        if page == 0:
-            query = select(Subject).where(Subject.name == name).order_by(Subject.subject_code.asc())
-        else:
-            query = select(Subject).where(Subject.name == name).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        subjects = list(result.scalars().all())
-        return subjects
-
-    # tg_ mean target
-    @log_exceptions
-    async def update_subject(self, tg_subject_code: int, **kwargs) -> Subject | None:
+    async def update_teacher_category(self, target_category: str, **kwargs) -> TeacherCategory | None:
         query = (
-            update(Subject)
-            .where(Subject.subject_code == tg_subject_code)
+            update(TeacherCategory)
+            .where(TeacherCategory.teacher_category == target_category)
             .values(**kwargs)
-            .returning(Subject)
+            .returning(TeacherCategory)
         )
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
-
-
-'''
-======================
-DAL for TeacherRequest
-======================
-'''
-
-
-class TeacherRequestDAL:
-    """Data Access Layer for operating teachers requests info"""
-
-    def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
-
-    @log_exceptions
-    async def create_teacherRequest(
-            self, date_request: Date, teacher_id: int, subject_code: str, group_name: str,
-            lectures_hours: int, laboratory_hours: int, practice_hours: int,
-    ) -> TeacherRequest:
-        new_teacherRequest = TeacherRequest(
-            date_request=date_request,
-            teacher_id=teacher_id,
-            subject_code=subject_code,
-            group_name=group_name,
-            lectures_hours=lectures_hours,
-            laboratory_hours=laboratory_hours,
-            practice_hours=practice_hours
-        )
-        self.db_session.add(new_teacherRequest)
-        await self.db_session.flush()
-        return new_teacherRequest
-
-    @log_exceptions
-    async def delete_teacherRequest(self, date_request: Date, teacher_id: int,
-                                    subject_code: str, group_name: str) -> TeacherRequest | None:
-        query = delete(TeacherRequest).where(
-            TeacherRequest.date_request == date_request,
-            TeacherRequest.teacher_id == teacher_id,
-            TeacherRequest.subject_code == subject_code,
-            TeacherRequest.group_name == group_name
-            ).returning(TeacherRequest)
-        res = await self.db_session.execute(query)
-        teacherRequest = res.scalar_one_or_none()
-        return teacherRequest
-
-    @log_exceptions
-    async def get_all_teachersRequests(self, page: int, limit: int) -> list[TeacherRequest]:
-        query = select(TeacherRequest).order_by(TeacherRequest.date_request.asc())
-        if page > 0:
-            query = query.offset((page - 1) * limit).limit(limit)
-
-        result = await self.db_session.execute(query)
-        return list(result.scalars().all())
-
-    @log_exceptions
-    async def get_teacherRequest(self, date_request: Date, teacher_id: int,
-                                subject_code: str, group_name: str) -> TeacherRequest | None:
-        result = await self.db_session.execute(select(TeacherRequest).
-            where(TeacherRequest.date_request == date_request,
-                TeacherRequest.teacher_id == teacher_id,
-                TeacherRequest.subject_code == subject_code,
-                TeacherRequest.group_name == group_name))
-        return result.scalar_one_or_none()
-
-    @log_exceptions
-    async def get_all_requests_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherRequest]:
-        query = select(TeacherRequest).where(TeacherRequest.teacher_id == teacher_id
-            ).order_by(TeacherRequest.date_request.asc())
-        if page > 0:
-            query = query.offset((page - 1) * limit).limit(limit)
-
-        result = await self.db_session.execute(query)
-        return list(result.scalars().all())
-
-    @log_exceptions
-    async def get_all_requests_by_group(self, group: str, page: int, limit: int) -> list[TeacherRequest]:
-        query = select(TeacherRequest).where(TeacherRequest.group_name == group
-            ).order_by(TeacherRequest.date_request.asc())
-        if page > 0:
-            query = query.offset((page - 1) * limit).limit(limit)
-
-        result = await self.db_session.execute(query)
-        return list(result.scalars().all())
-
-    @log_exceptions
-    async def get_all_requests_by_subject(self, subject: str, page: int, limit: int) -> list[TeacherRequest]:
-        query = select(TeacherRequest).where(TeacherRequest.subject_code == subject
-            ).order_by(TeacherRequest.date_request.asc())
-        if page > 0:
-            query = query.offset((page - 1) * limit).limit(limit)
-
-        result = await self.db_session.execute(query)
-        return list(result.scalars().all())
-
-    # tg_ mean target
-    @log_exceptions
-    async def update_teacherRequest(self, tg_date_request: Date, tg_teacher_id: int,
-                                tg_subject_code: str, tg_group_name: str, **kwargs) -> TeacherRequest | None:
-        result = await self.db_session.execute(
-            update(TeacherRequest).where(
-            TeacherRequest.date_request == tg_date_request,
-            TeacherRequest.teacher_id == tg_teacher_id,
-            TeacherRequest.subject_code == tg_subject_code,
-            TeacherRequest.group_name == tg_group_name
-            ).values(**kwargs).returning(TeacherRequest)
-        )
-        return result.scalar_one_or_none()

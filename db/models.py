@@ -48,8 +48,7 @@ class Group(Base):
     # Relationships
     advisor = relationship("Teacher", back_populates="advisory_group", uselist=False)  # uselist for one to one
     speciality = relationship("Speciality", back_populates="groups")
-    sessions = relationship("Session", back_populates="group")
-    requests = relationship("TeacherRequest", back_populates="group")
+    # requests = relationship("TeacherRequest", back_populates="group")
     streams = relationship("Stream", back_populates="group")
     teachers_in_plans = relationship("TeacherInPlan", back_populates="group")
 
@@ -128,8 +127,8 @@ class Teacher(Base):
 
     # Relationships
     advisory_group = relationship("Group", back_populates="advisor")
-    employments = relationship("EmploymentTeacher", back_populates="teacher")
-    requests = relationship("TeacherRequest", back_populates="teacher")
+    # employments = relationship("EmploymentTeacher", back_populates="teacher")
+    # requests = relationship("TeacherRequest", back_populates="teacher")
     category = relationship("TeacherCategory", back_populates="teachers")
     teachers_in_plans = relationship("TeacherInPlan", back_populates="teacher")
 
@@ -137,7 +136,7 @@ class Teacher(Base):
 # class Subject(Base):
 #     """
 #     Represent the subjects studied in the database
-#
+
 #     Fields:
 #         subject_code: Stores the subject code in the general structure of the college
 #         name: Human-readable name of the item
@@ -146,10 +145,10 @@ class Teacher(Base):
 #         streams: Relationship to access the stream with the subject
 #     """
 #     __tablename__ = "subjects"
-#
+
 #     subject_code = Column(String, primary_key=True, unique=True, nullable=False)
 #     name = Column(String, nullable=True)
-#
+
 #     # Relationships
 #     sessions = relationship("Session", back_populates="subject")
 #     requests = relationship("TeacherRequest", back_populates="subject")
@@ -254,7 +253,7 @@ class Session(Base):
     date = Column(Date, primary_key=True, nullable=False)
 
     # Foreign keys
-    teacher_in_plan = Column(Integer, ForeignKey("teacher_in_plan.id", onupdate="CASCADE", ondelete="CASCADE"))
+    teacher_in_plan = Column(Integer, ForeignKey("teachers_in_plans.id", onupdate="CASCADE", ondelete="CASCADE"))
     session_type = Column(String, ForeignKey("session_types.name", onupdate="CASCADE", ondelete="CASCADE"))
     cabinet_number = Column(Integer, nullable=True)
     building_number = Column(Integer, nullable=True)
@@ -643,7 +642,7 @@ class Stream(Base):
     # Foreign keys
     group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"),
                         primary_key=True)
-    subject_id = Column(Integer, ForeignKey("SubjectsInCycle.id", onupdate="CASCADE", ondelete="CASCADE"),
+    subject_id = Column(Integer, ForeignKey("subjects_in_cycle.id", onupdate="CASCADE", ondelete="CASCADE"),
                           primary_key=True)
 
     # Relationships

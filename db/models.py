@@ -440,6 +440,8 @@ class Cycle(Base):
     Fields:
         id (int): Unique identifier of the cycle (primary key)
         contains_modules (bool): Indicates whether this cycle contains modules
+        code (str): Code of the cycle
+        name (str): Name of the cycle 
         chapter_in_plan_id (int): Foreign key linking to the chapter
 
     Relations:
@@ -451,6 +453,8 @@ class Cycle(Base):
 
     id = Column(Integer, primary_key=True)
     contains_modules = Column(Boolean, nullable=False, default=False)
+    code = Column(String, nullable=False)
+    name = Column(String, nullable=False)
 
     # Foreign keys
     chapter_in_plan_id = Column(Integer,
@@ -470,6 +474,7 @@ class Module(Base):
     Fields:
         id (int): Unique identifier of the module (primary key)
         name (str): Name of the module
+        code (str): Code of the module
         cycle_in_chapter_id (int): Foreign key linking to the cycle
 
     Relations:
@@ -480,6 +485,7 @@ class Module(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
+    code = Column(String, nullable=False)
 
     # Foreign keys
     cycle_in_chapter_id = Column(Integer,
@@ -547,9 +553,7 @@ class SubjectsInCycleHours(Base):
     Fields:
         id (int): Unique identifier of the hour record (primary key)
         semester (int): Semester number for which the hours are defined
-        total_hours (int): Total number of hours allocated
         self_study_hours (int): Hours for self-study
-        with_teacher_total_hours (int): Total hours with teacher
         lectures_hours (int): Lecture hours
         laboratory_hours (int): Laboratory work hours
         practical_hours (int): Practical session hours
@@ -566,9 +570,7 @@ class SubjectsInCycleHours(Base):
 
     id = Column(Integer, primary_key=True)
     semester = Column(Integer, nullable=False)
-    total_hours = Column(Integer, nullable=False)
     self_study_hours = Column(Integer, nullable=False)
-    with_teacher_total_hours = Column(Integer, nullable=False)
     lectures_hours = Column(Integer, nullable=False)
     laboratory_hours = Column(Integer, nullable=False)
     practical_hours = Column(Integer, nullable=False)

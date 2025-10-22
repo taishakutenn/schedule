@@ -44,6 +44,9 @@ async def ensure_group_exists(group_dal: GroupDAL, group_name: str):
 #     subject = await subject_dal.get_subject(subject_code)
 #     return subject
 
+async def ensure_category_exists(category_dal, category_name: str) -> bool:
+    category = await category_dal.get_teacher_category(category_name)
+    return category is not None
 
 '''
 ======
@@ -98,3 +101,7 @@ async def ensure_session_unique(session_dal: SessionDAL, session_number: int, da
 #     teacher_subject_dal: TeachersSubjectsDAL, teacher_id: int, subject_code: str):
 #         existing_relation = await teacher_subject_dal.get_teachers_subjects_relation(teacher_id, subject_code)
 #         return existing_relation is None
+
+async def ensure_category_unique(category_dal, category_name: str) -> bool:
+    category = await category_dal.get_teacher_category(category_name)
+    return category is None

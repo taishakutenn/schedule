@@ -12,6 +12,7 @@ from typing import Annotated, Union
 from api.models import *
 #from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique, ensure_teacher_subject_relation_unique
 #from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, 
+from api.services_helpers import ensure_category_exists, ensure_category_unique
 from db.dals import TeacherCategoryDAL
 from db.session import get_db
 
@@ -3747,19 +3748,16 @@ async def _create_new_category(body: CreateTeacherCategory, request: Request, db
         async with session.begin():
             category_dal = TeacherCategoryDAL(session)
             try:
-                # Проверка на уникальность
-                existing_category = await category_dal.get_teacher_category(body.teacher_category)
-                if existing_category:
+                if not await ensure_category_unique(category_dal, body.teacher_category):
                     raise HTTPException(status_code=400, detail=f"Категория преподавателя '{body.teacher_category}' уже существует")
 
                 new_category_orm = await category_dal.create_teacher_category(
                     teacher_category=body.teacher_category
                 )
-                # Используем from_attributes=True для преобразования ORM в Pydantic
                 new_category_pydantic = ShowTeacherCategory.model_validate(new_category_orm, from_attributes=True)
 
                 base_url = str(request.base_url).rstrip('/')
-                api_prefix = ''  
+                api_prefix = ''
                 api_base_url = f'{base_url}{api_prefix}'
 
                 hateoas_links = {
@@ -3789,7 +3787,6 @@ async def _get_category(teacher_category: str, request: Request, db) -> ShowTeac
                 if not category_orm:
                     raise HTTPException(status_code=404, detail=f"Категория преподавателя '{teacher_category}' не найдена")
 
-                # Используем from_attributes=True
                 category_pydantic = ShowTeacherCategory.model_validate(category_orm, from_attributes=True)
 
                 base_url = str(request.base_url).rstrip('/')
@@ -3827,7 +3824,6 @@ async def _get_all_categories(page: int, limit: int, request: Request, db) -> Sh
 
                 categories_with_hateoas = []
                 for category_orm in categories_orm_list:
-                    # Используем from_attributes=True
                     category_pydantic = ShowTeacherCategory.model_validate(category_orm, from_attributes=True)
                     category_links = {
                         "self": f'{api_base_url}/categories/search/{category_orm.teacher_category}',
@@ -3890,8 +3886,7 @@ async def _update_category(body: UpdateTeacherCategory, request: Request, db) ->
                 if body.new_teacher_category is not None:
                     update_data["teacher_category"] = body.new_teacher_category
                     category_dal = TeacherCategoryDAL(session)
-                    existing_category_with_new_name = await category_dal.get_teacher_category(body.new_teacher_category)
-                    if existing_category_with_new_name and existing_category_with_new_name.teacher_category != target_category:
+                    if target_category != body.new_teacher_category and not await ensure_category_unique(category_dal, body.new_teacher_category):
                         raise HTTPException(status_code=400, detail=f"Категория преподавателя '{body.new_teacher_category}' уже существует")
 
                 category_dal = TeacherCategoryDAL(session)
@@ -3920,6 +3915,7 @@ async def _update_category(body: UpdateTeacherCategory, request: Request, db) ->
             await session.rollback()
             logger.error(f"Неожиданная ошибка при обновлении категории преподавателя '{body.teacher_category}': {e}", exc_info=True)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера при обновлении категории преподавателя.")
+
 
 
 @category_router.post("/create", response_model=ShowTeacherCategoryWithHATEOAS, status_code=status.HTTP_201_CREATED)

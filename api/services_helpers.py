@@ -52,6 +52,10 @@ async def ensure_teacher_exists(teacher_dal, teacher_id: int) -> bool:
     teacher = await teacher_dal.get_teacher_by_id(teacher_id)
     return teacher is not None
 
+async def ensure_session_type_exists(session_type_dal, name: str) -> bool:
+    session_type = await session_type_dal.get_session_type(name)
+    return session_type is not None
+
 
 '''
 ======
@@ -122,3 +126,7 @@ async def ensure_teacher_email_unique(teacher_dal, email: str, exclude_id: int =
 async def ensure_building_unique(building_dal, building_number: int) -> bool:
     building = await building_dal.get_building_by_number(building_number)
     return building is None
+
+async def ensure_session_type_unique(session_type_dal, name: str) -> bool:
+    session_type = await session_type_dal.get_session_type(name)
+    return session_type is None

@@ -13,8 +13,8 @@ from api.models import *
 #from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique, ensure_teacher_subject_relation_unique
 #from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, 
 from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique, \
-    ensure_building_exists, ensure_building_unique, ensure_cabinet_exists, ensure_cabinet_unique
-from db.dals import TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL
+    ensure_building_exists, ensure_building_unique, ensure_cabinet_exists, ensure_cabinet_unique, ensure_session_type_exists, ensure_session_type_unique
+from db.dals import TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL
 from db.session import get_db
 
 from sqlalchemy.exc import IntegrityError
@@ -3696,3 +3696,221 @@ async def delete_category(teacher_category: str, request: Request, db: AsyncSess
 @category_router.put("/update", response_model=ShowTeacherCategoryWithHATEOAS, responses={404: {"description": "Категория преподавателя не найдена"}})
 async def update_category(body: UpdateTeacherCategory, request: Request, db: AsyncSession = Depends(get_db)):
     return await _update_category(body, request, db)
+
+
+session_type_router = APIRouter()
+
+'''
+==============================
+CRUD operations for SessionType
+==============================
+'''
+
+async def _create_new_session_type(body: CreateSessionType, request: Request, db) -> ShowSessionTypeWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            session_type_dal = SessionTypeDAL(session)
+            try:
+                if not await ensure_session_type_unique(session_type_dal, body.name):
+                    raise HTTPException(status_code=400, detail=f"Тип сессии с именем '{body.name}' уже существует")
+
+                session_type = await session_type_dal.create_session_type(
+                    name=body.name
+                )
+                session_type_name = session_type.name
+                session_type_pydantic = ShowSessionType.model_validate(session_type, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/session-types/search/by_name/{session_type_name}',
+                    "update": f'{api_base_url}/session-types/update',
+                    "delete": f'{api_base_url}/session-types/delete/{session_type_name}',
+                    "session_types": f'{api_base_url}/session-types',
+                    "sessions": f'{api_base_url}/sessions/search/by_type/{session_type_name}'
+                }
+
+                return ShowSessionTypeWithHATEOAS(session_type=session_type_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании типа сессии '{body.name}': {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_session_type_by_name(name: str, request: Request, db) -> ShowSessionTypeWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            session_type_dal = SessionTypeDAL(session)
+            try:
+                session_type = await session_type_dal.get_session_type(name)
+                if not session_type:
+                    raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{name}' не найден")
+                session_type_pydantic = ShowSessionType.model_validate(session_type, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/session-types/search/by_name/{name}',
+                    "update": f'{api_base_url}/session-types/update',
+                    "delete": f'{api_base_url}/session-types/delete/{name}',
+                    "session_types": f'{api_base_url}/session-types',
+                    "sessions": f'{api_base_url}/sessions/search/by_type/{name}'
+                }
+
+                return ShowSessionTypeWithHATEOAS(session_type=session_type_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение типа сессии отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_session_types(page: int, limit: int, request: Request, db) -> ShowSessionTypeListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            session_type_dal = SessionTypeDAL(session)
+            try:
+                session_types = await session_type_dal.get_all_session_types(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                session_types_with_hateoas = []
+                for session_type in session_types:
+                    session_type_pydantic = ShowSessionType.model_validate(session_type, from_attributes=True)
+                    session_type_name = session_type.name
+                    session_type_links = {
+                        "self": f'{api_base_url}/session-types/search/by_name/{session_type_name}',
+                        "update": f'{api_base_url}/session-types/update',
+                        "delete": f'{api_base_url}/session-types/delete/{session_type_name}',
+                        "session_types": f'{api_base_url}/session-types',
+                        "sessions": f'{api_base_url}/sessions/search/by_type/{session_type_name}'
+                    }
+                    session_type_with_links = ShowSessionTypeWithHATEOAS(session_type=session_type_pydantic, links=session_type_links)
+                    session_types_with_hateoas.append(session_type_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/session-types/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/session-types/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowSessionTypeListWithHATEOAS(session_types=session_types_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение типов сессий отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_session_type(name: str, request: Request, db) -> ShowSessionTypeWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                session_type_dal = SessionTypeDAL(session)
+                if not await ensure_session_type_exists(session_type_dal, name):
+                    raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{name}' не найден")
+
+                session_type = await session_type_dal.delete_session_type(name)
+                if not session_type:
+                    raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{name}' не найден")
+
+                session_type_pydantic = ShowSessionType.model_validate(session_type, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "session_types": f'{api_base_url}/session-types',
+                    "create": f'{api_base_url}/session-types/create'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSessionTypeWithHATEOAS(session_type=session_type_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении типа сессии '{name}': {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении типа сессии.")
+
+
+async def _update_session_type(body: UpdateSessionType, request: Request, db) -> ShowSessionTypeWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                session_type_dal = SessionTypeDAL(session)
+
+                if not await ensure_session_type_exists(session_type_dal, body.current_name):
+                    raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{body.current_name}' не найден")
+
+                if body.new_name != body.current_name:
+                    if not await ensure_session_type_unique(session_type_dal, body.new_name):
+                        raise HTTPException(status_code=400, detail=f"Тип сессии с именем '{body.new_name}' уже существует")
+
+                session_type = await session_type_dal.update_session_type(current_name=body.current_name, name=body.new_name)
+                if not session_type:
+                    raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{body.current_name}' не найден")
+
+                session_type_name = session_type.name
+                session_type_pydantic = ShowSessionType.model_validate(session_type, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/session-types/search/by_name/{session_type_name}',
+                    "update": f'{api_base_url}/session-types/update',
+                    "delete": f'{api_base_url}/session-types/delete/{session_type_name}',
+                    "session_types": f'{api_base_url}/session-types',
+                    "sessions": f'{api_base_url}/sessions/search/by_type/{session_type_name}'
+                }
+
+                return ShowSessionTypeWithHATEOAS(session_type=session_type_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о типе сессии отменено (Ошибка: {e})")
+            raise e
+
+
+@session_type_router.post("/create", response_model=ShowSessionTypeWithHATEOAS, status_code=201)
+async def create_session_type(body: CreateSessionType, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_session_type(body, request, db)
+
+
+@session_type_router.get("/search/by_name/{name}", response_model=ShowSessionTypeWithHATEOAS, responses={404: {"description": "Тип сессии не найден"}})
+async def get_session_type_by_name(name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_session_type_by_name(name, request, db)
+
+
+@session_type_router.get("/search", response_model=ShowSessionTypeListWithHATEOAS)
+async def get_all_session_types(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_session_types(query_param.page, query_param.limit, request, db)
+
+
+@session_type_router.delete("/delete/{name}", response_model=ShowSessionTypeWithHATEOAS, responses={404: {"description": "Тип сессии не найден"}})
+async def delete_session_type(name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_session_type(name, request, db)
+
+
+@session_type_router.put("/update", response_model=ShowSessionTypeWithHATEOAS, responses={404: {"description": "Тип сессии не найден"}})
+async def update_session_type(body: UpdateSessionType, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_session_type(body, request, db)

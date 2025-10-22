@@ -480,7 +480,7 @@ class CreateTeacherCategory(BaseModel):
 
 class UpdateTeacherCategory(BaseModel):
     teacher_category: Optional[str] = None
-    new_teacher_category: Optional[str] = None # Для операций обновления/переименования
+    new_teacher_category: Optional[str] = None 
 
 
 class ShowTeacherCategory(BaseModel):
@@ -489,9 +489,39 @@ class ShowTeacherCategory(BaseModel):
 
 class ShowTeacherCategoryWithHATEOAS(BaseModel):
     category: ShowTeacherCategory
-    links: dict[str, str] # Встроенный словарь для HATEOAS
+    links: dict[str, str]
 
 
 class ShowTeacherCategoryListWithHATEOAS(BaseModel):
     categories: List[ShowTeacherCategoryWithHATEOAS]
-    links: dict[str, str] # Встроенный словарь для HATEOAS
+    links: dict[str, str]
+
+
+'''
+========
+SessionType
+========
+'''
+
+class ShowSessionType(TunedModel):
+    """Class for get session type info"""
+    name: str
+
+
+class CreateSessionType(TunedModel):
+    name: str
+
+
+class UpdateSessionType(TunedModel):
+    current_name: str
+    new_name: str
+
+
+class ShowSessionTypeWithHATEOAS(TunedModel):
+    session_type: ShowSessionType
+    links: dict[str, str] = {}
+
+
+class ShowSessionTypeListWithHATEOAS(TunedModel):
+    session_types: List[ShowSessionTypeWithHATEOAS]
+    links: dict[str, str] = {}

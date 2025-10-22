@@ -13,8 +13,9 @@ from api.models import *
 #from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique, ensure_teacher_subject_relation_unique
 #from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, 
 from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique, \
-    ensure_building_exists, ensure_building_unique, ensure_cabinet_exists, ensure_cabinet_unique, ensure_session_type_exists, ensure_session_type_unique
-from db.dals import TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL
+    ensure_building_exists, ensure_building_unique, ensure_cabinet_exists, ensure_cabinet_unique, ensure_session_type_exists, ensure_session_type_unique, \
+    ensure_semester_exists, ensure_semester_unique, ensure_plan_exists, ensure_plan_unique, ensure_speciality_exists, ensure_speciality_unique
+from db.dals import TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL, SemesterDAL, PlanDAL, SpecialityDAL
 from db.session import get_db
 
 from sqlalchemy.exc import IntegrityError
@@ -846,261 +847,231 @@ async def update_cabinet(body: UpdateCabinet, request: Request, db: AsyncSession
     return await _update_cabinet(body, request, db)
 
 
-# '''
-# ==============================
-# CRUD operations for Speciality
-# ==============================
-# '''
+'''
+==============================
+CRUD operations for Speciality
+==============================
+'''
+
+async def _create_new_speciality(body: CreateSpeciality, request: Request, db) -> ShowSpecialityWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            speciality_dal = SpecialityDAL(session)
+            try:
+                if not await ensure_speciality_unique(speciality_dal, body.speciality_code):
+                    raise HTTPException(status_code=400, detail=f"Специальность с кодом '{body.speciality_code}' уже существует")
+
+                speciality = await speciality_dal.create_speciality(
+                    speciality_code=body.speciality_code
+                )
+                speciality_code = speciality.speciality_code
+                speciality_pydantic = ShowSpeciality.model_validate(speciality, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}',
+                    "plans": f'{api_base_url}/plans/search/by_speciality/{speciality_code}'
+                }
+
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании специальности '{body.speciality_code}': {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-# async def _create_speciality(body: CreateSpeciality, request: Request, db) -> ShowSpecialityWithHATEOAS:
-#     async with db as session:
-#         async with session.begin():
-#             speciality_dal = SpecialityDAL(session)
+async def _get_speciality_by_code(speciality_code: str, request: Request, db) -> ShowSpecialityWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            speciality_dal = SpecialityDAL(session)
+            try:
+                speciality = await speciality_dal.get_speciality(speciality_code)
+                if not speciality:
+                    raise HTTPException(status_code=404, detail=f"Специальность с кодом '{speciality_code}' не найдена")
+                speciality_pydantic = ShowSpeciality.model_validate(speciality, from_attributes=True)
 
-#             try:
-#                 speciality = await speciality_dal.create_speciality(speciality_code=body.speciality_code)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-#                 speciality_code = speciality.speciality_code
-#                 speciality_pydantic = ShowSpeciality.model_validate(speciality)
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}',
+                    "plans": f'{api_base_url}/plans/search/by_speciality/{speciality_code}'
+                }
 
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
 
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
-#                     "update": f'{api_base_url}/specialities/update/{speciality_code}',
-#                     "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
-#                     "specialities": f'{api_base_url}/specialities',
-#                     "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
-#                 }
-
-#                 return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
-
-#             except IntegrityError as e:
-#                 await session.rollback()
-#                 logger.error(f"Ошибка целостности БД при создании специальности: {e}")
-#                 raise HTTPException(status_code=400, detail="Невозможно создать специальность из-за конфликта данных.")
-
-#             except HTTPException:
-#                 await session.rollback()
-#                 raise
-
-#             except Exception as e:
-#                 await session.rollback()
-#                 logger.error(f"Неожиданная ошибка при создании специальности: {e}", exc_info=True)
-#                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение специальности '{speciality_code}' отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
+async def _get_all_specialities(page: int, limit: int, request: Request, db) -> ShowSpecialityListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            speciality_dal = SpecialityDAL(session)
+            try:
+                specialities = await speciality_dal.get_all_specialities(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-# async def _get_all_specialties(page: int, limit: int, request: Request, db) -> ShowSpecialityListWithHATEOAS:
-#     async with db as session:
-#         async with session.begin():
-#             speciality_dal = SpecialityDAL(session)
+                specialities_with_hateoas = []
+                for speciality in specialities:
+                    speciality_pydantic = ShowSpeciality.model_validate(speciality, from_attributes=True)
+                    speciality_code = speciality.speciality_code
+                    speciality_links = {
+                        "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                        "update": f'{api_base_url}/specialities/update',
+                        "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                        "specialities": f'{api_base_url}/specialities',
+                        "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}',
+                        "plans": f'{api_base_url}/plans/search/by_speciality/{speciality_code}'
+                    }
+                    speciality_with_links = ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=speciality_links)
+                    specialities_with_hateoas.append(speciality_with_links)
 
-#             try:
-#                 specialities = await speciality_dal.get_all_specialties(page, limit)
+                collection_links = {
+                    "self": f'{api_base_url}/specialities/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/specialities/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
 
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
+                return ShowSpecialityListWithHATEOAS(specialities=specialities_with_hateoas, links=collection_links)
 
-#                 specialities_with_hateoas = []
-#                 for speciality in specialities:
-#                     speciality_pydantic = ShowSpeciality.model_validate(speciality)
-
-#                     # add HATEOAS
-#                     speciality_code = speciality.speciality_code
-#                     speciality_links = {
-#                         "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
-#                         "update": f'{api_base_url}/specialities/update/{speciality_code}',
-#                         "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
-#                         "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
-#                 }
-
-#                     speciality_with_links = ShowSpecialityWithHATEOAS(
-#                         speciality=speciality_pydantic,
-#                         links=speciality_links
-#                     )
-#                     specialities_with_hateoas.append(speciality_with_links)
-
-#                 collection_links = {
-#                     "self": f'{api_base_url}/specialities?page={page}&limit={limit}',
-#                     "create": f'{api_base_url}/specialities/create'
-#                 }
-#                 collection_links = {k: v for k, v in collection_links.items() if v is not None}
-
-#                 return ShowSpecialityListWithHATEOAS(
-#                     specialities=specialities_with_hateoas,
-#                     links=collection_links
-#                 )
-
-#             except HTTPException:
-#                 raise
-
-#             except Exception as e:
-#                 logger.warning(f"Получение специальностей отменено (Ошибка: {e})")
-#                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение специальностей отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-# async def _get_speciality(speciality_code: str, request: Request, db) -> ShowSpecialityWithHATEOAS:
-#     async with db as session:
-#         async with session.begin():
-#             speciality_dal = SpecialityDAL(session)
+async def _delete_speciality(speciality_code: str, request: Request, db) -> ShowSpecialityWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                speciality_dal = SpecialityDAL(session)
+                
+                if not await ensure_speciality_exists(speciality_dal, speciality_code):
+                    raise HTTPException(status_code=404, detail=f"Специальность с кодом '{speciality_code}' не найдена")
 
-#             try:
-#                 speciality = await speciality_dal.get_speciality(speciality_code)
+                speciality = await speciality_dal.delete_speciality(speciality_code)
+                
+                if not speciality:
+                    raise HTTPException(status_code=404, detail=f"Специальность с кодом '{speciality_code}' не найдена")
 
-#                 # if speciality doesn't exist
-#                 if not speciality:
-#                     raise HTTPException(status_code=404, detail=f"Специальность с кодом: {speciality_code} не найдена")
+                speciality_pydantic = ShowSpeciality.model_validate(speciality, from_attributes=True)
 
-#                 speciality_pydantic = ShowSpeciality.model_validate(speciality)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
+                hateoas_links = {
+                    "specialities": f'{api_base_url}/specialities',
+                    "create": f'{api_base_url}/specialities/create'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
 
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
-#                     "update": f'{api_base_url}/specialities/update/{speciality_code}',
-#                     "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
-#                     "specialities": f'{api_base_url}/specialities',
-#                     "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
-#                 }
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
 
-#                 return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
-
-#             except HTTPException:
-#                 raise
-
-#             except Exception as e:
-#                 logger.warning(f"Получение специальности отменено (Ошибка: {e})")
-#                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
-
-
-# async def _delete_speciality(speciality_code: str, request: Request, db) -> ShowSpecialityWithHATEOAS:
-#     async with db as session:
-#         try:
-#             async with session.begin():
-#                 speciality_dal = SpecialityDAL(session)
-#                 speciality = await speciality_dal.delete_speciality(speciality_code)
-
-#                 if not speciality:
-#                     raise HTTPException(status_code=404,
-#                                         detail=f"Специальность с кодом: {speciality_code} не может быть удалена, т.к. не найдена")
-
-#                 speciality_pydantic = ShowSpeciality.model_validate(speciality)
-
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
-
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
-#                     "specialities": f'{api_base_url}/specialities',
-#                     "create": f'{api_base_url}/specialities/create',
-#                     "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
-#                 }
-
-#                 return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
-
-#         except HTTPException:
-#             await session.rollback()
-#             raise
-
-#         except Exception as e:
-#             await session.rollback()
-#             logger.warning(f"Неожиданная ошибка при удалении специальности {speciality_code}: {e}", exc_info=True)
-#             raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении специальности.")
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении специальности '{speciality_code}': {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении специальности.")
 
 
-# async def _update_speciality(body: UpdateSpeciality, request: Request, db) -> ShowSpecialityWithHATEOAS:
-#     async with db as session:
-#         try:
-#             async with session.begin():
-#                 # exclusion of None-fields from the transmitted data
-#                 update_data = {
-#                     key: value for key, value in body.dict().items() if
-#                     value is not None and key != "speciality_code"
-#                 }
+async def _update_speciality(body: UpdateSpeciality, request: Request, db) -> ShowSpecialityWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["speciality_code", "new_speciality_code"]}
+                
+                if body.new_speciality_code is not None:
+                    update_data["speciality_code"] = body.new_speciality_code
+                    
+                    speciality_dal = SpecialityDAL(session)
+                    if not await ensure_speciality_unique(speciality_dal, body.new_speciality_code):
+                        raise HTTPException(status_code=400, detail=f"Специальность с кодом '{body.new_speciality_code}' уже существует")
 
-#                 speciality_dal = SpecialityDAL(session)
+                speciality_dal = SpecialityDAL(session)
+                
+                if not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+                    raise HTTPException(status_code=404, detail=f"Специальность с кодом '{body.speciality_code}' не найдена")
 
-#                 # Rename field new_speciality_code to speciality_code
-#                 if "new_speciality_code" in update_data:
-#                     update_data["speciality_code"] = update_data.pop("new_speciality_code")
+                speciality = await speciality_dal.update_speciality(target_code=body.speciality_code, **update_data)
+                if not speciality:
+                    raise HTTPException(status_code=404, detail=f"Специальность с кодом '{body.speciality_code}' не найдена")
 
-#                 # Change data
-#                 speciality = await speciality_dal.update_speciality(
-#                     target_code=body.speciality_code,
-#                     **update_data
-#                     )
+                speciality_code = speciality.speciality_code 
+                speciality_pydantic = ShowSpeciality.model_validate(speciality, from_attributes=True)
 
-#                 if not speciality:
-#                     raise HTTPException(status_code=404, detail="Специальность не была обновлена")
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
 
-#                 speciality_code = body.speciality_code
-#                 speciality_pydantic = ShowSpeciality.model_validate(speciality)
+                hateoas_links = {
+                    "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
+                    "update": f'{api_base_url}/specialities/update',
+                    "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
+                    "specialities": f'{api_base_url}/specialities',
+                    "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}',
+                    "plans": f'{api_base_url}/plans/search/by_speciality/{speciality_code}'
+                }
 
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
+                return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
 
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/specialities/search/by_speciality_code/{speciality_code}',
-#                     "update": f'{api_base_url}/specialities/update/{speciality_code}',
-#                     "delete": f'{api_base_url}/specialities/delete/{speciality_code}',
-#                     "specialities": f'{api_base_url}/specialities',
-#                     "groups": f'{api_base_url}/groups/search/by_speciality/{speciality_code}'
-#                 }
-
-#                 return ShowSpecialityWithHATEOAS(speciality=speciality_pydantic, links=hateoas_links)
-
-#         except HTTPException:
-#             await session.rollback()
-#             raise
-
-#         except Exception as e:
-#             await session.rollback()
-#             logger.error(f"Неожиданная ошибка при обновлении специальности {body.speciality_code}: {e}", exc_info=True)
-#             raise HTTPException(
-#                 status_code=500,
-#                 detail="Внутренняя ошибка сервера при обновлении специальности."
-#             )
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о специальности отменено (Ошибка: {e})")
+            raise e
 
 
-# @speciality_router.post("/create", response_model=ShowSpecialityWithHATEOAS, status_code=201)
-# async def create_speciality(body: CreateSpeciality, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _create_speciality(body, request, db)
+@speciality_router.post("/create", response_model=ShowSpecialityWithHATEOAS, status_code=201)
+async def create_speciality(body: CreateSpeciality, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_speciality(body, request, db)
 
 
-# @speciality_router.get("/search", response_model=ShowSpecialityListWithHATEOAS, responses={404: {"description": "Специальность не найдена"}})
-# async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _get_all_specialties(query_param.page, query_param.limit, request, db)
+@speciality_router.get("/search/by_speciality_code/{speciality_code}", response_model=ShowSpecialityWithHATEOAS, responses={404: {"description": "Специальность не найдена"}})
+async def get_speciality_by_code(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_speciality_by_code(speciality_code, request, db)
 
 
-# @speciality_router.get("/search/by_code/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
-#                     responses={404: {"description": "Специальность не найдена"}})
-# async def get_speciality_by_code(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _get_speciality(speciality_code, request, db)
+@speciality_router.get("/search", response_model=ShowSpecialityListWithHATEOAS)
+async def get_all_specialities(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_specialities(query_param.page, query_param.limit, request, db)
 
 
-# @speciality_router.delete("/delete/{speciality_code}", response_model=ShowSpecialityWithHATEOAS,
-#                     responses={404: {"description": "Не удаётся удалить специальность"}})
-# async def delete_speciality(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _delete_speciality(speciality_code, request, db)
+@speciality_router.delete("/delete/{speciality_code}", response_model=ShowSpecialityWithHATEOAS, responses={404: {"description": "Специальность не найдена"}})
+async def delete_speciality(speciality_code: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_speciality(speciality_code, request, db)
 
 
-# @speciality_router.put("/update", response_model=ShowSpecialityWithHATEOAS,
-#                     responses={404: {"description": "Специальность не найдена или нет возможности изменить её параметры"}})
-# async def update_speciality(body: UpdateSpeciality, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _update_speciality(body, request, db)
+@speciality_router.put("/update", response_model=ShowSpecialityWithHATEOAS, responses={404: {"description": "Специальность не найдена"}})
+async def update_speciality(body: UpdateSpeciality, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_speciality(body, request, db)
 
 
 # '''
@@ -3914,3 +3885,484 @@ async def delete_session_type(name: str, request: Request, db: AsyncSession = De
 @session_type_router.put("/update", response_model=ShowSessionTypeWithHATEOAS, responses={404: {"description": "Тип сессии не найден"}})
 async def update_session_type(body: UpdateSessionType, request: Request, db: AsyncSession = Depends(get_db)):
     return await _update_session_type(body, request, db)
+
+
+semester_router = APIRouter()
+
+'''
+============================
+CRUD operations for Semester
+============================
+'''
+
+async def _create_new_semester(body: CreateSemester, request: Request, db) -> ShowSemesterWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            plan_dal = PlanDAL(session)
+            semester_dal = SemesterDAL(session)
+            try:
+                if not await ensure_plan_exists(plan_dal, body.plan_id):
+                    raise HTTPException(status_code=404, detail=f"Учебный план с id {body.plan_id} не найден")
+                if not await ensure_semester_unique(semester_dal, body.semester, body.plan_id):
+                    raise HTTPException(status_code=400, detail=f"Семестр {body.semester} для плана {body.plan_id} уже существует")
+
+                semester_obj = await semester_dal.create_semester(
+                    semester=body.semester,
+                    weeks=body.weeks,
+                    practice_weeks=body.practice_weeks,
+                    plan_id=body.plan_id
+                )
+                semester_number = semester_obj.semester
+                plan_id = semester_obj.plan_id
+                semester_pydantic = ShowSemester.model_validate(semester_obj, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/semesters/search/by_semester_and_plan/{semester_number}/{plan_id}',
+                    "update": f'{api_base_url}/semesters/update',
+                    "delete": f'{api_base_url}/semesters/delete/{semester_number}/{plan_id}',
+                    "semesters": f'{api_base_url}/semesters',
+                    "plan": f'{api_base_url}/plans/search/by_id/{plan_id}'
+                }
+
+                return ShowSemesterWithHATEOAS(semester=semester_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании семестра {body.semester} для плана {body.plan_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_semester_by_semester_and_plan(semester: int, plan_id: int, request: Request, db) -> ShowSemesterWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            semester_dal = SemesterDAL(session)
+            try:
+                semester_obj = await semester_dal.get_semester_by_semester_and_plan(semester, plan_id)
+                if not semester_obj:
+                    raise HTTPException(status_code=404, detail=f"Семестр {semester} для плана {plan_id} не найден")
+                semester_pydantic = ShowSemester.model_validate(semester_obj, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/semesters/search/by_semester_and_plan/{semester}/{plan_id}',
+                    "update": f'{api_base_url}/semesters/update',
+                    "delete": f'{api_base_url}/semesters/delete/{semester}/{plan_id}',
+                    "semesters": f'{api_base_url}/semesters',
+                    "plan": f'{api_base_url}/plans/search/by_id/{plan_id}'
+                }
+
+                return ShowSemesterWithHATEOAS(semester=semester_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение семестра {semester} для плана {plan_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_semesters(page: int, limit: int, request: Request, db) -> ShowSemesterListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            semester_dal = SemesterDAL(session)
+            try:
+                semesters = await semester_dal.get_all_semesters(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                semesters_with_hateoas = []
+                for semester_obj in semesters:
+                    semester_pydantic = ShowSemester.model_validate(semester_obj, from_attributes=True)
+                    semester_number = semester_obj.semester
+                    plan_id = semester_obj.plan_id
+                    semester_links = {
+                        "self": f'{api_base_url}/semesters/search/by_semester_and_plan/{semester_number}/{plan_id}',
+                        "update": f'{api_base_url}/semesters/update',
+                        "delete": f'{api_base_url}/semesters/delete/{semester_number}/{plan_id}',
+                        "semesters": f'{api_base_url}/semesters',
+                        "plan": f'{api_base_url}/plans/search/by_id/{plan_id}'
+                    }
+                    semester_with_links = ShowSemesterWithHATEOAS(semester=semester_pydantic, links=semester_links)
+                    semesters_with_hateoas.append(semester_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/semesters/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/semesters/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowSemesterListWithHATEOAS(semesters=semesters_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение семестров отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_semester(semester: int, plan_id: int, request: Request, db) -> ShowSemesterWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                semester_dal = SemesterDAL(session)
+                if not await ensure_semester_exists(semester_dal, semester, plan_id):
+                    raise HTTPException(status_code=404, detail=f"Семестр {semester} для плана {plan_id} не найден")
+
+                semester_obj = await semester_dal.delete_semester(semester, plan_id)
+                if not semester_obj:
+                    raise HTTPException(status_code=404, detail=f"Семестр {semester} для плана {plan_id} не найден")
+
+                semester_pydantic = ShowSemester.model_validate(semester_obj, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "semesters": f'{api_base_url}/semesters',
+                    "create": f'{api_base_url}/semesters/create',
+                    "plan": f'{api_base_url}/plans/search/by_id/{plan_id}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSemesterWithHATEOAS(semester=semester_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении семестра {semester} в плане {plan_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении семестра.")
+
+
+async def _update_semester(body: UpdateSemester, request: Request, db) -> ShowSemesterWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["semester", "plan_id", "new_semester", "new_plan_id"]}
+                target_semester = body.semester
+                target_plan_id = body.plan_id
+                if body.new_semester is not None or body.new_plan_id is not None:
+                    if body.new_semester is not None:
+                        update_data["semester"] = body.new_semester
+                        target_semester = body.new_semester 
+                    if body.new_plan_id is not None:
+                        update_data["plan_id"] = body.new_plan_id
+                        target_plan_id = body.new_plan_id 
+                        
+                    if (target_semester, target_plan_id) != (body.semester, body.plan_id):
+                        semester_dal = SemesterDAL(session)
+                        if not await ensure_semester_unique(semester_dal, target_semester, target_plan_id):
+                            raise HTTPException(status_code=400, detail=f"Семестр {target_semester} для плана {target_plan_id} уже существует")
+
+                semester_dal = SemesterDAL(session)
+
+                if not await ensure_semester_exists(semester_dal, body.semester, body.plan_id):
+                    raise HTTPException(status_code=404, detail=f"Семестр {body.semester} для плана {body.plan_id} не найден")
+
+                if "plan_id" in update_data:
+                    plan_id_to_check = update_data["plan_id"]
+                    plan_dal = PlanDAL(session)
+                    if not await ensure_plan_exists(plan_dal, plan_id_to_check):
+                        raise HTTPException(status_code=404, detail=f"Учебный план с id {plan_id_to_check} не найден")
+
+                semester_obj = await semester_dal.update_semester(target_semester=body.semester, target_plan_id=body.plan_id, **update_data)
+                if not semester_obj:
+                    raise HTTPException(status_code=404, detail=f"Семестр {body.semester} для плана {body.plan_id} не найден")
+
+                semester_number = semester_obj.semester 
+                plan_id = semester_obj.plan_id
+                semester_pydantic = ShowSemester.model_validate(semester_obj, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/semesters/search/by_semester_and_plan/{semester_number}/{plan_id}',
+                    "update": f'{api_base_url}/semesters/update',
+                    "delete": f'{api_base_url}/semesters/delete/{semester_number}/{plan_id}',
+                    "semesters": f'{api_base_url}/semesters',
+                    "plan": f'{api_base_url}/plans/search/by_id/{plan_id}'
+                }
+
+                return ShowSemesterWithHATEOAS(semester=semester_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о семестре отменено (Ошибка: {e})")
+            raise e
+
+
+@semester_router.post("/create", response_model=ShowSemesterWithHATEOAS, status_code=201)
+async def create_semester(body: CreateSemester, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_semester(body, request, db)
+
+
+@semester_router.get("/search/by_semester_and_plan/{semester}/{plan_id}", response_model=ShowSemesterWithHATEOAS, responses={404: {"description": "Семестр не найден"}})
+async def get_semester_by_semester_and_plan(semester: int, plan_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_semester_by_semester_and_plan(semester, plan_id, request, db)
+
+
+@semester_router.get("/search", response_model=ShowSemesterListWithHATEOAS)
+async def get_all_semesters(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_semesters(query_param.page, query_param.limit, request, db)
+
+
+@semester_router.delete("/delete/{semester}/{plan_id}", response_model=ShowSemesterWithHATEOAS, responses={404: {"description": "Семестр не найден"}})
+async def delete_semester(semester: int, plan_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_semester(semester, plan_id, request, db)
+
+
+@semester_router.put("/update", response_model=ShowSemesterWithHATEOAS, responses={404: {"description": "Семестр не найден"}})
+async def update_semester(body: UpdateSemester, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_semester(body, request, db)
+
+
+plan_router = APIRouter()
+
+'''
+==============================
+CRUD operations for Plan
+==============================
+'''
+
+async def _create_new_plan(body: CreatePlan, request: Request, db) -> ShowPlanWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            speciality_dal = SpecialityDAL(session)
+            plan_dal = PlanDAL(session)
+            try:
+                if not await ensure_speciality_exists(speciality_dal, body.speciality_code):
+                    raise HTTPException(status_code=404, detail=f"Специальность с кодом {body.speciality_code} не найдена")
+
+                plan = await plan_dal.create_plan(
+                    year=body.year,
+                    speciality_code=body.speciality_code
+                )
+                plan_id = plan.id 
+                plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/plans/search/by_id/{plan_id}',
+                    "update": f'{api_base_url}/plans/update',
+                    "delete": f'{api_base_url}/plans/delete/{plan_id}',
+                    "plans": f'{api_base_url}/plans',
+                    "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{body.speciality_code}',
+                    "chapters": f'{api_base_url}/chapters/search/by_plan/{plan_id}',
+                    "semesters": f'{api_base_url}/semesters/search/by_plan/{plan_id}'
+                }
+
+                return ShowPlanWithHATEOAS(plan=plan_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании учебного плана для специальности {body.speciality_code} на {body.year} год: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_plan_by_id(plan_id: int, request: Request, db) -> ShowPlanWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            plan_dal = PlanDAL(session)
+            try:
+                plan = await plan_dal.get_plan_by_id(plan_id)
+                if not plan:
+                    raise HTTPException(status_code=404, detail=f"Учебный план с id {plan_id} не найден")
+                plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/plans/search/by_id/{plan_id}',
+                    "update": f'{api_base_url}/plans/update',
+                    "delete": f'{api_base_url}/plans/delete/{plan_id}',
+                    "plans": f'{api_base_url}/plans',
+                    "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{plan.speciality_code}',
+                    "chapters": f'{api_base_url}/chapters/search/by_plan/{plan_id}',
+                    "semesters": f'{api_base_url}/semesters/search/by_plan/{plan_id}'
+                }
+
+                return ShowPlanWithHATEOAS(plan=plan_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение учебного плана {plan_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_plans(page: int, limit: int, request: Request, db) -> ShowPlanListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            plan_dal = PlanDAL(session)
+            try:
+                plans = await plan_dal.get_all_plans(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                plans_with_hateoas = []
+                for plan in plans:
+                    plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
+                    plan_id = plan.id
+                    plan_links = {
+                        "self": f'{api_base_url}/plans/search/by_id/{plan_id}',
+                        "update": f'{api_base_url}/plans/update',
+                        "delete": f'{api_base_url}/plans/delete/{plan_id}',
+                        "plans": f'{api_base_url}/plans',
+                        "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{plan.speciality_code}',
+                        "chapters": f'{api_base_url}/chapters/search/by_plan/{plan_id}',
+                        "semesters": f'{api_base_url}/semesters/search/by_plan/{plan_id}'
+                    }
+                    plan_with_links = ShowPlanWithHATEOAS(plan=plan_pydantic, links=plan_links)
+                    plans_with_hateoas.append(plan_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/plans/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/plans/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowPlanListWithHATEOAS(plans=plans_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение учебных планов отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_plan(plan_id: int, request: Request, db) -> ShowPlanWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                plan_dal = PlanDAL(session)
+                
+                if not await ensure_plan_exists(plan_dal, plan_id):
+                    raise HTTPException(status_code=404, detail=f"Учебный план с id {plan_id} не найден")
+
+                plan = await plan_dal.delete_plan(plan_id)
+
+                if not plan:
+                    raise HTTPException(status_code=404, detail=f"Учебный план с id {plan_id} не найден")
+
+                plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "plans": f'{api_base_url}/plans',
+                    "create": f'{api_base_url}/plans/create'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowPlanWithHATEOAS(plan=plan_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении учебного плана {plan_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении учебного плана.")
+
+
+async def _update_plan(body: UpdatePlan, request: Request, db) -> ShowPlanWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["plan_id"]}
+                
+                if "speciality_code" in update_data:
+                    speciality_code_to_check = update_data["speciality_code"]
+                    speciality_dal = SpecialityDAL(session)
+                    if not await ensure_speciality_exists(speciality_dal, speciality_code_to_check):
+                        raise HTTPException(status_code=404, detail=f"Специальность с кодом {speciality_code_to_check} не найдена")
+
+                plan_dal = PlanDAL(session)
+
+                if not await ensure_plan_exists(plan_dal, body.plan_id):
+                    raise HTTPException(status_code=404, detail=f"Учебный план с id {body.plan_id} не найден")
+
+                plan = await plan_dal.update_plan(target_id=body.plan_id, **update_data)
+                if not plan:
+                    raise HTTPException(status_code=404, detail=f"Учебный план с id {body.plan_id} не найден")
+
+                plan_id = plan.id 
+                plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/plans/search/by_id/{plan_id}',
+                    "update": f'{api_base_url}/plans/update',
+                    "delete": f'{api_base_url}/plans/delete/{plan_id}',
+                    "plans": f'{api_base_url}/plans',
+                    "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{plan.speciality_code}',
+                    "chapters": f'{api_base_url}/chapters/search/by_plan/{plan_id}',
+                    "semesters": f'{api_base_url}/semesters/search/by_plan/{plan_id}'
+                }
+
+                return ShowPlanWithHATEOAS(plan=plan_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о учебном плане отменено (Ошибка: {e})")
+            raise e
+
+
+@plan_router.post("/create", response_model=ShowPlanWithHATEOAS, status_code=201)
+async def create_plan(body: CreatePlan, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_plan(body, request, db)
+
+
+@plan_router.get("/search/by_id/{plan_id}", response_model=ShowPlanWithHATEOAS, responses={404: {"description": "Учебный план не найден"}})
+async def get_plan_by_id(plan_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_plan_by_id(plan_id, request, db)
+
+
+@plan_router.get("/search", response_model=ShowPlanListWithHATEOAS)
+async def get_all_plans(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_plans(query_param.page, query_param.limit, request, db)
+
+
+@plan_router.delete("/delete/{plan_id}", response_model=ShowPlanWithHATEOAS, responses={404: {"description": "Учебный план не найден"}})
+async def delete_plan(plan_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_plan(plan_id, request, db)
+
+
+@plan_router.put("/update", response_model=ShowPlanWithHATEOAS, responses={404: {"description": "Учебный план не найден"}})
+async def update_plan(body: UpdatePlan, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_plan(body, request, db)

@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Teacher, Group, Cabinet, Building, Speciality, Session, TeacherCategory, SessionType
+from db.models import Teacher, Group, Cabinet, Building, Speciality, Session, TeacherCategory, SessionType, Semester, Plan
 from config.decorators import log_exceptions
 from db.session import get_db
 
@@ -228,17 +228,16 @@ class CabinetDAL:
 DAL for Speciality
 ==================
 '''
-
-
 class SpecialityDAL:
     """Data Access Layer for operating speciality info"""
-
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
     @log_exceptions
     async def create_speciality(self, speciality_code: str) -> Speciality:
-        new_speciality = Speciality(speciality_code = speciality_code)
+        new_speciality = Speciality(
+            speciality_code=speciality_code
+        )
         self.db_session.add(new_speciality)
         await self.db_session.flush()
         return new_speciality
@@ -251,7 +250,7 @@ class SpecialityDAL:
         return deleted_speciality
 
     @log_exceptions
-    async def get_all_specialties(self, page: int, limit: int) -> list[Speciality] | None:
+    async def get_all_specialities(self, page: int, limit: int) -> list[Speciality]:
         if page == 0:
             query = select(Speciality).order_by(Speciality.speciality_code.asc())
         else:
@@ -261,25 +260,18 @@ class SpecialityDAL:
         return specialities
 
     @log_exceptions
-    async def get_speciality(self, speciality_code) -> Speciality | None:
+    async def get_speciality(self, speciality_code: str) -> Speciality | None:
         query = select(Speciality).where(Speciality.speciality_code == speciality_code)
         res = await self.db_session.execute(query)
-        speciality = res.scalar()
-        if not speciality:
-            return None
-
-        return speciality
+        speciality_row = res.scalar_one_or_none()
+        return speciality_row
 
     @log_exceptions
     async def update_speciality(self, target_code: str, **kwargs) -> Speciality | None:
-        query = (
-            update(Speciality)
-            .where(Speciality.speciality_code == target_code)
-            .values(**kwargs)
-            .returning(Speciality)
-        )
+        query = update(Speciality).where(Speciality.speciality_code == target_code).values(**kwargs).returning(Speciality)
         res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
+        updated_speciality = res.scalar_one_or_none()
+        return updated_speciality
 
 
 '''
@@ -882,3 +874,111 @@ class SessionTypeDAL:
         res = await self.db_session.execute(query)
         updated_type = res.scalar_one_or_none()
         return updated_type
+
+
+'''
+================
+DAL for Semester
+================
+'''
+class SemesterDAL:
+    """Data Access Layer for operating semester info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_semester(self, semester: int, weeks: float, practice_weeks: int, plan_id: int) -> Semester:
+        new_semester = Semester(
+            semester=semester,
+            weeks=weeks,
+            practice_weeks=practice_weeks,
+            plan_id=plan_id
+        )
+        self.db_session.add(new_semester)
+        await self.db_session.flush()
+        return new_semester
+
+    @log_exceptions
+    async def delete_semester(self, semester: int, plan_id: int) -> Semester | None:
+        query = delete(Semester).where((Semester.semester == semester) & (Semester.plan_id == plan_id)).returning(Semester)
+        res = await self.db_session.execute(query)
+        deleted_semester = res.scalar_one_or_none()
+        return deleted_semester
+
+    @log_exceptions
+    async def get_all_semesters(self, page: int, limit: int) -> list[Semester]:
+        if page == 0:
+            query = select(Semester).order_by(Semester.semester.asc())
+        else:
+            query = select(Semester).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        semesters = list(result.scalars().all())
+        return semesters
+
+    @log_exceptions
+    async def get_semester_by_semester_and_plan(self, semester: int, plan_id: int) -> Semester | None:
+        query = select(Semester).where((Semester.semester == semester) & (Semester.plan_id == plan_id))
+        res = await self.db_session.execute(query)
+        semester_row = res.scalar_one_or_none()
+        return semester_row
+
+    @log_exceptions
+    async def update_semester(self, target_semester: int, target_plan_id: int, **kwargs) -> Semester | None:
+        query = update(Semester).where(
+            (Semester.semester == target_semester) & (Semester.plan_id == target_plan_id)
+        ).values(**kwargs).returning(Semester)
+        res = await self.db_session.execute(query)
+        updated_semester = res.scalar_one_or_none()
+        return updated_semester
+    
+
+'''
+================
+DAL for Plan
+================
+'''
+class PlanDAL:
+    """Data Access Layer for operating plan info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_plan(self, year: int, speciality_code: str) -> Plan:
+        new_plan = Plan(
+            year=year,
+            speciality_code=speciality_code
+        )
+        self.db_session.add(new_plan)
+        await self.db_session.flush()
+        return new_plan
+
+    @log_exceptions
+    async def delete_plan(self, id: int) -> Plan | None:
+        query = delete(Plan).where(Plan.id == id).returning(Plan)
+        res = await self.db_session.execute(query)
+        deleted_plan = res.scalar_one_or_none()
+        return deleted_plan
+
+    @log_exceptions
+    async def get_all_plans(self, page: int, limit: int) -> list[Plan]:
+        if page == 0:
+            query = select(Plan).order_by(Plan.id.asc())
+        else:
+            query = select(Plan).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        plans = list(result.scalars().all())
+        return plans
+
+    @log_exceptions
+    async def get_plan_by_id(self, id: int) -> Plan | None:
+        query = select(Plan).where(Plan.id == id)
+        res = await self.db_session.execute(query)
+        plan_row = res.scalar_one_or_none()
+        return plan_row
+
+    @log_exceptions
+    async def update_plan(self, target_id: int, **kwargs) -> Plan | None:
+        query = update(Plan).where(Plan.id == target_id).values(**kwargs).returning(Plan)
+        res = await self.db_session.execute(query)
+        updated_plan = res.scalar_one_or_none()
+        return updated_plan

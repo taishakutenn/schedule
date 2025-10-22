@@ -30,14 +30,18 @@ async def ensure_teacher_exists(teacher_dal: TeacherDAL, teacher_id: int):
     return teacher
 
 # Speciality
-async def ensure_speciality_exists(speciality_dal: SpecialityDAL, speciality_code: str):
+async def ensure_speciality_exists(speciality_dal, speciality_code: str) -> bool:
     speciality = await speciality_dal.get_speciality(speciality_code)
-    return speciality
+    return speciality is not None
 
 # Group
 async def ensure_group_exists(group_dal: GroupDAL, group_name: str):
     group = await group_dal.get_group(group_name)
     return group
+
+async def ensure_plan_exists(plan_dal, plan_id: int) -> bool:
+    plan = await plan_dal.get_plan_by_id(plan_id)
+    return plan is not None
 
 # # Subject
 # async def ensure_subject_exists(subject_dal: SubjectDAL, subject_code: str):
@@ -55,6 +59,10 @@ async def ensure_teacher_exists(teacher_dal, teacher_id: int) -> bool:
 async def ensure_session_type_exists(session_type_dal, name: str) -> bool:
     session_type = await session_type_dal.get_session_type(name)
     return session_type is not None
+
+async def ensure_semester_exists(semester_dal, semester: int, plan_id: int) -> bool:
+    semester_obj = await semester_dal.get_semester_by_semester_and_plan(semester, plan_id)
+    return semester_obj is not None
 
 
 '''
@@ -130,3 +138,15 @@ async def ensure_building_unique(building_dal, building_number: int) -> bool:
 async def ensure_session_type_unique(session_type_dal, name: str) -> bool:
     session_type = await session_type_dal.get_session_type(name)
     return session_type is None
+
+async def ensure_semester_unique(semester_dal, semester: int, plan_id: int) -> bool:
+    semester_obj = await semester_dal.get_semester_by_semester_and_plan(semester, plan_id)
+    return semester_obj is None
+
+async def ensure_plan_unique(plan_dal, plan_id: int) -> bool:
+    plan = await plan_dal.get_plan_by_id(plan_id)
+    return plan is None
+
+async def ensure_speciality_unique(speciality_dal, speciality_code: str) -> bool:
+    speciality = await speciality_dal.get_speciality(speciality_code)
+    return speciality is None

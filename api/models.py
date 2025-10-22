@@ -152,11 +152,10 @@ class ShowCabinetListWithHATEOAS(TunedModel):
 
 
 '''
-==========
+========
 Speciality
-==========
+========
 '''
-
 
 class ShowSpeciality(TunedModel):
     """Class for get speciality info"""
@@ -169,7 +168,7 @@ class CreateSpeciality(TunedModel):
 
 class UpdateSpeciality(TunedModel):
     speciality_code: str
-    new_speciality_code: str
+    new_speciality_code: str | None = None
 
 
 class ShowSpecialityWithHATEOAS(TunedModel):
@@ -525,3 +524,78 @@ class ShowSessionTypeWithHATEOAS(TunedModel):
 class ShowSessionTypeListWithHATEOAS(TunedModel):
     session_types: List[ShowSessionTypeWithHATEOAS]
     links: dict[str, str] = {}
+
+
+'''
+========
+Semester
+========
+'''
+
+class ShowSemester(TunedModel):
+    """Class for get semester info"""
+    semester: int
+    weeks: float
+    practice_weeks: int
+    plan_id: int
+
+
+class CreateSemester(TunedModel):
+    semester: int
+    weeks: float
+    practice_weeks: int
+    plan_id: int
+
+
+class UpdateSemester(TunedModel):
+    semester: int
+    plan_id: int
+    new_semester: int | None = None
+    new_plan_id: int | None = None
+    weeks: float | None = None
+    practice_weeks: int | None = None
+
+
+class ShowSemesterWithHATEOAS(TunedModel):
+    semester: ShowSemester
+    links: dict[str, str] = {}
+
+
+class ShowSemesterListWithHATEOAS(TunedModel):
+    semesters: List[ShowSemesterWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+Plan
+========
+'''
+
+class ShowPlan(TunedModel):
+    """Class for get plan info"""
+    id: int
+    year: int
+    speciality_code: str
+
+
+class CreatePlan(TunedModel):
+    year: int
+    speciality_code: str
+
+
+class UpdatePlan(TunedModel):
+    plan_id: int
+    year: int | None = None
+    speciality_code: str | None = None
+
+
+class ShowPlanWithHATEOAS(TunedModel):
+    plan: ShowPlan
+    links: dict[str, str] = {}
+
+
+class ShowPlanListWithHATEOAS(TunedModel):
+    plans: List[ShowPlanWithHATEOAS]
+    links: dict[str, str] = {}
+

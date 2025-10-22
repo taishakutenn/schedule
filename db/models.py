@@ -516,7 +516,7 @@ class SubjectsInCycle(Base):
         module (Module): Relationship to access the module this subject belongs to (if any)
         cycle (Cycle): Relationship to access the cycle this subject belongs to
         hours (SubjectsInCycleHours): Relationship to access hour distributions for this subject
-        streams (Stram): Relationship to access the streams this subject belongs to
+        streams (Stream): Relationship to access the streams this subject belongs to
     """
     __tablename__ = "subjects_in_cycle"
 
@@ -530,7 +530,7 @@ class SubjectsInCycle(Base):
     control_work = Column(String, nullable=False)
     other_form = Column(String, nullable=False)
 
-    # Foreing keys
+    # Foreign keys
     module_in_cycle_id = Column(Integer,
                                 ForeignKey("module_in_cycle.id", onupdate="CASCADE", ondelete="CASCADE"),
                                 nullable=True)
@@ -577,7 +577,7 @@ class SubjectsInCycleHours(Base):
     consultation_hours = Column(Integer, nullable=False)
     intermediate_assessment_hours = Column(Integer, nullable=False)
 
-    # Foreing keys
+    # Foreign keys
     subject_in_cycle_id = Column(Integer,
                                  ForeignKey("subjects_in_cycle.id", onupdate="CASCADE", ondelete="CASCADE"),
                                  nullable=False)

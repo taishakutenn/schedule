@@ -98,11 +98,8 @@ class TeacherDAL:
 DAL for Building
 ================
 '''
-
-
 class BuildingDAL:
     """Data Access Layer for operating building info"""
-
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
@@ -139,7 +136,8 @@ class BuildingDAL:
     async def get_building_by_number(self, building_number: int) -> Building | None:
         query = select(Building).where(Building.building_number == building_number)
         res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
+        building_row = res.scalar_one_or_none()
+        return building_row
 
     @log_exceptions
     async def get_building_by_address(self, building_address: str) -> Building | None:

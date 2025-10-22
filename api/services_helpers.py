@@ -118,3 +118,7 @@ async def ensure_teacher_phone_unique(teacher_dal, phone_number: str, exclude_id
 async def ensure_teacher_email_unique(teacher_dal, email: str, exclude_id: int = None) -> bool:
     teacher = await teacher_dal.get_teacher_by_email(email)
     return teacher is None or teacher.id == exclude_id
+
+async def ensure_building_unique(building_dal, building_number: int) -> bool:
+    building = await building_dal.get_building_by_number(building_number)
+    return building is None

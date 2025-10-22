@@ -76,11 +76,10 @@ class ShowTeacherListWithHATEOAS(TunedModel):
 
 
 '''
-=========
-Buildings
-=========
+========
+Building
+========
 '''
-
 
 class ShowBuilding(TunedModel):
     """Class for get building info"""
@@ -91,7 +90,7 @@ class ShowBuilding(TunedModel):
 
 class CreateBuilding(TunedModel):
     building_number: int
-    city: str
+    city: str = "Орск"
     building_address: str
 
 

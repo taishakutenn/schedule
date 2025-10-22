@@ -12,8 +12,8 @@ from typing import Annotated, Union
 from api.models import *
 #from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique, ensure_teacher_subject_relation_unique
 #from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, 
-from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique
-from db.dals import TeacherCategoryDAL, TeacherDAL
+from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique, ensure_building_exists, ensure_building_unique
+from db.dals import TeacherCategoryDAL, TeacherDAL, BuildingDAL
 from db.session import get_db
 
 from sqlalchemy.exc import IntegrityError
@@ -272,307 +272,261 @@ async def update_teacher(body: UpdateTeacher, request: Request, db: AsyncSession
     return await _update_teacher(body, request, db)
 
 
-# '''
-# ============================
-# CRUD operations for Building
-# ============================
-# '''
-
-
-# async def _create_new_building(body: CreateBuilding, request: Request, db) -> ShowBuildingWithHATEOAS:
-#     async with db as session:
-#         async with session.begin():
-#             building_dal = BuildingDAL(session)
-#             try:
-#                 building = await building_dal.create_building(
-#                     building_number=body.building_number,
-#                     city=body.city,
-#                     building_address=body.building_address
-#                 )
-
-#                 building_number = building.building_number
-#                 building_pydantic = ShowBuilding.model_validate(building)
-
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
-
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
-#                     "update": f'{api_base_url}/buildings/update/{building_number}',
-#                     "delete": f'{api_base_url}/buildings/delete/{building_number}',
-#                     "buildings": f'{api_base_url}/buildings/search',
-#                     "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
-#                 }
-
-#                 return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
-
-#             except IntegrityError as e:
-#                 await session.rollback()
-#                 logger.error(f"Ошибка целостности БД при создании здания: {e}", exc_info=True)
-#                 raise HTTPException(
-#                     status_code=400,
-#                     detail="Невозможно создать здание из-за конфликта данных."
-#                 )
-
-#             except HTTPException:
-#                 raise
-
-#             except Exception as e:
-#                 await session.rollback()
-#                 logger.error(f"Неожиданная ошибка при создании здания: {e}", exc_info=True)
-#                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
-
-
-# async def _get_building_by_number(building_number, request: Request, db) -> ShowBuildingWithHATEOAS:
-#     async with db as session:
-#         async with session.begin():
-#             building_dal = BuildingDAL(session)
-
-#             try:
-#                 building = await building_dal.get_building_by_number(building_number)
-
-#                 # if building exist
-#                 if not building:
-#                     raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
-
-#                 building_pydantic = ShowBuilding.model_validate(building)
-
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
-
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
-#                     "update": f'{api_base_url}/buildings/update/{building_number}',
-#                     "delete": f'{api_base_url}/buildings/delete/{building_number}',
-#                     "buildings": f'{api_base_url}/buildings/search',
-#                     "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
-#                 }
-
-#                 return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
-
-#             except HTTPException:
-#                 raise
-
-#             except Exception as e:
-#                 logger.warning(f"Получение здания отменено (Ошибка: {e})")
-#                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
-
-
-# async def _get_building_by_address(address, request: Request, db) -> ShowBuildingWithHATEOAS:
-#     async with db as session:
-#         async with session.begin():
-#             building_dal = BuildingDAL(session)
-
-#             try:
-#                 building = await building_dal.get_building_by_address(address)
-
-#                 # if building exist
-#                 if not building:
-#                     raise HTTPException(status_code=404, detail=f"Здание по адресу: {address} не найдено")
-
-#                 building_number = building.building_number
-#                 building_pydantic = ShowBuilding.model_validate(building)
-
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
-
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
-#                     "update": f'{api_base_url}/buildings/update/{building_number}',
-#                     "delete": f'{api_base_url}/buildings/delete/{building_number}',
-#                     "buildings": f'{api_base_url}/buildings/search',
-#                     "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
-#                 }
-
-#                 return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
-
-#             except HTTPException:
-#                 raise
-
-#             except Exception as e:
-#                 logger.warning(f"Получение здания отменено (Ошибка: {e})")
-#                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
-
-
-# async def _get_all_buildings(page: int, limit: int, request: Request, db) -> ShowBuildingWithHATEOAS:
-#     async with db as session:
-#         async with session.begin():
-#             building_dal = BuildingDAL(session)
-
-#             try:
-#                 buildings = await building_dal.get_all_buildings(page, limit)
-
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
-
-#                 buildings_with_hateoas = []
-#                 for building in buildings:
-#                     building_pydantic = ShowBuilding.model_validate(building)
-
-#                     # add HATEOAS
-#                     building_number = building.building_number
-#                     building_links = {
-#                         "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
-#                         "update": f'{api_base_url}/buildings/update/{building_number}',
-#                         "delete": f'{api_base_url}/buildings/delete/{building_number}',
-#                         "buildings": f'{api_base_url}/buildings/search',
-#                         "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
-#                     }
-
-#                     building_with_links = ShowBuildingWithHATEOAS(
-#                         building=building_pydantic,
-#                         links=building_links
-#                     )
-#                     buildings_with_hateoas.append(building_with_links)
-
-#                 collection_links = {
-#                     "self": f'{api_base_url}/building?page={page}&limit={limit}',
-#                     "create": f'{api_base_url}/buildings/create'
-#                 }
-#                 collection_links = {k: v for k, v in collection_links.items() if v is not None}
-
-#                 return ShowBuildingListWithHATEOAS(
-#                     buildings=buildings_with_hateoas,
-#                     links=collection_links
-#                 )
-
-#             except HTTPException:
-#                 raise
-
-#             except Exception as e:
-#                 logger.warning(f"Получение зданий отменено (Ошибка: {e})")
-#                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
-
-
-# async def _delete_building(building_number: int, request: Request, db) -> ShowBuildingWithHATEOAS:
-#     async with db as session:
-#         try:
-#             async with session.begin():
-#                 building_dal = BuildingDAL(session)
-#                 building = await building_dal.delete_building(building_number)
-
-#                 if not building:
-#                     raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
-
-#                 building_pydantic = ShowBuilding.model_validate(building)
-
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
-
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
-#                     "buildings": f'{api_base_url}/buildings/search',
-#                     "create": f'{api_base_url}/buildings/create',
-#                     "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
-#                 }
-
-#                 return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
-
-#         except HTTPException:
-#             await session.rollback()
-#             raise
-
-#         except Exception as e:
-#             await session.rollback()
-#             logger.error(f"Неожиданная ошибка при удалении здания {building_number}: {e}", exc_info=True)
-#             raise HTTPException(
-#                 status_code=500,
-#                 detail="Внутренняя ошибка сервера при удалении здания."
-#             )
-
-
-# async def _update_building(body: UpdateBuilding, request: Request, db) -> ShowBuildingWithHATEOAS:
-#     async with db as session:
-#         try:
-#             async with session.begin():
-#                 # exclusion of None-fields from the transmitted data
-#                 update_data = {
-#                     key: value for key, value in body.dict().items() if value is not None and key != "building_number"
-#                 }
-
-#                 # Rename field new_building_data to building_data
-#                 if "new_building_number" in update_data:
-#                     update_data["building_number"] = update_data.pop("new_building_number")
-
-#                 # change data
-#                 building_dal = BuildingDAL(session)
-#                 building = await building_dal.update_building(
-#                     target_number=body.building_number,
-#                     **update_data
-#                 )
-
-#                 if not building:
-#                     raise HTTPException(status_code=404, detail=f"Здание с номером: {body.building_number} не найдено")
-
-#                 building_number = building.building_number
-#                 building_pydantic = ShowBuilding.model_validate(building)
-
-#                 # Add HATEOAS
-#                 base_url = str(request.base_url).rstrip('/')
-#                 api_prefix = ''
-#                 api_base_url = f'{base_url}{api_prefix}'
-
-#                 hateoas_links = {
-#                     "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
-#                     "update": f'{api_base_url}/buildings/update/{building_number}',
-#                     "delete": f'{api_base_url}/buildings/delete/{building_number}',
-#                     "buildings": f'{api_base_url}/buildings/search',
-#                     "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
-#                 }
-
-#                 return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
-
-#         except HTTPException:
-#             await session.rollback()
-#             raise
-
-#         except Exception as e:
-#             await session.rollback()
-#             logger.warning(f"Изменение данных о здании отменено (Ошибка: {e})")
-#             raise e
-
-
-# @building_router.post("/create", response_model=ShowBuildingWithHATEOAS, status_code=201)
-# async def create_building(body: CreateBuilding, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _create_new_building(body, request, db)
-
-
-# @building_router.get("/search/by_number/{building_number}", response_model=ShowBuildingWithHATEOAS,
-#                      responses={404: {"description": "Здание не найдено"}})
-# async def get_building_by_number(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _get_building_by_number(building_number, request, db)
-
-
-# @building_router.get("/search/by_address/{building_address}", response_model=ShowBuildingWithHATEOAS,
-#                      responses={404: {"description": "Здание не найдено"}})
-# async def get_building_by_address(address: str, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _get_building_by_address(address, request, db)
-
-
-# @building_router.get("/search", response_model=ShowBuildingListWithHATEOAS)
-# async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _get_all_buildings(query_param.page, query_param.limit, request, db)
-
-
-# @building_router.delete("/delete/{building_number}", response_model=ShowBuildingWithHATEOAS,
-#                      responses={404: {"description": "Здание не найдено"}})
-# async def delete_building(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _delete_building(building_number, request, db)
-
-
-# @building_router.put("/update", response_model=ShowBuildingWithHATEOAS,
-#                     responses={404: {"description": "Здание не найдено"}})
-# async def update_building(body: UpdateBuilding, request: Request, db: AsyncSession = Depends(get_db)):
-#     return await _update_building(body, request, db)
+'''
+==============================
+CRUD operations for Building
+==============================
+'''
+
+# handlers.txt
+# ...
+'''
+==============================
+CRUD operations for Building
+==============================
+'''
+
+async def _create_new_building(body: CreateBuilding, request: Request, db) -> ShowBuildingWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            building_dal = BuildingDAL(session)
+            try:
+                building = await building_dal.create_building(
+                    building_number=body.building_number,
+                    city=body.city,
+                    building_address=body.building_address
+                )
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании здания: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_building_by_number(building_number, request: Request, db) -> ShowBuildingWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            building_dal = BuildingDAL(session)
+            try:
+                building = await building_dal.get_building_by_number(building_number)
+                if not building:
+                    raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
+                building_pydantic = ShowBuilding.model_validate(building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение здания отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_building_by_address(address, request: Request, db) -> ShowBuildingWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            building_dal = BuildingDAL(session)
+            try:
+                building = await building_dal.get_building_by_address(address)
+                if not building:
+                    raise HTTPException(status_code=404, detail=f"Здание по адресу: {address} не найдено")
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение здания отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_buildings(page: int, limit: int, request: Request, db) -> ShowBuildingListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            building_dal = BuildingDAL(session)
+            try:
+                buildings = await building_dal.get_all_buildings(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                buildings_with_hateoas = []
+                for building in buildings:
+                    building_pydantic = ShowBuilding.model_validate(building, from_attributes=True)
+                    building_number = building.building_number
+                    building_links = {
+                        "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                        "update": f'{api_base_url}/buildings/update',
+                        "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                        "buildings": f'{api_base_url}/buildings',
+                        "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                    }
+                    building_with_links = ShowBuildingWithHATEOAS(building=building_pydantic, links=building_links)
+                    buildings_with_hateoas.append(building_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/buildings/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/buildings/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowBuildingListWithHATEOAS(buildings=buildings_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение зданий отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_building(building_number: int, request: Request, db) -> ShowBuildingWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                building_dal = BuildingDAL(session)
+                building = await building_dal.delete_building(building_number)
+                if not building:
+                    raise HTTPException(status_code=404, detail=f"Здание с номером: {building_number} не найдено")
+
+                building_pydantic = ShowBuilding.model_validate(building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "buildings": f'{api_base_url}/buildings',
+                    "create": f'{api_base_url}/buildings/create',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении здания {building_number}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении здания.")
+
+
+async def _update_building(body: UpdateBuilding, request: Request, db) -> ShowBuildingWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                # exclusion of None-fields from the transmitted data
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key != "building_number"}
+                # Rename field new_building_data to building_data
+                if "new_building_number" in update_data:
+                    update_data["building_number"] = update_data.pop("new_building_number")
+
+                # change data
+                building_dal = BuildingDAL(session)
+                building = await building_dal.update_building(target_number=body.building_number, **update_data)
+                if not building:
+                    raise HTTPException(status_code=404, detail=f"Здание с номером: {body.building_number} не найдено")
+
+                building_number = building.building_number
+                building_pydantic = ShowBuilding.model_validate(building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/buildings/search/by_number/{building_number}',
+                    "update": f'{api_base_url}/buildings/update',
+                    "delete": f'{api_base_url}/buildings/delete/{building_number}',
+                    "buildings": f'{api_base_url}/buildings',
+                    "cabinets": f'{api_base_url}/cabinets/search/by_building/{building_number}'
+                }
+
+                return ShowBuildingWithHATEOAS(building=building_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о здании отменено (Ошибка: {e})")
+            raise e
+
+
+@building_router.post("/create", response_model=ShowBuildingWithHATEOAS, status_code=201)
+async def create_building(body: CreateBuilding, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_building(body, request, db)
+
+
+@building_router.get("/search/by_number/{building_number}", response_model=ShowBuildingWithHATEOAS, responses={404: {"description": "Здание не найдено"}})
+async def get_building_by_number(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_building_by_number(building_number, request, db)
+
+
+@building_router.get("/search/by_address/{building_address}", response_model=ShowBuildingWithHATEOAS, responses={404: {"description": "Здание не найдено"}})
+async def get_building_by_address(address: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_building_by_address(address, request, db)
+
+
+@building_router.get("/search", response_model=ShowBuildingListWithHATEOAS)
+async def get_all_buildings(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_buildings(query_param.page, query_param.limit, request, db)
+
+
+@building_router.delete("/delete/{building_number}", response_model=ShowBuildingWithHATEOAS, responses={404: {"description": "Здание не найдено"}})
+async def delete_building(building_number: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_building(building_number, request, db)
+
+
+@building_router.put("/update", response_model=ShowBuildingWithHATEOAS, responses={404: {"description": "Здание не найдено"}})
+async def update_building(body: UpdateBuilding, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_building(body, request, db)
 
 
 # '''

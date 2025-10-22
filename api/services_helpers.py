@@ -20,9 +20,9 @@ async def ensure_building_exists(building_dal: BuildingDAL, building_number: int
     return building
 
 # Cabinet
-async def ensure_cabinet_exists(cabinet_dal: CabinetDAL, cabinet_number: int, building_number: int):
+async def ensure_cabinet_exists(cabinet_dal, building_number: int, cabinet_number: int) -> bool:
     cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
-    return cabinet
+    return cabinet is not None
 
 # Teacher
 async def ensure_teacher_exists(teacher_dal: TeacherDAL, teacher_id: int):
@@ -65,7 +65,7 @@ async def ensure_group_unique(group_dal: GroupDAL, group_name: str):
     return group is None
     
 # Cabinet
-async def ensure_cabinet_unique(cabinet_dal: CabinetDAL, building_number: int, cabinet_number: int):
+async def ensure_cabinet_unique(cabinet_dal, building_number: int, cabinet_number: int) -> bool:
     cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
     return cabinet is None
 

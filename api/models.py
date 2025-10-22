@@ -112,35 +112,33 @@ class ShowBuildingListWithHATEOAS(TunedModel):
 
 
 '''
-=======
+========
 Cabinet
-=======
+========
 '''
-
 
 class ShowCabinet(TunedModel):
     """Class for get cabinet info"""
     cabinet_number: int
+    building_number: int
     capacity: int | None = None
     cabinet_state: str | None = None
-    building_number: int
 
 
 class CreateCabinet(TunedModel):
-    """Class for add new cabinet in db"""
     cabinet_number: int
+    building_number: int
     capacity: int | None = None
     cabinet_state: str | None = None
-    building_number: int
 
 
 class UpdateCabinet(TunedModel):
     cabinet_number: int
+    building_number: int
     new_cabinet_number: int | None = None
+    new_building_number: int | None = None
     capacity: int | None = None
     cabinet_state: str | None = None
-    building_number: int
-    new_building_number: int | None = None
 
 
 class ShowCabinetWithHATEOAS(TunedModel):

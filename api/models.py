@@ -32,32 +32,37 @@ Teachers
 ========
 '''
 
-
 class ShowTeacher(TunedModel):
     """Class for get teacher info"""
     id: int
     name: str
     surname: str
-    phone_number: str
-    email: EmailStr
     fathername: str | None = None
+    phone_number: str
+    email: EmailStr | None = None
+    salary_rate: float | None = None
+    teacher_category: str | None = None
 
 
 class CreateTeacher(TunedModel):
     name: str
     surname: str
-    phone_number: str
-    email: EmailStr
     fathername: str | None = None
+    phone_number: str
+    email: EmailStr | None = None
+    salary_rate: float | None = None
+    teacher_category: str | None = None
 
 
 class UpdateTeacher(TunedModel):
     teacher_id: int
     name: str | None = None
     surname: str | None = None
+    fathername: str | None = None
     phone_number: str | None = None
     email: EmailStr | None = None
-    fathername: str | None = None
+    salary_rate: float | None = None
+    teacher_category: str | None = None
 
 
 class ShowTeacherWithHATEOAS(TunedModel):

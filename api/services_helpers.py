@@ -48,6 +48,11 @@ async def ensure_category_exists(category_dal, category_name: str) -> bool:
     category = await category_dal.get_teacher_category(category_name)
     return category is not None
 
+async def ensure_teacher_exists(teacher_dal, teacher_id: int) -> bool:
+    teacher = await teacher_dal.get_teacher_by_id(teacher_id)
+    return teacher is not None
+
+
 '''
 ======
 Unique
@@ -105,3 +110,11 @@ async def ensure_session_unique(session_dal: SessionDAL, session_number: int, da
 async def ensure_category_unique(category_dal, category_name: str) -> bool:
     category = await category_dal.get_teacher_category(category_name)
     return category is None
+
+async def ensure_teacher_phone_unique(teacher_dal, phone_number: str, exclude_id: int = None) -> bool:
+    teacher = await teacher_dal.get_teacher_by_phone_number(phone_number)
+    return teacher is None or teacher.id == exclude_id
+
+async def ensure_teacher_email_unique(teacher_dal, email: str, exclude_id: int = None) -> bool:
+    teacher = await teacher_dal.get_teacher_by_email(email)
+    return teacher is None or teacher.id == exclude_id

@@ -108,6 +108,7 @@ class Teacher(Base):
         requests (TeacherRequest): Relationship to access the teacher requests for sessions associated with the teacher
         category (TeacherCategory): Relationship to access the category associated with the current teacher
         teachers_in_plans (TeacherInPlan): Relationship to access the teachers in plans associated with the current teacher
+        buildings_work (TeacherBuilding): Relationship to access the all buildings work associated with the current teacher
     """
     __tablename__ = "teachers"
 
@@ -131,6 +132,7 @@ class Teacher(Base):
     # requests = relationship("TeacherRequest", back_populates="teacher")
     category = relationship("TeacherCategory", back_populates="teachers")
     teachers_in_plans = relationship("TeacherInPlan", back_populates="teacher")
+    buildings_work = relationship("TeacherBuilding", back_populates="teacher")
 
 
 # class Subject(Base):
@@ -200,6 +202,7 @@ class Building(Base):
 
     Relations:
         cabinets (Cabinet): Relationship to access all cabinets associated with this building
+        teachers_work (TeacherBuilding): Relationship to access the building and all teachers teaching in that building
     """
     __tablename__ = "buildings"
 
@@ -209,6 +212,32 @@ class Building(Base):
 
     # Relationships
     cabinets = relationship("Cabinet", back_populates="building")
+    teachers_work = relationship("TeacherBuilding", back_populates="building")
+
+
+class TeacherBuilding(Base):
+    """
+    Represent the buildings in which the teacher works
+
+    Fields:
+        id (int): The unique number of the teacher-group relation (primary key)
+
+    Relations:
+        teacher (Teacher): Relationship to with teachers who teach
+        building (Building): Relationship to the buildings in which teachers teach
+    """
+    __tablename__ = "teachers_buildings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Foreign keys
+    teacher_id = Column(Integer, ForeignKey("teachers.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
+    building_number = Column(Integer, ForeignKey("buildings.building_number", ondelete="CASCADE", onupdate="CASCADE"),
+                             nullable=False)
+
+    # Relations
+    teacher = relationship("Teacher", back_populates="buildings_work")
+    building = relationship("Building", back_populates="teachers_work")
 
 
 class SessionType(Base):
@@ -503,12 +532,6 @@ class SubjectsInCycle(Base):
         id (int): Unique identifier of the subject assignment (primary key)
         code (str): Code of the subject
         title (str): Title of the subject
-        credit (str): Form of credit (e.g., "exam", "pass")
-        differentiated_credit (str): Differentiated credit info
-        course_project (str): Requirement for course project
-        course_work (str): Requirement for course work
-        control_work (str): Requirement for control work
-        other_form (str): Other assessment forms
         module_in_cycle_id (int): Foreign key linking to the module (nullable)
         cycle_in_chapter_id (int): Foreign key linking to the cycle
 
@@ -523,12 +546,6 @@ class SubjectsInCycle(Base):
     id = Column(Integer, primary_key=True)
     code = Column(String, nullable=False)
     title = Column(String, nullable=False)
-    credit = Column(String, nullable=False)
-    differentiated_credit = Column(String, nullable=False)
-    course_project = Column(String, nullable=False)
-    course_work = Column(String, nullable=False)
-    control_work = Column(String, nullable=False)
-    other_form = Column(String, nullable=False)
 
     # Foreign keys
     module_in_cycle_id = Column(Integer,
@@ -564,6 +581,7 @@ class SubjectsInCycleHours(Base):
     Relations:
         subjects_in_cycle (SubjectsInCycle): Relationship to access the subject this hour record belongs to
         teachers_in_plans (TeacherInPlan): Relationship to access the teacher in plan this hour record belongs to
+        certifications (Certification):
     """
     __tablename__ = "subjects_in_cycle_hours"
 
@@ -585,6 +603,40 @@ class SubjectsInCycleHours(Base):
     # Relationships
     subjects_in_cycle = relationship("SubjectsInCycle", back_populates="hours")
     teachers_in_plans = relationship("TeacherInPlan", back_populates="subjects_hours")
+    certifications = relationship("Certification", back_populates="subjects_in_cycle_hours")
+
+
+class Certification(Base):
+    """
+    Displays whether anything is due in each semester of each plan for each subject
+
+    Fields:
+        id (int): Foreign key id to a specific semester, specific plan, specific subject (primary key)
+        credit (bool): Form of credit (e.g., "exam", "pass")
+        differentiated_credit (bool): Differentiated credit info
+        course_project (bool): Requirement for course project
+        course_work (bool): Requirement for course work
+        control_work (bool): Requirement for control work
+        other_form (bool): Other assessment forms
+
+    Relations:
+        subjects_in_cycle_hours (SubjectsInCycleHours):
+    """
+    __tablename__ = "certifications"
+
+    credit = Column(Boolean, nullable=False, default=False)
+    differentiated_credit = Column(Boolean, nullable=False, default=False)
+    course_project = Column(Boolean, nullable=False, default=False)
+    course_work = Column(Boolean, nullable=False, default=False)
+    control_work = Column(Boolean, nullable=False, default=False)
+    other_form = Column(Boolean, nullable=False, default=False)
+
+    # Foreign keys
+    id = Column(Integer, ForeignKey("subjects_in_cycle_hours.id", ondelete="CASCADE", onupdate="CASCADE"),
+                primary_key=True)
+
+    # Relationships
+    subjects_in_cycle_hours = relationship("SubjectsInCycleHours", back_populates="certifications")
 
 
 class TeacherInPlan(Base):
@@ -610,7 +662,7 @@ class TeacherInPlan(Base):
 
     # Foreign key
     subject_in_cycle_hours_id = Column(Integer,
-                                 ForeignKey("subjects_in_cycle_hours.id", onupdate="CASCADE", ondelete="CASCADE"))
+                                       ForeignKey("subjects_in_cycle_hours.id", onupdate="CASCADE", ondelete="CASCADE"))
     teacher_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="CASCADE"))
     group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"))
     session_type = Column(String, ForeignKey("session_types.name", onupdate="CASCADE", ondelete="CASCADE"))
@@ -643,7 +695,7 @@ class Stream(Base):
     group_name = Column(String, ForeignKey("groups.group_name", onupdate="CASCADE", ondelete="CASCADE"),
                         primary_key=True)
     subject_id = Column(Integer, ForeignKey("subjects_in_cycle.id", onupdate="CASCADE", ondelete="CASCADE"),
-                          primary_key=True)
+                        primary_key=True)
 
     # Relationships
     group = relationship("Group", back_populates="streams")

@@ -567,9 +567,9 @@ class ShowSemesterListWithHATEOAS(TunedModel):
 
 
 '''
-========
+====
 Plan
-========
+====
 '''
 
 class ShowPlan(TunedModel):
@@ -599,3 +599,156 @@ class ShowPlanListWithHATEOAS(TunedModel):
     plans: List[ShowPlanWithHATEOAS]
     links: dict[str, str] = {}
 
+
+'''
+========
+Chapter
+========
+'''
+
+class ShowChapter(TunedModel):
+    """Class for get chapter info"""
+    id: int
+    code: str
+    name: str
+    plan_id: int
+
+
+class CreateChapter(TunedModel):
+    code: str
+    name: str
+    plan_id: int
+
+
+class UpdateChapter(TunedModel):
+    chapter_id: int
+    code: str | None = None
+    name: str | None = None
+    plan_id: int | None = None
+
+
+class ShowChapterWithHATEOAS(TunedModel):
+    chapter: ShowChapter
+    links: dict[str, str] = {}
+
+
+class ShowChapterListWithHATEOAS(TunedModel):
+    chapters: List[ShowChapterWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+Cycle
+========
+'''
+
+class ShowCycle(TunedModel):
+    """Class for get cycle info"""
+    id: int
+    contains_modules: bool
+    code: str
+    name: str
+    chapter_in_plan_id: int
+
+
+class CreateCycle(TunedModel):
+    contains_modules: bool
+    code: str
+    name: str
+    chapter_in_plan_id: int
+
+
+class UpdateCycle(TunedModel):
+    cycle_id: int
+    contains_modules: bool | None = None
+    code: str | None = None
+    name: str | None = None
+    chapter_in_plan_id: int | None = None
+
+
+class ShowCycleWithHATEOAS(TunedModel):
+    cycle: ShowCycle
+    links: dict[str, str] = {}
+
+
+class ShowCycleListWithHATEOAS(TunedModel):
+    cycles: List[ShowCycleWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+Module
+========
+'''
+
+class ShowModule(TunedModel):
+    """Class for get module info"""
+    id: int
+    name: str
+    code: str
+    cycle_in_chapter_id: int
+
+
+class CreateModule(TunedModel):
+    name: str
+    code: str
+    cycle_in_chapter_id: int
+
+
+class UpdateModule(TunedModel):
+    module_id: int
+    name: str | None = None
+    code: str | None = None
+    cycle_in_chapter_id: int | None = None
+
+
+class ShowModuleWithHATEOAS(TunedModel):
+    module: ShowModule
+    links: dict[str, str] = {}
+
+
+class ShowModuleListWithHATEOAS(TunedModel):
+    modules: List[ShowModuleWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+===============
+SubjectsInCycle
+===============
+'''
+
+class ShowSubjectsInCycle(TunedModel):
+    """Class for get subject in cycle info"""
+    id: int
+    code: str
+    title: str
+    module_in_cycle_id: int | None = None
+    cycle_in_chapter_id: int
+
+
+class CreateSubjectsInCycle(TunedModel):
+    code: str
+    title: str
+    module_in_cycle_id: int | None = None
+    cycle_in_chapter_id: int
+
+
+class UpdateSubjectsInCycle(TunedModel):
+    subject_in_cycle_id: int
+    code: str | None = None
+    title: str | None = None
+    module_in_cycle_id: int | None = None
+    cycle_in_chapter_id: int | None = None
+
+
+class ShowSubjectsInCycleWithHATEOAS(TunedModel):
+    subject_in_cycle: ShowSubjectsInCycle
+    links: dict[str, str] = {}
+
+
+class ShowSubjectsInCycleListWithHATEOAS(TunedModel):
+    subjects_in_cycles: List[ShowSubjectsInCycleWithHATEOAS]
+    links: dict[str, str] = {}

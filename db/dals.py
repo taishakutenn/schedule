@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Teacher, Group, Cabinet, Building, Speciality, Session, TeacherCategory, SessionType, Semester, Plan
+from db.models import Teacher, Group, Cabinet, Building, Speciality, Session, TeacherCategory, SessionType, Semester, Plan, Chapter, Cycle, Module, SubjectsInCycle
 from config.decorators import log_exceptions
 from db.session import get_db
 
@@ -982,3 +982,267 @@ class PlanDAL:
         res = await self.db_session.execute(query)
         updated_plan = res.scalar_one_or_none()
         return updated_plan
+
+
+'''
+================
+DAL for Chapter
+================
+'''
+class ChapterDAL:
+    """Data Access Layer for operating chapter info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_chapter(self, code: str, name: str, plan_id: int) -> Chapter:
+        new_chapter = Chapter(
+            code=code,
+            name=name,
+            plan_id=plan_id
+        )
+        self.db_session.add(new_chapter)
+        await self.db_session.flush()
+        return new_chapter
+
+    @log_exceptions
+    async def delete_chapter(self, id: int) -> Chapter | None:
+        query = delete(Chapter).where(Chapter.id == id).returning(Chapter)
+        res = await self.db_session.execute(query)
+        deleted_chapter = res.scalar_one_or_none()
+        return deleted_chapter
+
+    @log_exceptions
+    async def get_all_chapters(self, page: int, limit: int) -> list[Chapter]:
+        if page == 0:
+            query = select(Chapter).order_by(Chapter.id.asc())
+        else:
+            query = select(Chapter).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        chapters = list(result.scalars().all())
+        return chapters
+
+    @log_exceptions
+    async def get_chapter_by_id(self, id: int) -> Chapter | None:
+        query = select(Chapter).where(Chapter.id == id)
+        res = await self.db_session.execute(query)
+        chapter_row = res.scalar_one_or_none()
+        return chapter_row
+
+    @log_exceptions
+    async def get_chapters_by_plan(self, plan_id: int, page: int, limit: int) -> list[Chapter]:
+        if page == 0:
+            query = select(Chapter).where(Chapter.plan_id == plan_id).order_by(Chapter.id.asc())
+        else:
+            query = select(Chapter).where(Chapter.plan_id == plan_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        chapters = list(result.scalars().all())
+        return chapters
+
+    @log_exceptions
+    async def update_chapter(self, target_id: int, **kwargs) -> Chapter | None:
+        query = update(Chapter).where(Chapter.id == target_id).values(**kwargs).returning(Chapter)
+        res = await self.db_session.execute(query)
+        updated_chapter = res.scalar_one_or_none()
+        return updated_chapter
+    
+
+'''
+================
+DAL for Cycle
+================
+'''
+class CycleDAL:
+    """Data Access Layer for operating cycle info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_cycle(self, contains_modules: bool, code: str, name: str, chapter_in_plan_id: int) -> Cycle:
+        new_cycle = Cycle(
+            contains_modules=contains_modules,
+            code=code,
+            name=name,
+            chapter_in_plan_id=chapter_in_plan_id
+        )
+        self.db_session.add(new_cycle)
+        await self.db_session.flush()
+        return new_cycle
+
+    @log_exceptions
+    async def delete_cycle(self, id: int) -> Cycle | None:
+        query = delete(Cycle).where(Cycle.id == id).returning(Cycle)
+        res = await self.db_session.execute(query)
+        deleted_cycle = res.scalar_one_or_none()
+        return deleted_cycle
+
+    @log_exceptions
+    async def get_all_cycles(self, page: int, limit: int) -> list[Cycle]:
+        if page == 0:
+            query = select(Cycle).order_by(Cycle.id.asc())
+        else:
+            query = select(Cycle).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        cycles = list(result.scalars().all())
+        return cycles
+
+    @log_exceptions
+    async def get_cycle_by_id(self, id: int) -> Cycle | None:
+        query = select(Cycle).where(Cycle.id == id)
+        res = await self.db_session.execute(query)
+        cycle_row = res.scalar_one_or_none()
+        return cycle_row
+
+    @log_exceptions
+    async def get_cycles_by_chapter(self, chapter_in_plan_id: int, page: int, limit: int) -> list[Cycle]:
+        if page == 0:
+            query = select(Cycle).where(Cycle.chapter_in_plan_id == chapter_in_plan_id).order_by(Cycle.id.asc())
+        else:
+            query = select(Cycle).where(Cycle.chapter_in_plan_id == chapter_in_plan_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        cycles = list(result.scalars().all())
+        return cycles
+
+    @log_exceptions
+    async def update_cycle(self, target_id: int, **kwargs) -> Cycle | None:
+        query = update(Cycle).where(Cycle.id == target_id).values(**kwargs).returning(Cycle)
+        res = await self.db_session.execute(query)
+        updated_cycle = res.scalar_one_or_none()
+        return updated_cycle
+    
+
+'''
+================
+DAL for Module
+================
+'''
+class ModuleDAL:
+    """Data Access Layer for operating module info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_module(self, name: str, code: str, cycle_in_chapter_id: int) -> Module:
+        new_module = Module(
+            name=name,
+            code=code,
+            cycle_in_chapter_id=cycle_in_chapter_id
+        )
+        self.db_session.add(new_module)
+        await self.db_session.flush()
+        return new_module
+
+    @log_exceptions
+    async def delete_module(self, id: int) -> Module | None:
+        query = delete(Module).where(Module.id == id).returning(Module)
+        res = await self.db_session.execute(query)
+        deleted_module = res.scalar_one_or_none()
+        return deleted_module
+
+    @log_exceptions
+    async def get_all_modules(self, page: int, limit: int) -> list[Module]:
+        if page == 0:
+            query = select(Module).order_by(Module.id.asc())
+        else:
+            query = select(Module).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        modules = list(result.scalars().all())
+        return modules
+
+    @log_exceptions
+    async def get_module_by_id(self, id: int) -> Module | None:
+        query = select(Module).where(Module.id == id)
+        res = await self.db_session.execute(query)
+        module_row = res.scalar_one_or_none()
+        return module_row
+
+    @log_exceptions
+    async def get_modules_by_cycle(self, cycle_in_chapter_id: int, page: int, limit: int) -> list[Module]:
+        if page == 0:
+            query = select(Module).where(Module.cycle_in_chapter_id == cycle_in_chapter_id).order_by(Module.id.asc())
+        else:
+            query = select(Module).where(Module.cycle_in_chapter_id == cycle_in_chapter_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        modules = list(result.scalars().all())
+        return modules
+
+    @log_exceptions
+    async def update_module(self, target_id: int, **kwargs) -> Module | None:
+        query = update(Module).where(Module.id == target_id).values(**kwargs).returning(Module)
+        res = await self.db_session.execute(query)
+        updated_module = res.scalar_one_or_none()
+        return updated_module
+    
+
+'''
+=======================
+DAL for SubjectsInCycle
+=======================
+'''
+class SubjectsInCycleDAL:
+    """Data Access Layer for operating subjects in cycle info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_subject_in_cycle(self, code: str, title: str, cycle_in_chapter_id: int, module_in_cycle_id: int | None = None) -> SubjectsInCycle:
+        new_subject_in_cycle = SubjectsInCycle(
+            code=code,
+            title=title,
+            cycle_in_chapter_id=cycle_in_chapter_id,
+            module_in_cycle_id=module_in_cycle_id
+        )
+        self.db_session.add(new_subject_in_cycle)
+        await self.db_session.flush()
+        return new_subject_in_cycle
+
+    @log_exceptions
+    async def delete_subject_in_cycle(self, id: int) -> SubjectsInCycle | None:
+        query = delete(SubjectsInCycle).where(SubjectsInCycle.id == id).returning(SubjectsInCycle)
+        res = await self.db_session.execute(query)
+        deleted_subject_in_cycle = res.scalar_one_or_none()
+        return deleted_subject_in_cycle
+
+    @log_exceptions
+    async def get_all_subjects_in_cycles(self, page: int, limit: int) -> list[SubjectsInCycle]:
+        if page == 0:
+            query = select(SubjectsInCycle).order_by(SubjectsInCycle.id.asc())
+        else:
+            query = select(SubjectsInCycle).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycles = list(result.scalars().all())
+        return subjects_in_cycles
+
+    @log_exceptions
+    async def get_subject_in_cycle_by_id(self, id: int) -> SubjectsInCycle | None:
+        query = select(SubjectsInCycle).where(SubjectsInCycle.id == id)
+        res = await self.db_session.execute(query)
+        subject_in_cycle_row = res.scalar_one_or_none()
+        return subject_in_cycle_row
+
+    @log_exceptions
+    async def get_subjects_in_cycle_by_cycle(self, cycle_in_chapter_id: int, page: int, limit: int) -> list[SubjectsInCycle]:
+        if page == 0:
+            query = select(SubjectsInCycle).where(SubjectsInCycle.cycle_in_chapter_id == cycle_in_chapter_id).order_by(SubjectsInCycle.id.asc())
+        else:
+            query = select(SubjectsInCycle).where(SubjectsInCycle.cycle_in_chapter_id == cycle_in_chapter_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycles = list(result.scalars().all())
+        return subjects_in_cycles
+
+    @log_exceptions
+    async def get_subjects_in_cycle_by_module(self, module_in_cycle_id: int, page: int, limit: int) -> list[SubjectsInCycle]:
+        if page == 0:
+            query = select(SubjectsInCycle).where(SubjectsInCycle.module_in_cycle_id == module_in_cycle_id).order_by(SubjectsInCycle.id.asc())
+        else:
+            query = select(SubjectsInCycle).where(SubjectsInCycle.module_in_cycle_id == module_in_cycle_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycles = list(result.scalars().all())
+        return subjects_in_cycles
+
+    @log_exceptions
+    async def update_subject_in_cycle(self, target_id: int, **kwargs) -> SubjectsInCycle | None:
+        query = update(SubjectsInCycle).where(SubjectsInCycle.id == target_id).values(**kwargs).returning(SubjectsInCycle)
+        res = await self.db_session.execute(query)
+        updated_subject_in_cycle = res.scalar_one_or_none()
+        return updated_subject_in_cycle

@@ -581,7 +581,7 @@ class SubjectsInCycleHours(Base):
     Relations:
         subjects_in_cycle (SubjectsInCycle): Relationship to access the subject this hour record belongs to
         teachers_in_plans (TeacherInPlan): Relationship to access the teacher in plan this hour record belongs to
-        certifications (Certification):
+        certifications (Certification): Relationship to access the subject this hour record belongs to
     """
     __tablename__ = "subjects_in_cycle_hours"
 
@@ -620,7 +620,7 @@ class Certification(Base):
         other_form (bool): Other assessment forms
 
     Relations:
-        subjects_in_cycle_hours (SubjectsInCycleHours):
+        subjects_in_cycle_hours (SubjectsInCycleHours): Relationship to access the subject this hour record belongs to
     """
     __tablename__ = "certifications"
 

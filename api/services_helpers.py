@@ -64,6 +64,22 @@ async def ensure_semester_exists(semester_dal, semester: int, plan_id: int) -> b
     semester_obj = await semester_dal.get_semester_by_semester_and_plan(semester, plan_id)
     return semester_obj is not None
 
+async def ensure_chapter_exists(chapter_dal, chapter_id: int) -> bool:
+    chapter = await chapter_dal.get_chapter_by_id(chapter_id)
+    return chapter is not None
+
+async def ensure_cycle_exists(cycle_dal, cycle_id: int) -> bool:
+    cycle = await cycle_dal.get_cycle_by_id(cycle_id)
+    return cycle is not None
+
+async def ensure_module_exists(module_dal, module_id: int) -> bool:
+    module = await module_dal.get_module_by_id(module_id)
+    return module is not None
+
+async def ensure_subject_in_cycle_exists(subject_in_cycle_dal, subject_in_cycle_id: int) -> bool:
+    subject_in_cycle = await subject_in_cycle_dal.get_subject_in_cycle_by_id(subject_in_cycle_id)
+    return subject_in_cycle is not None
+
 
 '''
 ======
@@ -150,3 +166,29 @@ async def ensure_plan_unique(plan_dal, plan_id: int) -> bool:
 async def ensure_speciality_unique(speciality_dal, speciality_code: str) -> bool:
     speciality = await speciality_dal.get_speciality(speciality_code)
     return speciality is None
+
+async def ensure_chapter_unique(chapter_dal, chapter_id: int) -> bool:
+    chapter = await chapter_dal.get_chapter_by_id(chapter_id)
+    return chapter is None
+
+async def ensure_cycle_unique(cycle_dal, cycle_id: int) -> bool:
+    cycle = await cycle_dal.get_cycle_by_id(cycle_id)
+    return cycle is None
+
+async def ensure_module_unique(module_dal, module_id: int) -> bool:
+    module = await module_dal.get_module_by_id(module_id)
+    return module is None
+
+async def ensure_subject_in_cycle_unique(subject_in_cycle_dal, subject_in_cycle_id: int) -> bool:
+    subject_in_cycle = await subject_in_cycle_dal.get_subject_in_cycle_by_id(subject_in_cycle_id)
+    return subject_in_cycle is None
+
+
+'''
+Other
+'''
+
+async def ensure_cycle_contains_modules(cycle_dal, cycle_id: int) -> bool:
+    """Проверяет, разрешено ли циклу содержать модули (contains_modules = True)."""
+    cycle = await cycle_dal.get_cycle_by_id(cycle_id)
+    return cycle.contains_modules if cycle else False

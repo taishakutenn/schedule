@@ -14,8 +14,10 @@ from api.models import *
 #from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, 
 from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique, \
     ensure_building_exists, ensure_building_unique, ensure_cabinet_exists, ensure_cabinet_unique, ensure_session_type_exists, ensure_session_type_unique, \
-    ensure_semester_exists, ensure_semester_unique, ensure_plan_exists, ensure_plan_unique, ensure_speciality_exists, ensure_speciality_unique
-from db.dals import TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL, SemesterDAL, PlanDAL, SpecialityDAL
+    ensure_semester_exists, ensure_semester_unique, ensure_plan_exists, ensure_plan_unique, ensure_speciality_exists, ensure_speciality_unique, \
+    ensure_chapter_exists, ensure_chapter_unique, ensure_cycle_exists, ensure_cycle_unique, ensure_module_exists, ensure_module_unique, ensure_cycle_contains_modules, \
+    ensure_subject_in_cycle_exists, ensure_subject_in_cycle_unique
+from db.dals import TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL, SemesterDAL, PlanDAL, SpecialityDAL, ChapterDAL, CycleDAL, ModuleDAL, SubjectsInCycleDAL
 from db.session import get_db
 
 from sqlalchemy.exc import IntegrityError
@@ -4366,3 +4368,1223 @@ async def delete_plan(plan_id: int, request: Request, db: AsyncSession = Depends
 @plan_router.put("/update", response_model=ShowPlanWithHATEOAS, responses={404: {"description": "Учебный план не найден"}})
 async def update_plan(body: UpdatePlan, request: Request, db: AsyncSession = Depends(get_db)):
     return await _update_plan(body, request, db)
+
+
+chapter_router = APIRouter()
+
+'''
+==============================
+CRUD operations for Chapter
+==============================
+'''
+
+async def _create_new_chapter(body: CreateChapter, request: Request, db) -> ShowChapterWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            plan_dal = PlanDAL(session)
+            chapter_dal = ChapterDAL(session)
+            try:
+                if not await ensure_plan_exists(plan_dal, body.plan_id):
+                    raise HTTPException(status_code=404, detail=f"Учебный план с id {body.plan_id} не найден")
+
+                chapter = await chapter_dal.create_chapter(
+                    code=body.code,
+                    name=body.name,
+                    plan_id=body.plan_id
+                )
+                chapter_id = chapter.id
+                chapter_pydantic = ShowChapter.model_validate(chapter, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/chapters/search/by_id/{chapter_id}',
+                    "update": f'{api_base_url}/chapters/update',
+                    "delete": f'{api_base_url}/chapters/delete/{chapter_id}',
+                    "chapters": f'{api_base_url}/chapters',
+                    "plan": f'{api_base_url}/plans/search/by_id/{body.plan_id}',
+                    "cycles": f'{api_base_url}/cycles/search/by_chapter/{chapter_id}'
+                }
+
+                return ShowChapterWithHATEOAS(chapter=chapter_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании главы '{body.name}' в плане {body.plan_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_chapter_by_id(chapter_id: int, request: Request, db) -> ShowChapterWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            chapter_dal = ChapterDAL(session)
+            try:
+                chapter = await chapter_dal.get_chapter_by_id(chapter_id)
+                if not chapter:
+                    raise HTTPException(status_code=404, detail=f"Раздел с id {chapter_id} не найден")
+                chapter_pydantic = ShowChapter.model_validate(chapter, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/chapters/search/by_id/{chapter_id}',
+                    "update": f'{api_base_url}/chapters/update',
+                    "delete": f'{api_base_url}/chapters/delete/{chapter_id}',
+                    "chapters": f'{api_base_url}/chapters',
+                    "plan": f'{api_base_url}/plans/search/by_id/{chapter.plan_id}',
+                    "cycles": f'{api_base_url}/cycles/search/by_chapter/{chapter_id}'
+                }
+
+                return ShowChapterWithHATEOAS(chapter=chapter_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение главы {chapter_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_chapters_by_plan(plan_id: int, page: int, limit: int, request: Request, db) -> ShowChapterListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            plan_dal = PlanDAL(session)
+            chapter_dal = ChapterDAL(session)
+            try:
+                if not await ensure_plan_exists(plan_dal, plan_id):
+                    raise HTTPException(status_code=404, detail=f"Учебный план с id {plan_id} не найден")
+
+                chapters = await chapter_dal.get_chapters_by_plan(plan_id, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                chapters_with_hateoas = []
+                for chapter in chapters:
+                    chapter_pydantic = ShowChapter.model_validate(chapter, from_attributes=True)
+                    chapter_id = chapter.id
+                    chapter_links = {
+                        "self": f'{api_base_url}/chapters/search/by_id/{chapter_id}',
+                        "update": f'{api_base_url}/chapters/update',
+                        "delete": f'{api_base_url}/chapters/delete/{chapter_id}',
+                        "chapters": f'{api_base_url}/chapters',
+                        "plan": f'{api_base_url}/plans/search/by_id/{plan_id}',
+                        "cycles": f'{api_base_url}/cycles/search/by_chapter/{chapter_id}'
+                    }
+                    chapter_with_links = ShowChapterWithHATEOAS(chapter=chapter_pydantic, links=chapter_links)
+                    chapters_with_hateoas.append(chapter_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/chapters/search/by_plan/{plan_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/chapters/create',
+                    "plan": f'{api_base_url}/plans/search/by_id/{plan_id}'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowChapterListWithHATEOAS(chapters=chapters_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение глав для плана {plan_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_chapters(page: int, limit: int, request: Request, db) -> ShowChapterListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            chapter_dal = ChapterDAL(session)
+            try:
+                chapters = await chapter_dal.get_all_chapters(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                chapters_with_hateoas = []
+                for chapter in chapters:
+                    chapter_pydantic = ShowChapter.model_validate(chapter, from_attributes=True)
+                    chapter_id = chapter.id
+                    chapter_links = {
+                        "self": f'{api_base_url}/chapters/search/by_id/{chapter_id}',
+                        "update": f'{api_base_url}/chapters/update',
+                        "delete": f'{api_base_url}/chapters/delete/{chapter_id}',
+                        "chapters": f'{api_base_url}/chapters',
+                        "plan": f'{api_base_url}/plans/search/by_id/{chapter.plan_id}',
+                        "cycles": f'{api_base_url}/cycles/search/by_chapter/{chapter_id}'
+                    }
+                    chapter_with_links = ShowChapterWithHATEOAS(chapter=chapter_pydantic, links=chapter_links)
+                    chapters_with_hateoas.append(chapter_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/chapters/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/chapters/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowChapterListWithHATEOAS(chapters=chapters_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение глав отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_chapter(chapter_id: int, request: Request, db) -> ShowChapterWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                chapter_dal = ChapterDAL(session)
+                if not await ensure_chapter_exists(chapter_dal, chapter_id):
+                    raise HTTPException(status_code=404, detail=f"Раздел с id {chapter_id} не найден")
+
+                chapter = await chapter_dal.delete_chapter(chapter_id)
+                if not chapter:
+                    raise HTTPException(status_code=404, detail=f"Раздел с id {chapter_id} не найден")
+
+                chapter_pydantic = ShowChapter.model_validate(chapter, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "chapters": f'{api_base_url}/chapters',
+                    "create": f'{api_base_url}/chapters/create',
+                    "plan": f'{api_base_url}/plans/search/by_id/{chapter.plan_id}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowChapterWithHATEOAS(chapter=chapter_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении главы {chapter_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении главы.")
+
+
+async def _update_chapter(body: UpdateChapter, request: Request, db) -> ShowChapterWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["chapter_id"]}
+                if "plan_id" in update_data:
+                    plan_id_to_check = update_data["plan_id"]
+                    plan_dal = PlanDAL(session)
+                    if not await ensure_plan_exists(plan_dal, plan_id_to_check):
+                        raise HTTPException(status_code=404, detail=f"Учебный план с id {plan_id_to_check} не найден")
+
+                chapter_dal = ChapterDAL(session)
+
+                if not await ensure_chapter_exists(chapter_dal, body.chapter_id):
+                    raise HTTPException(status_code=404, detail=f"Раздел с id {body.chapter_id} не найден")
+
+                chapter = await chapter_dal.update_chapter(target_id=body.chapter_id, **update_data)
+                if not chapter:
+                    raise HTTPException(status_code=404, detail=f"Раздел с id {body.chapter_id} не найден")
+
+                chapter_id = chapter.id
+                chapter_pydantic = ShowChapter.model_validate(chapter, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/chapters/search/by_id/{chapter_id}',
+                    "update": f'{api_base_url}/chapters/update',
+                    "delete": f'{api_base_url}/chapters/delete/{chapter_id}',
+                    "chapters": f'{api_base_url}/chapters',
+                    "plan": f'{api_base_url}/plans/search/by_id/{chapter.plan_id}',
+                    "cycles": f'{api_base_url}/cycles/search/by_chapter/{chapter_id}'
+                }
+
+                return ShowChapterWithHATEOAS(chapter=chapter_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о главе отменено (Ошибка: {e})")
+            raise e
+
+
+@chapter_router.post("/create", response_model=ShowChapterWithHATEOAS, status_code=201)
+async def create_chapter(body: CreateChapter, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_chapter(body, request, db)
+
+
+@chapter_router.get("/search/by_id/{chapter_id}", response_model=ShowChapterWithHATEOAS, responses={404: {"description": "Раздел не найден"}})
+async def get_chapter_by_id(chapter_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_chapter_by_id(chapter_id, request, db)
+
+
+@chapter_router.get("/search/by_plan/{plan_id}", response_model=ShowChapterListWithHATEOAS, responses={404: {"description": "Главы не найдены"}})
+async def get_chapters_by_plan(plan_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_chapters_by_plan(plan_id, query_param.page, query_param.limit, request, db)
+
+
+@chapter_router.get("/search", response_model=ShowChapterListWithHATEOAS)
+async def get_all_chapters(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_chapters(query_param.page, query_param.limit, request, db)
+
+
+@chapter_router.delete("/delete/{chapter_id}", response_model=ShowChapterWithHATEOAS, responses={404: {"description": "Раздел не найден"}})
+async def delete_chapter(chapter_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_chapter(chapter_id, request, db)
+
+
+@chapter_router.put("/update", response_model=ShowChapterWithHATEOAS, responses={404: {"description": "Раздел не найден"}})
+async def update_chapter(body: UpdateChapter, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_chapter(body, request, db)
+
+
+cycle_router = APIRouter()
+
+'''
+==============================
+CRUD operations for Cycle
+==============================
+'''
+
+async def _create_new_cycle(body: CreateCycle, request: Request, db) -> ShowCycleWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            chapter_dal = ChapterDAL(session)
+            cycle_dal = CycleDAL(session)
+            try:
+                if not await ensure_chapter_exists(chapter_dal, body.chapter_in_plan_id):
+                    raise HTTPException(status_code=404, detail=f"Раздел с id {body.chapter_in_plan_id} не найдена")
+
+                cycle = await cycle_dal.create_cycle(
+                    contains_modules=body.contains_modules,
+                    code=body.code,
+                    name=body.name,
+                    chapter_in_plan_id=body.chapter_in_plan_id
+                )
+                cycle_id = cycle.id 
+                cycle_pydantic = ShowCycle.model_validate(cycle, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/cycles/search/by_id/{cycle_id}',
+                    "update": f'{api_base_url}/cycles/update',
+                    "delete": f'{api_base_url}/cycles/delete/{cycle_id}',
+                    "cycles": f'{api_base_url}/cycles',
+                    "chapter": f'{api_base_url}/chapters/search/by_id/{body.chapter_in_plan_id}',
+                    "modules": f'{api_base_url}/modules/search/by_cycle/{cycle_id}',
+                    "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_cycle/{cycle_id}'
+                }
+
+                return ShowCycleWithHATEOAS(cycle=cycle_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании цикла '{body.name}' в разделе {body.chapter_in_plan_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_cycle_by_id(cycle_id: int, request: Request, db) -> ShowCycleWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            cycle_dal = CycleDAL(session)
+            try:
+                cycle = await cycle_dal.get_cycle_by_id(cycle_id)
+                if not cycle:
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {cycle_id} не найден")
+                cycle_pydantic = ShowCycle.model_validate(cycle, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/cycles/search/by_id/{cycle_id}',
+                    "update": f'{api_base_url}/cycles/update',
+                    "delete": f'{api_base_url}/cycles/delete/{cycle_id}',
+                    "cycles": f'{api_base_url}/cycles',
+                    "chapter": f'{api_base_url}/chapters/search/by_id/{cycle.chapter_in_plan_id}',
+                    "modules": f'{api_base_url}/modules/search/by_cycle/{cycle_id}',
+                    "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_cycle/{cycle_id}'
+                }
+
+                return ShowCycleWithHATEOAS(cycle=cycle_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение цикла {cycle_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_cycles_by_chapter(chapter_in_plan_id: int, page: int, limit: int, request: Request, db) -> ShowCycleListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            chapter_dal = ChapterDAL(session)
+            cycle_dal = CycleDAL(session)
+            try:
+                if not await ensure_chapter_exists(chapter_dal, chapter_in_plan_id):
+                    raise HTTPException(status_code=404, detail=f"Глава с id {chapter_in_plan_id} не найдена")
+
+                cycles = await cycle_dal.get_cycles_by_chapter(chapter_in_plan_id, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                cycles_with_hateoas = []
+                for cycle in cycles:
+                    cycle_pydantic = ShowCycle.model_validate(cycle, from_attributes=True)
+                    cycle_id = cycle.id
+                    cycle_links = {
+                        "self": f'{api_base_url}/cycles/search/by_id/{cycle_id}',
+                        "update": f'{api_base_url}/cycles/update',
+                        "delete": f'{api_base_url}/cycles/delete/{cycle_id}',
+                        "cycles": f'{api_base_url}/cycles',
+                        "chapter": f'{api_base_url}/chapters/search/by_id/{chapter_in_plan_id}',
+                        "modules": f'{api_base_url}/modules/search/by_cycle/{cycle_id}',
+                        "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_cycle/{cycle_id}'
+                    }
+                    cycle_with_links = ShowCycleWithHATEOAS(cycle=cycle_pydantic, links=cycle_links)
+                    cycles_with_hateoas.append(cycle_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/cycles/search/by_chapter/{chapter_in_plan_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/cycles/create',
+                    "chapter": f'{api_base_url}/chapters/search/by_id/{chapter_in_plan_id}'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowCycleListWithHATEOAS(cycles=cycles_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение циклов для раздела {chapter_in_plan_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_cycles(page: int, limit: int, request: Request, db) -> ShowCycleListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            cycle_dal = CycleDAL(session)
+            try:
+                cycles = await cycle_dal.get_all_cycles(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                cycles_with_hateoas = []
+                for cycle in cycles:
+                    cycle_pydantic = ShowCycle.model_validate(cycle, from_attributes=True)
+                    cycle_id = cycle.id
+                    cycle_links = {
+                        "self": f'{api_base_url}/cycles/search/by_id/{cycle_id}',
+                        "update": f'{api_base_url}/cycles/update',
+                        "delete": f'{api_base_url}/cycles/delete/{cycle_id}',
+                        "cycles": f'{api_base_url}/cycles',
+                        "chapter": f'{api_base_url}/chapters/search/by_id/{cycle.chapter_in_plan_id}',
+                        "modules": f'{api_base_url}/modules/search/by_cycle/{cycle_id}',
+                        "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_cycle/{cycle_id}'
+                    }
+                    cycle_with_links = ShowCycleWithHATEOAS(cycle=cycle_pydantic, links=cycle_links)
+                    cycles_with_hateoas.append(cycle_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/cycles/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/cycles/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowCycleListWithHATEOAS(cycles=cycles_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение циклов отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_cycle(cycle_id: int, request: Request, db) -> ShowCycleWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                cycle_dal = CycleDAL(session)
+                if not await ensure_cycle_exists(cycle_dal, cycle_id):
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {cycle_id} не найден")
+
+                cycle = await cycle_dal.delete_cycle(cycle_id)
+
+                if not cycle:
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {cycle_id} не найден")
+
+                cycle_pydantic = ShowCycle.model_validate(cycle, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "cycles": f'{api_base_url}/cycles',
+                    "create": f'{api_base_url}/cycles/create',
+                    "chapter": f'{api_base_url}/chapters/search/by_id/{cycle.chapter_in_plan_id}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowCycleWithHATEOAS(cycle=cycle_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении цикла {cycle_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении цикла.")
+
+
+async def _update_cycle(body: UpdateCycle, request: Request, db) -> ShowCycleWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["cycle_id"]}
+                
+                if "chapter_in_plan_id" in update_data:
+                    chapter_id_to_check = update_data["chapter_in_plan_id"]
+                    chapter_dal = ChapterDAL(session)
+                    if not await ensure_chapter_exists(chapter_dal, chapter_id_to_check):
+                        raise HTTPException(status_code=404, detail=f"Глава с id {chapter_id_to_check} не найдена")
+
+                cycle_dal = CycleDAL(session)
+
+                if not await ensure_cycle_exists(cycle_dal, body.cycle_id):
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {body.cycle_id} не найден")
+
+                cycle = await cycle_dal.update_cycle(target_id=body.cycle_id, **update_data)
+                if not cycle:
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {body.cycle_id} не найден")
+
+                cycle_id = cycle.id
+                cycle_pydantic = ShowCycle.model_validate(cycle, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/cycles/search/by_id/{cycle_id}',
+                    "update": f'{api_base_url}/cycles/update',
+                    "delete": f'{api_base_url}/cycles/delete/{cycle_id}',
+                    "cycles": f'{api_base_url}/cycles',
+                    "chapter": f'{api_base_url}/chapters/search/by_id/{cycle.chapter_in_plan_id}',
+                    "modules": f'{api_base_url}/modules/search/by_cycle/{cycle_id}',
+                    "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_cycle/{cycle_id}'
+                }
+
+                return ShowCycleWithHATEOAS(cycle=cycle_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о цикле отменено (Ошибка: {e})")
+            raise e
+
+
+@cycle_router.post("/create", response_model=ShowCycleWithHATEOAS, status_code=201)
+async def create_cycle(body: CreateCycle, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_cycle(body, request, db)
+
+
+@cycle_router.get("/search/by_id/{cycle_id}", response_model=ShowCycleWithHATEOAS, responses={404: {"description": "Цикл не найден"}})
+async def get_cycle_by_id(cycle_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_cycle_by_id(cycle_id, request, db)
+
+
+@cycle_router.get("/search/by_chapter/{chapter_in_plan_id}", response_model=ShowCycleListWithHATEOAS, responses={404: {"description": "Циклы не найдены"}})
+async def get_cycles_by_chapter(chapter_in_plan_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_cycles_by_chapter(chapter_in_plan_id, query_param.page, query_param.limit, request, db)
+
+
+@cycle_router.get("/search", response_model=ShowCycleListWithHATEOAS)
+async def get_all_cycles(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_cycles(query_param.page, query_param.limit, request, db)
+
+
+@cycle_router.delete("/delete/{cycle_id}", response_model=ShowCycleWithHATEOAS, responses={404: {"description": "Цикл не найден"}})
+async def delete_cycle(cycle_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_cycle(cycle_id, request, db)
+
+
+@cycle_router.put("/update", response_model=ShowCycleWithHATEOAS, responses={404: {"description": "Цикл не найден"}})
+async def update_cycle(body: UpdateCycle, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_cycle(body, request, db)
+
+
+module_router = APIRouter()
+
+'''
+==============================
+CRUD operations for Module
+==============================
+'''
+
+async def _create_new_module(body: CreateModule, request: Request, db) -> ShowModuleWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            cycle_dal = CycleDAL(session)
+            module_dal = ModuleDAL(session)
+            try:
+                if not await ensure_cycle_exists(cycle_dal, body.cycle_in_chapter_id):
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {body.cycle_in_chapter_id} не найден")
+
+                if not await ensure_cycle_contains_modules(cycle_dal, body.cycle_in_chapter_id):
+                    raise HTTPException(status_code=400, detail=f"Цикл с id {body.cycle_in_chapter_id} не может содержать модули, так как contains_modules = False")
+
+                module = await module_dal.create_module(
+                    name=body.name,
+                    code=body.code,
+                    cycle_in_chapter_id=body.cycle_in_chapter_id
+                )
+                module_id = module.id
+                module_pydantic = ShowModule.model_validate(module, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/modules/search/by_id/{module_id}',
+                    "update": f'{api_base_url}/modules/update',
+                    "delete": f'{api_base_url}/modules/delete/{module_id}',
+                    "modules": f'{api_base_url}/modules',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{body.cycle_in_chapter_id}',
+                    "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_module/{module_id}'
+                }
+
+                return ShowModuleWithHATEOAS(module=module_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании модуля '{body.name}' в цикле {body.cycle_in_chapter_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_module_by_id(module_id: int, request: Request, db) -> ShowModuleWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            module_dal = ModuleDAL(session)
+            try:
+                module = await module_dal.get_module_by_id(module_id)
+                if not module:
+                    raise HTTPException(status_code=404, detail=f"Модуль с id {module_id} не найден")
+                module_pydantic = ShowModule.model_validate(module, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/modules/search/by_id/{module_id}',
+                    "update": f'{api_base_url}/modules/update',
+                    "delete": f'{api_base_url}/modules/delete/{module_id}',
+                    "modules": f'{api_base_url}/modules',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{module.cycle_in_chapter_id}',
+                    "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_module/{module_id}'
+                }
+
+                return ShowModuleWithHATEOAS(module=module_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение модуля {module_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_modules_by_cycle(cycle_in_chapter_id: int, page: int, limit: int, request: Request, db) -> ShowModuleListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            cycle_dal = CycleDAL(session)
+            module_dal = ModuleDAL(session)
+            try:
+                if not await ensure_cycle_exists(cycle_dal, cycle_in_chapter_id):
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {cycle_in_chapter_id} не найден")
+
+                modules = await module_dal.get_modules_by_cycle(cycle_in_chapter_id, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                modules_with_hateoas = []
+                for module in modules:
+                    module_pydantic = ShowModule.model_validate(module, from_attributes=True)
+                    module_id = module.id
+                    module_links = {
+                        "self": f'{api_base_url}/modules/search/by_id/{module_id}',
+                        "update": f'{api_base_url}/modules/update',
+                        "delete": f'{api_base_url}/modules/delete/{module_id}',
+                        "modules": f'{api_base_url}/modules',
+                        "cycle": f'{api_base_url}/cycles/search/by_id/{cycle_in_chapter_id}',
+                        "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_module/{module_id}'
+                    }
+                    module_with_links = ShowModuleWithHATEOAS(module=module_pydantic, links=module_links)
+                    modules_with_hateoas.append(module_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/modules/search/by_cycle/{cycle_in_chapter_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/modules/create',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{cycle_in_chapter_id}'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowModuleListWithHATEOAS(modules=modules_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение модулей для цикла {cycle_in_chapter_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_modules(page: int, limit: int, request: Request, db) -> ShowModuleListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            module_dal = ModuleDAL(session)
+            try:
+                modules = await module_dal.get_all_modules(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                modules_with_hateoas = []
+                for module in modules:
+                    module_pydantic = ShowModule.model_validate(module, from_attributes=True)
+                    module_id = module.id
+                    module_links = {
+                        "self": f'{api_base_url}/modules/search/by_id/{module_id}',
+                        "update": f'{api_base_url}/modules/update',
+                        "delete": f'{api_base_url}/modules/delete/{module_id}',
+                        "modules": f'{api_base_url}/modules',
+                        "cycle": f'{api_base_url}/cycles/search/by_id/{module.cycle_in_chapter_id}',
+                        "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_module/{module_id}'
+                    }
+                    module_with_links = ShowModuleWithHATEOAS(module=module_pydantic, links=module_links)
+                    modules_with_hateoas.append(module_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/modules/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/modules/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowModuleListWithHATEOAS(modules=modules_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение модулей отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_module(module_id: int, request: Request, db) -> ShowModuleWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                module_dal = ModuleDAL(session)
+                if not await ensure_module_exists(module_dal, module_id):
+                    raise HTTPException(status_code=404, detail=f"Модуль с id {module_id} не найден")
+
+                module = await module_dal.delete_module(module_id)
+                if not module:
+                    raise HTTPException(status_code=404, detail=f"Модуль с id {module_id} не найден")
+
+                module_pydantic = ShowModule.model_validate(module, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "modules": f'{api_base_url}/modules',
+                    "create": f'{api_base_url}/modules/create',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{module.cycle_in_chapter_id}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowModuleWithHATEOAS(module=module_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении модуля {module_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении модуля.")
+
+
+async def _update_module(body: UpdateModule, request: Request, db) -> ShowModuleWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["module_id"]}
+
+                if "cycle_in_chapter_id" in update_data:
+                    cycle_id_to_check = update_data["cycle_in_chapter_id"]
+                    cycle_dal = CycleDAL(session)
+                    if not await ensure_cycle_exists(cycle_dal, cycle_id_to_check):
+                        raise HTTPException(status_code=404, detail=f"Цикл с id {cycle_id_to_check} не найден")
+
+                module_dal = ModuleDAL(session)
+
+                if not await ensure_module_exists(module_dal, body.module_id):
+                    raise HTTPException(status_code=404, detail=f"Модуль с id {body.module_id} не найден")
+
+                module = await module_dal.update_module(target_id=body.module_id, **update_data)
+                if not module:
+                    raise HTTPException(status_code=404, detail=f"Модуль с id {body.module_id} не найден")
+
+                module_id = module.id 
+                module_pydantic = ShowModule.model_validate(module, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/modules/search/by_id/{module_id}',
+                    "update": f'{api_base_url}/modules/update',
+                    "delete": f'{api_base_url}/modules/delete/{module_id}',
+                    "modules": f'{api_base_url}/modules',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{module.cycle_in_chapter_id}',
+                    "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_module/{module_id}'
+                }
+
+                return ShowModuleWithHATEOAS(module=module_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о модуле отменено (Ошибка: {e})")
+            raise e
+
+
+@module_router.post("/create", response_model=ShowModuleWithHATEOAS, status_code=201)
+async def create_module(body: CreateModule, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_module(body, request, db)
+
+
+@module_router.get("/search/by_id/{module_id}", response_model=ShowModuleWithHATEOAS, responses={404: {"description": "Модуль не найден"}})
+async def get_module_by_id(module_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_module_by_id(module_id, request, db)
+
+
+@module_router.get("/search/by_cycle/{cycle_in_chapter_id}", response_model=ShowModuleListWithHATEOAS, responses={404: {"description": "Модули не найдены"}})
+async def get_modules_by_cycle(cycle_in_chapter_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_modules_by_cycle(cycle_in_chapter_id, query_param.page, query_param.limit, request, db)
+
+
+@module_router.get("/search", response_model=ShowModuleListWithHATEOAS)
+async def get_all_modules(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_modules(query_param.page, query_param.limit, request, db)
+
+
+@module_router.delete("/delete/{module_id}", response_model=ShowModuleWithHATEOAS, responses={404: {"description": "Модуль не найден"}})
+async def delete_module(module_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_module(module_id, request, db)
+
+
+@module_router.put("/update", response_model=ShowModuleWithHATEOAS, responses={404: {"description": "Модуль не найден"}})
+async def update_module(body: UpdateModule, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_module(body, request, db)
+
+
+subject_in_cycle_router = APIRouter()
+
+'''
+==============================
+CRUD operations for SubjectsInCycle
+==============================
+'''
+
+async def _create_new_subject_in_cycle(body: CreateSubjectsInCycle, request: Request, db) -> ShowSubjectsInCycleWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            cycle_dal = CycleDAL(session)
+            module_dal = ModuleDAL(session)
+            subject_in_cycle_dal = SubjectsInCycleDAL(session)
+            try:
+                if not await ensure_cycle_exists(cycle_dal, body.cycle_in_chapter_id):
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {body.cycle_in_chapter_id} не найден")
+
+                if body.module_in_cycle_id is not None:
+                    if not await ensure_module_exists(module_dal, body.module_in_cycle_id):
+                        raise HTTPException(status_code=404, detail=f"Модуль с id {body.module_in_cycle_id} не найден")
+                    
+                    module_obj = await module_dal.get_module_by_id(body.module_in_cycle_id)
+                    if module_obj.cycle_in_chapter_id != body.cycle_in_chapter_id:
+                        raise HTTPException(status_code=400, detail=f"Модуль с id {body.module_in_cycle_id} не принадлежит циклу с id {body.cycle_in_chapter_id}")
+                
+                subject_in_cycle = await subject_in_cycle_dal.create_subject_in_cycle(
+                    code=body.code,
+                    title=body.title,
+                    cycle_in_chapter_id=body.cycle_in_chapter_id,
+                    module_in_cycle_id=body.module_in_cycle_id
+                )
+                subject_in_cycle_id = subject_in_cycle.id 
+                subject_in_cycle_pydantic = ShowSubjectsInCycle.model_validate(subject_in_cycle, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects_in_cycles/search/by_id/{subject_in_cycle_id}',
+                    "update": f'{api_base_url}/subjects_in_cycles/update',
+                    "delete": f'{api_base_url}/subjects_in_cycles/delete/{subject_in_cycle_id}',
+                    "subjects_in_cycles": f'{api_base_url}/subjects_in_cycles',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{body.cycle_in_chapter_id}',
+                    "module": f'{api_base_url}/modules/search/by_id/{body.module_in_cycle_id}' if body.module_in_cycle_id else None,
+                    "hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_subject_in_cycle/{subject_in_cycle_id}',
+                    "streams": f'{api_base_url}/streams/search/by_subject_in_cycle/{subject_in_cycle_id}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSubjectsInCycleWithHATEOAS(subject_in_cycle=subject_in_cycle_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании предмета '{body.title}' в цикле {body.cycle_in_chapter_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_subject_in_cycle_by_id(subject_in_cycle_id: int, request: Request, db) -> ShowSubjectsInCycleWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            subject_in_cycle_dal = SubjectsInCycleDAL(session)
+            try:
+                subject_in_cycle = await subject_in_cycle_dal.get_subject_in_cycle_by_id(subject_in_cycle_id)
+                if not subject_in_cycle:
+                    raise HTTPException(status_code=404, detail=f"Предмет в цикле с id {subject_in_cycle_id} не найден")
+                subject_in_cycle_pydantic = ShowSubjectsInCycle.model_validate(subject_in_cycle, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects_in_cycles/search/by_id/{subject_in_cycle_id}',
+                    "update": f'{api_base_url}/subjects_in_cycles/update',
+                    "delete": f'{api_base_url}/subjects_in_cycles/delete/{subject_in_cycle_id}',
+                    "subjects_in_cycles": f'{api_base_url}/subjects_in_cycles',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{subject_in_cycle.cycle_in_chapter_id}',
+                    "module": f'{api_base_url}/modules/search/by_id/{subject_in_cycle.module_in_cycle_id}' if subject_in_cycle.module_in_cycle_id else None,
+                    "hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_subject_in_cycle/{subject_in_cycle_id}',
+                    "streams": f'{api_base_url}/streams/search/by_subject_in_cycle/{subject_in_cycle_id}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSubjectsInCycleWithHATEOAS(subject_in_cycle=subject_in_cycle_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение предмета в цикле {subject_in_cycle_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_subjects_in_cycle_by_cycle(cycle_in_chapter_id: int, page: int, limit: int, request: Request, db) -> ShowSubjectsInCycleListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            cycle_dal = CycleDAL(session)
+            subject_in_cycle_dal = SubjectsInCycleDAL(session)
+            try:
+                if not await ensure_cycle_exists(cycle_dal, cycle_in_chapter_id):
+                    raise HTTPException(status_code=404, detail=f"Цикл с id {cycle_in_chapter_id} не найден")
+
+                subjects_in_cycles = await subject_in_cycle_dal.get_subjects_in_cycle_by_cycle(cycle_in_chapter_id, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                subjects_in_cycles_with_hateoas = []
+                for subject_in_cycle in subjects_in_cycles:
+                    subject_in_cycle_pydantic = ShowSubjectsInCycle.model_validate(subject_in_cycle, from_attributes=True)
+                    subject_in_cycle_id = subject_in_cycle.id
+                    subject_in_cycle_links = {
+                        "self": f'{api_base_url}/subjects_in_cycles/search/by_id/{subject_in_cycle_id}',
+                        "update": f'{api_base_url}/subjects_in_cycles/update',
+                        "delete": f'{api_base_url}/subjects_in_cycles/delete/{subject_in_cycle_id}',
+                        "subjects_in_cycles": f'{api_base_url}/subjects_in_cycles',
+                        "cycle": f'{api_base_url}/cycles/search/by_id/{cycle_in_chapter_id}',
+                        "module": f'{api_base_url}/modules/search/by_id/{subject_in_cycle.module_in_cycle_id}' if subject_in_cycle.module_in_cycle_id else None,
+                        "hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_subject_in_cycle/{subject_in_cycle_id}',
+                        "streams": f'{api_base_url}/streams/search/by_subject_in_cycle/{subject_in_cycle_id}'
+                    }
+                    subject_in_cycle_links = {k: v for k, v in subject_in_cycle_links.items() if v is not None}
+                    subject_in_cycle_with_links = ShowSubjectsInCycleWithHATEOAS(subject_in_cycle=subject_in_cycle_pydantic, links=subject_in_cycle_links)
+                    subjects_in_cycles_with_hateoas.append(subject_in_cycle_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/subjects_in_cycles/search/by_cycle/{cycle_in_chapter_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/subjects_in_cycles/create',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{cycle_in_chapter_id}'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowSubjectsInCycleListWithHATEOAS(subjects_in_cycles=subjects_in_cycles_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение предметов в цикле для цикла {cycle_in_chapter_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_subjects_in_cycle_by_module(module_in_cycle_id: int, page: int, limit: int, request: Request, db) -> ShowSubjectsInCycleListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            module_dal = ModuleDAL(session)
+            subject_in_cycle_dal = SubjectsInCycleDAL(session)
+            try:
+                if not await ensure_module_exists(module_dal, module_in_cycle_id):
+                    raise HTTPException(status_code=404, detail=f"Модуль с id {module_in_cycle_id} не найден")
+
+                subjects_in_cycles = await subject_in_cycle_dal.get_subjects_in_cycle_by_module(module_in_cycle_id, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                subjects_in_cycles_with_hateoas = []
+                for subject_in_cycle in subjects_in_cycles:
+                    subject_in_cycle_pydantic = ShowSubjectsInCycle.model_validate(subject_in_cycle, from_attributes=True)
+                    subject_in_cycle_id = subject_in_cycle.id
+                    subject_in_cycle_links = {
+                        "self": f'{api_base_url}/subjects_in_cycles/search/by_id/{subject_in_cycle_id}',
+                        "update": f'{api_base_url}/subjects_in_cycles/update',
+                        "delete": f'{api_base_url}/subjects_in_cycles/delete/{subject_in_cycle_id}',
+                        "subjects_in_cycles": f'{api_base_url}/subjects_in_cycles',
+                        "cycle": f'{api_base_url}/cycles/search/by_id/{subject_in_cycle.cycle_in_chapter_id}',
+                        "module": f'{api_base_url}/modules/search/by_id/{module_in_cycle_id}',
+                        "hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_subject_in_cycle/{subject_in_cycle_id}',
+                        "streams": f'{api_base_url}/streams/search/by_subject_in_cycle/{subject_in_cycle_id}'
+                    }
+                    subject_in_cycle_links = {k: v for k, v in subject_in_cycle_links.items() if v is not None}
+                    subject_in_cycle_with_links = ShowSubjectsInCycleWithHATEOAS(subject_in_cycle=subject_in_cycle_pydantic, links=subject_in_cycle_links)
+                    subjects_in_cycles_with_hateoas.append(subject_in_cycle_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/subjects_in_cycles/search/by_module/{module_in_cycle_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/subjects_in_cycles/create',
+                    "module": f'{api_base_url}/modules/search/by_id/{module_in_cycle_id}'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowSubjectsInCycleListWithHATEOAS(subjects_in_cycles=subjects_in_cycles_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение предметов в цикле для модуля {module_in_cycle_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_subjects_in_cycles(page: int, limit: int, request: Request, db) -> ShowSubjectsInCycleListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            subject_in_cycle_dal = SubjectsInCycleDAL(session)
+            try:
+                subjects_in_cycles = await subject_in_cycle_dal.get_all_subjects_in_cycles(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                subjects_in_cycles_with_hateoas = []
+                for subject_in_cycle in subjects_in_cycles:
+                    subject_in_cycle_pydantic = ShowSubjectsInCycle.model_validate(subject_in_cycle, from_attributes=True)
+                    subject_in_cycle_id = subject_in_cycle.id
+                    subject_in_cycle_links = {
+                        "self": f'{api_base_url}/subjects_in_cycles/search/by_id/{subject_in_cycle_id}',
+                        "update": f'{api_base_url}/subjects_in_cycles/update',
+                        "delete": f'{api_base_url}/subjects_in_cycles/delete/{subject_in_cycle_id}',
+                        "subjects_in_cycles": f'{api_base_url}/subjects_in_cycles',
+                        "cycle": f'{api_base_url}/cycles/search/by_id/{subject_in_cycle.cycle_in_chapter_id}',
+                        "module": f'{api_base_url}/modules/search/by_id/{subject_in_cycle.module_in_cycle_id}' if subject_in_cycle.module_in_cycle_id else None,
+                        "hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_subject_in_cycle/{subject_in_cycle_id}',
+                        "streams": f'{api_base_url}/streams/search/by_subject_in_cycle/{subject_in_cycle_id}'
+                    }
+                    subject_in_cycle_links = {k: v for k, v in subject_in_cycle_links.items() if v is not None}
+                    subject_in_cycle_with_links = ShowSubjectsInCycleWithHATEOAS(subject_in_cycle=subject_in_cycle_pydantic, links=subject_in_cycle_links)
+                    subjects_in_cycles_with_hateoas.append(subject_in_cycle_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/subjects_in_cycles/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/subjects_in_cycles/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowSubjectsInCycleListWithHATEOAS(subjects_in_cycles=subjects_in_cycles_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение предметов в цикле отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_subject_in_cycle(subject_in_cycle_id: int, request: Request, db) -> ShowSubjectsInCycleWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                subject_in_cycle_dal = SubjectsInCycleDAL(session)
+
+                if not await ensure_subject_in_cycle_exists(subject_in_cycle_dal, subject_in_cycle_id):
+                    raise HTTPException(status_code=404, detail=f"Предмет в цикле с id {subject_in_cycle_id} не найден")
+
+                subject_in_cycle = await subject_in_cycle_dal.delete_subject_in_cycle(subject_in_cycle_id)
+
+                if not subject_in_cycle:
+                    raise HTTPException(status_code=404, detail=f"Предмет в цикле с id {subject_in_cycle_id} не найден")
+
+                subject_in_cycle_pydantic = ShowSubjectsInCycle.model_validate(subject_in_cycle, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "subjects_in_cycles": f'{api_base_url}/subjects_in_cycles',
+                    "create": f'{api_base_url}/subjects_in_cycles/create',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{subject_in_cycle.cycle_in_chapter_id}',
+                    "module": f'{api_base_url}/modules/search/by_id/{subject_in_cycle.module_in_cycle_id}' if subject_in_cycle.module_in_cycle_id else None
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSubjectsInCycleWithHATEOAS(subject_in_cycle=subject_in_cycle_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении предмета в цикле {subject_in_cycle_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении предмета в цикле.")
+
+
+async def _update_subject_in_cycle(body: UpdateSubjectsInCycle, request: Request, db) -> ShowSubjectsInCycleWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["subject_in_cycle_id"]}
+                if "module_in_cycle_id" in update_data:
+                    module_id_to_check = update_data["module_in_cycle_id"]
+                    if module_id_to_check is not None:
+                        module_dal = ModuleDAL(session)
+                        cycle_id_to_check = update_data.get("cycle_in_chapter_id", body.cycle_in_chapter_id)
+                        module_obj = await module_dal.get_module_by_id(module_id_to_check)
+
+                        if module_obj.cycle_in_chapter_id != cycle_id_to_check:
+                            raise HTTPException(status_code=400, detail=f"Модуль с id {module_id_to_check} не принадлежит циклу с id {cycle_id_to_check}")
+                    else:
+                        cycle_id_to_check = update_data.get("cycle_in_chapter_id", body.cycle_in_chapter_id)
+
+                elif "cycle_in_chapter_id" in update_data:
+                    if update_data.get("module_in_cycle_id") is None:
+                        cycle_id_to_check = update_data["cycle_in_chapter_id"]
+                        
+                        
+                subject_in_cycle_dal = SubjectsInCycleDAL(session)
+
+                if not await ensure_subject_in_cycle_exists(subject_in_cycle_dal, body.subject_in_cycle_id):
+                    raise HTTPException(status_code=404, detail=f"Предмет в цикле с id {body.subject_in_cycle_id} не найден")
+
+                subject_in_cycle = await subject_in_cycle_dal.update_subject_in_cycle(target_id=body.subject_in_cycle_id, **update_data)
+                if not subject_in_cycle:
+                    raise HTTPException(status_code=404, detail=f"Предмет в цикле с id {body.subject_in_cycle_id} не найден")
+
+                subject_in_cycle_id = subject_in_cycle.id 
+                subject_in_cycle_pydantic = ShowSubjectsInCycle.model_validate(subject_in_cycle, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/subjects_in_cycles/search/by_id/{subject_in_cycle_id}',
+                    "update": f'{api_base_url}/subjects_in_cycles/update',
+                    "delete": f'{api_base_url}/subjects_in_cycles/delete/{subject_in_cycle_id}',
+                    "subjects_in_cycles": f'{api_base_url}/subjects_in_cycles',
+                    "cycle": f'{api_base_url}/cycles/search/by_id/{subject_in_cycle.cycle_in_chapter_id}',
+                    "module": f'{api_base_url}/modules/search/by_id/{subject_in_cycle.module_in_cycle_id}' if subject_in_cycle.module_in_cycle_id else None,
+                    "hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_subject_in_cycle/{subject_in_cycle_id}',
+                    "streams": f'{api_base_url}/streams/search/by_subject_in_cycle/{subject_in_cycle_id}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowSubjectsInCycleWithHATEOAS(subject_in_cycle=subject_in_cycle_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о предмете в цикле отменено (Ошибка: {e})")
+            raise e
+
+
+@subject_in_cycle_router.post("/create", response_model=ShowSubjectsInCycleWithHATEOAS, status_code=201)
+async def create_subject_in_cycle(body: CreateSubjectsInCycle, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_subject_in_cycle(body, request, db)
+
+
+@subject_in_cycle_router.get("/search/by_id/{subject_in_cycle_id}", response_model=ShowSubjectsInCycleWithHATEOAS, responses={404: {"description": "Предмет в цикле не найден"}})
+async def get_subject_in_cycle_by_id(subject_in_cycle_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_subject_in_cycle_by_id(subject_in_cycle_id, request, db)
+
+
+@subject_in_cycle_router.get("/search/by_cycle/{cycle_in_chapter_id}", response_model=ShowSubjectsInCycleListWithHATEOAS, responses={404: {"description": "Предметы в цикле не найдены"}})
+async def get_subjects_in_cycle_by_cycle(cycle_in_chapter_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_subjects_in_cycle_by_cycle(cycle_in_chapter_id, query_param.page, query_param.limit, request, db)
+
+
+@subject_in_cycle_router.get("/search/by_module/{module_in_cycle_id}", response_model=ShowSubjectsInCycleListWithHATEOAS, responses={404: {"description": "Предметы в цикле не найдены"}})
+async def get_subjects_in_cycle_by_module(module_in_cycle_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_subjects_in_cycle_by_module(module_in_cycle_id, query_param.page, query_param.limit, request, db)
+
+
+@subject_in_cycle_router.get("/search", response_model=ShowSubjectsInCycleListWithHATEOAS)
+async def get_all_subjects_in_cycles(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_subjects_in_cycles(query_param.page, query_param.limit, request, db)
+
+
+@subject_in_cycle_router.delete("/delete/{subject_in_cycle_id}", response_model=ShowSubjectsInCycleWithHATEOAS, responses={404: {"description": "Предмет в цикле не найден"}})
+async def delete_subject_in_cycle(subject_in_cycle_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_subject_in_cycle(subject_in_cycle_id, request, db)
+
+
+@subject_in_cycle_router.put("/update", response_model=ShowSubjectsInCycleWithHATEOAS, responses={404: {"description": "Предмет в цикле не найден"}})
+async def update_subject_in_cycle(body: UpdateSubjectsInCycle, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_subject_in_cycle(body, request, db)

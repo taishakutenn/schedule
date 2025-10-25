@@ -84,6 +84,10 @@ async def ensure_subject_in_cycle_hours_exists(subject_in_cycle_hours_dal, hours
     subject_in_cycle_hours = await subject_in_cycle_hours_dal.get_subject_in_cycle_hours_by_id(hours_id)
     return subject_in_cycle_hours is not None
 
+async def ensure_certification_exists(certification_dal, certification_id: int) -> bool:
+    certification = await certification_dal.get_certification_by_id(certification_id)
+    return certification is not None
+
 
 '''
 ======
@@ -190,6 +194,10 @@ async def ensure_subject_in_cycle_unique(subject_in_cycle_dal, subject_in_cycle_
 async def ensure_subject_in_cycle_hours_unique(subject_in_cycle_hours_dal, hours_id: int) -> bool:
     subject_in_cycle_hours = await subject_in_cycle_hours_dal.get_subject_in_cycle_hours_by_id(hours_id)
     return subject_in_cycle_hours is None
+
+async def ensure_certification_unique(certification_dal, certification_id: int) -> bool:
+    certification = await certification_dal.get_certification_by_id(certification_id)
+    return certification is None
 
 
 '''

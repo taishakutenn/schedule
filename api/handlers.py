@@ -12,12 +12,12 @@ from typing import Annotated, Union
 from api.models import *
 #from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique, ensure_teacher_subject_relation_unique
 #from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, 
-from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique, \
+from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_certification_exists, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique, \
     ensure_building_exists, ensure_building_unique, ensure_cabinet_exists, ensure_cabinet_unique, ensure_session_type_exists, ensure_session_type_unique, \
     ensure_semester_exists, ensure_semester_unique, ensure_plan_exists, ensure_plan_unique, ensure_speciality_exists, ensure_speciality_unique, \
     ensure_chapter_exists, ensure_chapter_unique, ensure_cycle_exists, ensure_cycle_unique, ensure_module_exists, ensure_module_unique, ensure_cycle_contains_modules, \
     ensure_subject_in_cycle_exists, ensure_subject_in_cycle_unique, ensure_subject_in_cycle_hours_exists, ensure_subject_in_cycle_hours_unique
-from db.dals import SubjectsInCycleHoursDAL, TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL, SemesterDAL, PlanDAL, SpecialityDAL, ChapterDAL, CycleDAL, ModuleDAL, SubjectsInCycleDAL
+from db.dals import CertificationDAL, SubjectsInCycleHoursDAL, TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL, SemesterDAL, PlanDAL, SpecialityDAL, ChapterDAL, CycleDAL, ModuleDAL, SubjectsInCycleDAL
 from db.session import get_db
 
 from sqlalchemy.exc import IntegrityError
@@ -5987,3 +5987,236 @@ async def delete_subject_in_cycle_hours(hours_id: int, request: Request, db: Asy
 @subject_in_cycle_hours_router.put("/update", response_model=ShowSubjectsInCycleHoursWithHATEOAS, responses={404: {"description": "Запись о часах для предмета не найдена"}})
 async def update_subject_in_cycle_hours(body: UpdateSubjectsInCycleHours, request: Request, db: AsyncSession = Depends(get_db)):
     return await _update_subject_in_cycle_hours(body, request, db)
+
+
+certification_router = APIRouter()
+
+'''
+==============================
+CRUD operations for Certification
+==============================
+'''
+
+async def _create_new_certification(body: CreateCertification, request: Request, db) -> ShowCertificationWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            subject_in_cycle_hours_dal = SubjectsInCycleHoursDAL(session)
+            certification_dal = CertificationDAL(session)
+            try:
+                # Проверка на существование связанной записи о часах
+                if not await ensure_subject_in_cycle_hours_exists(subject_in_cycle_hours_dal, body.id):
+                    raise HTTPException(status_code=404, detail=f"Запись о часах для предмета в цикле с id {body.id} не найдена")
+
+                certification = await certification_dal.create_certification(
+                    id=body.id,
+                    credit=body.credit,
+                    differentiated_credit=body.differentiated_credit,
+                    course_project=body.course_project,
+                    course_work=body.course_work,
+                    control_work=body.control_work,
+                    other_form=body.other_form
+                )
+                certification_id = certification.id # ID совпадает с внешним ключом
+                certification_pydantic = ShowCertification.model_validate(certification, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/certifications/search/by_id/{certification_id}',
+                    "update": f'{api_base_url}/certifications/update',
+                    "delete": f'{api_base_url}/certifications/delete/{certification_id}',
+                    "certifications": f'{api_base_url}/certifications',
+                    "subjects_in_cycle_hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_id/{certification_id}'
+                }
+
+                return ShowCertificationWithHATEOAS(certification=certification_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании сертификации для id {body.id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_certification_by_id(certification_id: int, request: Request, db) -> ShowCertificationWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            certification_dal = CertificationDAL(session)
+            try:
+                certification = await certification_dal.get_certification_by_id(certification_id)
+                if not certification:
+                    raise HTTPException(status_code=404, detail=f"Сертификация с id {certification_id} не найдена")
+                certification_pydantic = ShowCertification.model_validate(certification, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/certifications/search/by_id/{certification_id}',
+                    "update": f'{api_base_url}/certifications/update',
+                    "delete": f'{api_base_url}/certifications/delete/{certification_id}',
+                    "certifications": f'{api_base_url}/certifications',
+                    "subjects_in_cycle_hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_id/{certification_id}'
+                }
+
+                return ShowCertificationWithHATEOAS(certification=certification_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение сертификации {certification_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_certifications(page: int, limit: int, request: Request, db) -> ShowCertificationListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            certification_dal = CertificationDAL(session)
+            try:
+                certifications = await certification_dal.get_all_certifications(page, limit)
+                if certifications is None:
+                    certifications = []
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                certifications_with_hateoas = []
+                for certification in certifications:
+                    certification_pydantic = ShowCertification.model_validate(certification, from_attributes=True)
+                    certification_id = certification.id
+                    certification_links = {
+                        "self": f'{api_base_url}/certifications/search/by_id/{certification_id}',
+                        "update": f'{api_base_url}/certifications/update',
+                        "delete": f'{api_base_url}/certifications/delete/{certification_id}',
+                        "certifications": f'{api_base_url}/certifications',
+                        "subjects_in_cycle_hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_id/{certification_id}'
+                    }
+                    certification_with_links = ShowCertificationWithHATEOAS(certification=certification_pydantic, links=certification_links)
+                    certifications_with_hateoas.append(certification_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/certifications/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/certifications/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowCertificationListWithHATEOAS(certifications=certifications_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение сертификаций отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_certification(certification_id: int, request: Request, db) -> ShowCertificationWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                certification_dal = CertificationDAL(session)
+                # Проверка на существование с помощью хэлпера перед удалением
+                if not await ensure_certification_exists(certification_dal, certification_id):
+                    raise HTTPException(status_code=404, detail=f"Сертификация с id {certification_id} не найдена")
+
+                certification = await certification_dal.delete_certification(certification_id)
+                # Результат delete может быть None, если строка не была найдена, хотя ensure_certification_exists выше должен был это перехватить
+                if not certification:
+                    raise HTTPException(status_code=404, detail=f"Сертификация с id {certification_id} не найдена")
+
+                certification_pydantic = ShowCertification.model_validate(certification, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "certifications": f'{api_base_url}/certifications',
+                    "create": f'{api_base_url}/certifications/create',
+                    "subjects_in_cycle_hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_id/{certification_id}'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowCertificationWithHATEOAS(certification=certification_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении сертификации {certification_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении сертификации.")
+
+
+async def _update_certification(body: UpdateCertification, request: Request, db) -> ShowCertificationWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                # Исключаем служебные поля из данных для обновления
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["certification_id"]}
+
+                certification_dal = CertificationDAL(session)
+
+                # Проверка на существование с помощью хэлпера перед обновлением
+                if not await ensure_certification_exists(certification_dal, body.certification_id):
+                    raise HTTPException(status_code=404, detail=f"Сертификация с id {body.certification_id} не найдена")
+
+                certification = await certification_dal.update_certification(target_id=body.certification_id, **update_data)
+                if not certification:
+                    # Дополнительная проверка на случай гонки, хотя ensure_certification_exists выше должна это перехватить
+                    raise HTTPException(status_code=404, detail=f"Сертификация с id {body.certification_id} не найдена")
+
+                certification_id = certification.id # ID не меняется
+                certification_pydantic = ShowCertification.model_validate(certification, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/certifications/search/by_id/{certification_id}',
+                    "update": f'{api_base_url}/certifications/update',
+                    "delete": f'{api_base_url}/certifications/delete/{certification_id}',
+                    "certifications": f'{api_base_url}/certifications',
+                    "subjects_in_cycle_hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_id/{certification_id}'
+                }
+
+                return ShowCertificationWithHATEOAS(certification=certification_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о сертификации отменено (Ошибка: {e})")
+            raise e
+
+
+@certification_router.post("/create", response_model=ShowCertificationWithHATEOAS, status_code=201)
+async def create_certification(body: CreateCertification, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_certification(body, request, db)
+
+
+@certification_router.get("/search/by_id/{certification_id}", response_model=ShowCertificationWithHATEOAS, responses={404: {"description": "Сертификация не найдена"}})
+async def get_certification_by_id(certification_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_certification_by_id(certification_id, request, db)
+
+
+@certification_router.get("/search", response_model=ShowCertificationListWithHATEOAS)
+async def get_all_certifications(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_certifications(query_param.page, query_param.limit, request, db)
+
+
+@certification_router.delete("/delete/{certification_id}", response_model=ShowCertificationWithHATEOAS, responses={404: {"description": "Сертификация не найдена"}})
+async def delete_certification(certification_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_certification(certification_id, request, db)
+
+
+@certification_router.put("/update", response_model=ShowCertificationWithHATEOAS, responses={404: {"description": "Сертификация не найдена"}})
+async def update_certification(body: UpdateCertification, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_certification(body, request, db)

@@ -182,11 +182,10 @@ class ShowSpecialityListWithHATEOAS(TunedModel):
 
 
 '''
-=====
+========
 Group
-=====
+========
 '''
-
 
 class ShowGroup(TunedModel):
     """Class for get group info"""
@@ -854,3 +853,5 @@ class ShowCertificationWithHATEOAS(TunedModel):
 class ShowCertificationListWithHATEOAS(TunedModel):
     certifications: List[ShowCertificationWithHATEOAS]
     links: dict[str, str] = {}
+
+

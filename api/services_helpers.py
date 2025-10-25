@@ -93,6 +93,11 @@ async def ensure_certification_exists(certification_dal, certification_id: int) 
     certification = await certification_dal.get_certification_by_id(certification_id)
     return certification is not None
 
+# TeacherInPlan
+async def ensure_teacher_in_plan_exists(teacher_in_plan_dal, teacher_in_plan_id: int) -> bool:
+    teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_id(teacher_in_plan_id)
+    return teacher_in_plan is not None
+
 
 '''
 ======
@@ -203,6 +208,10 @@ async def ensure_subject_in_cycle_hours_unique(subject_in_cycle_hours_dal, hours
 async def ensure_certification_unique(certification_dal, certification_id: int) -> bool:
     certification = await certification_dal.get_certification_by_id(certification_id)
     return certification is None
+
+async def ensure_teacher_in_plan_unique(teacher_in_plan_dal, teacher_in_plan_id: int) -> bool:
+    teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_id(teacher_in_plan_id)
+    return teacher_in_plan is None
 
 
 '''

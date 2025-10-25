@@ -80,6 +80,10 @@ async def ensure_subject_in_cycle_exists(subject_in_cycle_dal, subject_in_cycle_
     subject_in_cycle = await subject_in_cycle_dal.get_subject_in_cycle_by_id(subject_in_cycle_id)
     return subject_in_cycle is not None
 
+async def ensure_subject_in_cycle_hours_exists(subject_in_cycle_hours_dal, hours_id: int) -> bool:
+    subject_in_cycle_hours = await subject_in_cycle_hours_dal.get_subject_in_cycle_hours_by_id(hours_id)
+    return subject_in_cycle_hours is not None
+
 
 '''
 ======
@@ -182,6 +186,10 @@ async def ensure_module_unique(module_dal, module_id: int) -> bool:
 async def ensure_subject_in_cycle_unique(subject_in_cycle_dal, subject_in_cycle_id: int) -> bool:
     subject_in_cycle = await subject_in_cycle_dal.get_subject_in_cycle_by_id(subject_in_cycle_id)
     return subject_in_cycle is None
+
+async def ensure_subject_in_cycle_hours_unique(subject_in_cycle_hours_dal, hours_id: int) -> bool:
+    subject_in_cycle_hours = await subject_in_cycle_hours_dal.get_subject_in_cycle_hours_by_id(hours_id)
+    return subject_in_cycle_hours is None
 
 
 '''

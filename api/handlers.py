@@ -12,14 +12,14 @@ from typing import Annotated, Union
 from api.models import *
 #from api.services_helpers import ensure_building_exists, ensure_cabinet_unique, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_group_exists, ensure_subject_exists, ensure_subject_unique, ensure_employment_unique, ensure_request_unique, ensure_session_unique, ensure_cabinet_exists, ensure_teacher_group_relation_unique, ensure_teacher_subject_relation_unique
 #from db.dals import TeacherDAL, BuildingDAL, CabinetDAL, SpecialityDAL, GroupDAL, SubjectDAL, EmployTeacherDAL, TeacherRequestDAL, SessionDAL, 
-from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_certification_exists, ensure_group_exists, ensure_group_unique, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique, \
+from api.services_helpers import ensure_category_exists, ensure_category_unique, ensure_certification_exists, ensure_group_exists, ensure_group_unique, ensure_teacher_building_exists, ensure_teacher_email_unique, ensure_teacher_exists, ensure_teacher_phone_unique, \
     ensure_building_exists, ensure_building_unique, ensure_cabinet_exists, ensure_cabinet_unique, ensure_session_type_exists, ensure_session_type_unique, \
     ensure_semester_exists, ensure_semester_unique, ensure_plan_exists, ensure_plan_unique, ensure_speciality_exists, ensure_speciality_unique, \
     ensure_chapter_exists, ensure_chapter_unique, ensure_cycle_exists, ensure_cycle_unique, ensure_module_exists, ensure_module_unique, ensure_cycle_contains_modules, \
     ensure_subject_in_cycle_exists, ensure_subject_in_cycle_unique, ensure_subject_in_cycle_hours_exists, ensure_subject_in_cycle_hours_unique, \
     ensure_teacher_in_plan_unique, ensure_teacher_in_plan_exists
     
-from db.dals import CertificationDAL, GroupDAL, SubjectsInCycleHoursDAL, TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL, SemesterDAL, PlanDAL, SpecialityDAL, ChapterDAL, CycleDAL, ModuleDAL, SubjectsInCycleDAL, TeacherInPlanDAL
+from db.dals import CertificationDAL, GroupDAL, SubjectsInCycleHoursDAL, TeacherBuildingDAL, TeacherCategoryDAL, TeacherDAL, BuildingDAL, CabinetDAL, SessionTypeDAL, SemesterDAL, PlanDAL, SpecialityDAL, ChapterDAL, CycleDAL, ModuleDAL, SubjectsInCycleDAL, TeacherInPlanDAL
 from db.session import get_db
 
 from sqlalchemy.exc import IntegrityError
@@ -6608,3 +6608,347 @@ async def delete_teacher_in_plan(teacher_in_plan_id: int, request: Request, db: 
 @teacher_in_plan_router.put("/update", response_model=ShowTeacherInPlanWithHATEOAS, responses={404: {"description": "Запись в расписании преподавателя не найдена"}})
 async def update_teacher_in_plan(body: UpdateTeacherInPlan, request: Request, db: AsyncSession = Depends(get_db)):
     return await _update_teacher_in_plan(body, request, db)
+
+
+teacher_building_router = APIRouter()
+
+'''
+==============================
+CRUD operations for TeacherBuilding
+==============================
+'''
+
+async def _create_new_teacher_building(body: CreateTeacherBuilding, request: Request, db) -> ShowTeacherBuildingWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_dal = TeacherDAL(session)
+            building_dal = BuildingDAL(session)
+            teacher_building_dal = TeacherBuildingDAL(session)
+            try:
+                # Проверка на существование преподавателя и здания
+                if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
+                    raise HTTPException(status_code=404, detail=f"Преподаватель с id {body.teacher_id} не найден")
+                if not await ensure_building_exists(building_dal, body.building_number):
+                    raise HTTPException(status_code=404, detail=f"Здание с номером {body.building_number} не найдено")
+
+                teacher_building = await teacher_building_dal.create_teacher_building(
+                    teacher_id=body.teacher_id,
+                    building_number=body.building_number
+                )
+                teacher_building_id = teacher_building.id
+                teacher_building_pydantic = ShowTeacherBuilding.model_validate(teacher_building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers_buildings/search/by_id/{teacher_building_id}',
+                    "update": f'{api_base_url}/teachers_buildings/update',
+                    "delete": f'{api_base_url}/teachers_buildings/delete/{teacher_building_id}',
+                    "teachers_buildings": f'{api_base_url}/teachers_buildings',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{body.teacher_id}',
+                    "building": f'{api_base_url}/buildings/search/by_number/{body.building_number}'
+                }
+
+                return ShowTeacherBuildingWithHATEOAS(teacher_building=teacher_building_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при создании связи преподавателя и здания: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_teacher_building_by_id(teacher_building_id: int, request: Request, db) -> ShowTeacherBuildingWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_building_dal = TeacherBuildingDAL(session)
+            try:
+                # Проверка на существование связи
+                if not await ensure_teacher_building_exists(teacher_building_dal, teacher_building_id):
+                    raise HTTPException(status_code=404, detail=f"Связь преподавателя и здания с id {teacher_building_id} не найдена")
+
+                teacher_building = await teacher_building_dal.get_teacher_building_by_id(teacher_building_id)
+                teacher_building_pydantic = ShowTeacherBuilding.model_validate(teacher_building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers_buildings/search/by_id/{teacher_building_id}',
+                    "update": f'{api_base_url}/teachers_buildings/update',
+                    "delete": f'{api_base_url}/teachers_buildings/delete/{teacher_building_id}',
+                    "teachers_buildings": f'{api_base_url}/teachers_buildings',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_building.teacher_id}',
+                    "building": f'{api_base_url}/buildings/search/by_number/{teacher_building.building_number}'
+                }
+
+                return ShowTeacherBuildingWithHATEOAS(teacher_building=teacher_building_pydantic, links=hateoas_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение связи преподавателя и здания {teacher_building_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_teachers_buildings_by_teacher(teacher_id: int, page: int, limit: int, request: Request, db) -> ShowTeacherBuildingListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_dal = TeacherDAL(session)
+            teacher_building_dal = TeacherBuildingDAL(session)
+            try:
+                # Проверка на существование преподавателя
+                if not await ensure_teacher_exists(teacher_dal, teacher_id):
+                    raise HTTPException(status_code=404, detail=f"Преподаватель с id {teacher_id} не найден")
+
+                teacher_buildings = await teacher_building_dal.get_teachers_buildings_by_teacher(teacher_id, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_buildings_with_hateoas = []
+                for teacher_building in teacher_buildings:
+                    teacher_building_pydantic = ShowTeacherBuilding.model_validate(teacher_building, from_attributes=True)
+                    teacher_building_id = teacher_building.id
+                    teacher_building_links = {
+                        "self": f'{api_base_url}/teachers_buildings/search/by_id/{teacher_building_id}',
+                        "update": f'{api_base_url}/teachers_buildings/update',
+                        "delete": f'{api_base_url}/teachers_buildings/delete/{teacher_building_id}',
+                        "teachers_buildings": f'{api_base_url}/teachers_buildings',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                        "building": f'{api_base_url}/buildings/search/by_number/{teacher_building.building_number}'
+                    }
+                    teacher_building_with_links = ShowTeacherBuildingWithHATEOAS(teacher_building=teacher_building_pydantic, links=teacher_building_links)
+                    teacher_buildings_with_hateoas.append(teacher_building_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers_buildings/search/by_teacher/{teacher_id}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers_buildings/create',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_id}'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowTeacherBuildingListWithHATEOAS(teacher_buildings=teacher_buildings_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение связей преподавателя и зданий для преподавателя {teacher_id} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_teachers_buildings_by_building(building_number: int, page: int, limit: int, request: Request, db) -> ShowTeacherBuildingListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            building_dal = BuildingDAL(session)
+            teacher_building_dal = TeacherBuildingDAL(session)
+            try:
+                # Проверка на существование здания
+                if not await ensure_building_exists(building_dal, building_number):
+                    raise HTTPException(status_code=404, detail=f"Здание с номером {building_number} не найдено")
+
+                teacher_buildings = await teacher_building_dal.get_teachers_buildings_by_building(building_number, page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_buildings_with_hateoas = []
+                for teacher_building in teacher_buildings:
+                    teacher_building_pydantic = ShowTeacherBuilding.model_validate(teacher_building, from_attributes=True)
+                    teacher_building_id = teacher_building.id
+                    teacher_building_links = {
+                        "self": f'{api_base_url}/teachers_buildings/search/by_id/{teacher_building_id}',
+                        "update": f'{api_base_url}/teachers_buildings/update',
+                        "delete": f'{api_base_url}/teachers_buildings/delete/{teacher_building_id}',
+                        "teachers_buildings": f'{api_base_url}/teachers_buildings',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_building.teacher_id}',
+                        "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                    }
+                    teacher_building_with_links = ShowTeacherBuildingWithHATEOAS(teacher_building=teacher_building_pydantic, links=teacher_building_links)
+                    teacher_buildings_with_hateoas.append(teacher_building_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers_buildings/search/by_building/{building_number}?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers_buildings/create',
+                    "building": f'{api_base_url}/buildings/search/by_number/{building_number}'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowTeacherBuildingListWithHATEOAS(teacher_buildings=teacher_buildings_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение связей преподавателей и здания для здания {building_number} отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _get_all_teachers_buildings(page: int, limit: int, request: Request, db) -> ShowTeacherBuildingListWithHATEOAS:
+    async with db as session:
+        async with session.begin():
+            teacher_building_dal = TeacherBuildingDAL(session)
+            try:
+                teacher_buildings = await teacher_building_dal.get_all_teachers_buildings(page, limit)
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                teacher_buildings_with_hateoas = []
+                for teacher_building in teacher_buildings:
+                    teacher_building_pydantic = ShowTeacherBuilding.model_validate(teacher_building, from_attributes=True)
+                    teacher_building_id = teacher_building.id
+                    teacher_building_links = {
+                        "self": f'{api_base_url}/teachers_buildings/search/by_id/{teacher_building_id}',
+                        "update": f'{api_base_url}/teachers_buildings/update',
+                        "delete": f'{api_base_url}/teachers_buildings/delete/{teacher_building_id}',
+                        "teachers_buildings": f'{api_base_url}/teachers_buildings',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_building.teacher_id}',
+                        "building": f'{api_base_url}/buildings/search/by_number/{teacher_building.building_number}'
+                    }
+                    teacher_building_with_links = ShowTeacherBuildingWithHATEOAS(teacher_building=teacher_building_pydantic, links=teacher_building_links)
+                    teacher_buildings_with_hateoas.append(teacher_building_with_links)
+
+                collection_links = {
+                    "self": f'{api_base_url}/teachers_buildings/search?page={page}&limit={limit}',
+                    "create": f'{api_base_url}/teachers_buildings/create'
+                }
+                collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                return ShowTeacherBuildingListWithHATEOAS(teacher_buildings=teacher_buildings_with_hateoas, links=collection_links)
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Получение связей преподавателей и зданий отменено (Ошибка: {e})")
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+async def _delete_teacher_building(teacher_building_id: int, request: Request, db) -> ShowTeacherBuildingWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                teacher_building_dal = TeacherBuildingDAL(session)
+                # Проверка на существование перед удалением
+                if not await ensure_teacher_building_exists(teacher_building_dal, teacher_building_id):
+                    raise HTTPException(status_code=404, detail=f"Связь преподавателя и здания с id {teacher_building_id} не найдена")
+
+                teacher_building = await teacher_building_dal.delete_teacher_building(teacher_building_id)
+                # Результат delete может быть None, если строка не была найдена, хотя ensure_teacher_building_exists выше должен был это перехватить
+                if not teacher_building:
+                    raise HTTPException(status_code=404, detail=f"Связь преподавателя и здания с id {teacher_building_id} не найдена")
+
+                teacher_building_pydantic = ShowTeacherBuilding.model_validate(teacher_building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "teachers_buildings": f'{api_base_url}/teachers_buildings',
+                    "create": f'{api_base_url}/teachers_buildings/create'
+                }
+                hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                return ShowTeacherBuildingWithHATEOAS(teacher_building=teacher_building_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Неожиданная ошибка при удалении связи преподавателя и здания {teacher_building_id}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении связи преподавателя и здания.")
+
+
+async def _update_teacher_building(body: UpdateTeacherBuilding, request: Request, db) -> ShowTeacherBuildingWithHATEOAS:
+    async with db as session:
+        try:
+            async with session.begin():
+                # Исключаем служебные поля из данных для обновления
+                update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["teacher_building_id"]}
+                # Проверим, существуют ли новые связанные сущности, если они указаны в update_data
+                if "teacher_id" in update_data:
+                    teacher_dal = TeacherDAL(session)
+                    if not await ensure_teacher_exists(teacher_dal, update_data["teacher_id"]):
+                        raise HTTPException(status_code=404, detail=f"Преподаватель с id {update_data['teacher_id']} не найден")
+                if "building_number" in update_data:
+                    building_dal = BuildingDAL(session)
+                    if not await ensure_building_exists(building_dal, update_data["building_number"]):
+                        raise HTTPException(status_code=404, detail=f"Здание с номером {update_data['building_number']} не найдено")
+
+                teacher_building_dal = TeacherBuildingDAL(session)
+
+                # Проверка на существование перед обновлением
+                if not await ensure_teacher_building_exists(teacher_building_dal, body.teacher_building_id):
+                    raise HTTPException(status_code=404, detail=f"Связь преподавателя и здания с id {body.teacher_building_id} не найдена")
+
+                teacher_building = await teacher_building_dal.update_teacher_building(target_id=body.teacher_building_id, **update_data)
+                if not teacher_building:
+                    # Дополнительная проверка на случай гонки, хотя ensure_teacher_building_exists выше должна это перехватить
+                    raise HTTPException(status_code=404, detail=f"Связь преподавателя и здания с id {body.teacher_building_id} не найдена")
+
+                teacher_building_id = teacher_building.id
+                teacher_building_pydantic = ShowTeacherBuilding.model_validate(teacher_building, from_attributes=True)
+
+                base_url = str(request.base_url).rstrip('/')
+                api_prefix = ''
+                api_base_url = f'{base_url}{api_prefix}'
+
+                hateoas_links = {
+                    "self": f'{api_base_url}/teachers_buildings/search/by_id/{teacher_building_id}',
+                    "update": f'{api_base_url}/teachers_buildings/update',
+                    "delete": f'{api_base_url}/teachers_buildings/delete/{teacher_building_id}',
+                    "teachers_buildings": f'{api_base_url}/teachers_buildings',
+                    "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_building.teacher_id}',
+                    "building": f'{api_base_url}/buildings/search/by_number/{teacher_building.building_number}'
+                }
+
+                return ShowTeacherBuildingWithHATEOAS(teacher_building=teacher_building_pydantic, links=hateoas_links)
+
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.warning(f"Изменение данных о связи преподавателя и здания отменено (Ошибка: {e})")
+            raise e
+
+
+@teacher_building_router.post("/create", response_model=ShowTeacherBuildingWithHATEOAS, status_code=201)
+async def create_teacher_building(body: CreateTeacherBuilding, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _create_new_teacher_building(body, request, db)
+
+
+@teacher_building_router.get("/search/by_id/{teacher_building_id}", response_model=ShowTeacherBuildingWithHATEOAS, responses={404: {"description": "Связь преподавателя и здания не найдена"}})
+async def get_teacher_building_by_id(teacher_building_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_teacher_building_by_id(teacher_building_id, request, db)
+
+
+@teacher_building_router.get("/search/by_teacher/{teacher_id}", response_model=ShowTeacherBuildingListWithHATEOAS, responses={404: {"description": "Связи преподавателя и зданий не найдены"}})
+async def get_teachers_buildings_by_teacher(teacher_id: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_teachers_buildings_by_teacher(teacher_id, query_param.page, query_param.limit, request, db)
+
+
+@teacher_building_router.get("/search/by_building/{building_number}", response_model=ShowTeacherBuildingListWithHATEOAS, responses={404: {"description": "Связи преподавателей и здания не найдены"}})
+async def get_teachers_buildings_by_building(building_number: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_teachers_buildings_by_building(building_number, query_param.page, query_param.limit, request, db)
+
+
+@teacher_building_router.get("/search", response_model=ShowTeacherBuildingListWithHATEOAS)
+async def get_all_teachers_buildings(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+    return await _get_all_teachers_buildings(query_param.page, query_param.limit, request, db)
+
+
+@teacher_building_router.delete("/delete/{teacher_building_id}", response_model=ShowTeacherBuildingWithHATEOAS, responses={404: {"description": "Связь преподавателя и здания не найдена"}})
+async def delete_teacher_building(teacher_building_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _delete_teacher_building(teacher_building_id, request, db)
+
+
+@teacher_building_router.put("/update", response_model=ShowTeacherBuildingWithHATEOAS, responses={404: {"description": "Связь преподавателя и здания не найдена"}})
+async def update_teacher_building(body: UpdateTeacherBuilding, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _update_teacher_building(body, request, db)

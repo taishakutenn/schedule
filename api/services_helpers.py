@@ -98,6 +98,11 @@ async def ensure_teacher_in_plan_exists(teacher_in_plan_dal, teacher_in_plan_id:
     teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_id(teacher_in_plan_id)
     return teacher_in_plan is not None
 
+#TeacherBuilding
+async def ensure_teacher_building_exists(teacher_building_dal, teacher_building_id: int) -> bool:
+    teacher_building = await teacher_building_dal.get_teacher_building_by_id(teacher_building_id)
+    return teacher_building is not None
+
 
 '''
 ======
@@ -212,6 +217,10 @@ async def ensure_certification_unique(certification_dal, certification_id: int) 
 async def ensure_teacher_in_plan_unique(teacher_in_plan_dal, teacher_in_plan_id: int) -> bool:
     teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_id(teacher_in_plan_id)
     return teacher_in_plan is None
+
+async def ensure_teacher_building_unique(teacher_building_dal, teacher_building_id: int) -> bool:
+    teacher_building = await teacher_building_dal.get_teacher_building_by_id(teacher_building_id)
+    return teacher_building is None
 
 
 '''

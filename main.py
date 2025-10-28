@@ -8,7 +8,8 @@ import uvicorn
 
 #from api.handlers import, building_router, cabinet_router, subject_router, curriculum_router, speciality_router, group_router, request_router, employment_router, session_router, teachers_groups_router, teachers_subjects_router
 from api.handlers import category_router, teacher_router, building_router, cabinet_router, session_type_router, speciality_router, plan_router, semester_router, chapter_router, \
-                         cycle_router, module_router, subject_in_cycle_router, subject_in_cycle_hours_router, certification_router, group_router, teacher_in_plan_router, teacher_building_router
+                         cycle_router, module_router, subject_in_cycle_router, subject_in_cycle_hours_router, certification_router, group_router, teacher_in_plan_router, teacher_building_router, \
+                         session_router
 
 # Create fastapi app
 app = FastAPI(title="OGTIScheduleApi")
@@ -17,16 +18,16 @@ app = FastAPI(title="OGTIScheduleApi")
 main_api_router = APIRouter()
 
 # Add child routers to the main
-main_api_router.include_router(teacher_router, prefix="/teachers", tags=["teacher"])
-main_api_router.include_router(building_router, prefix="/buildings", tags=["building"])
-main_api_router.include_router(cabinet_router, prefix="/cabinets", tags=["cabinet"])
-main_api_router.include_router(speciality_router, prefix="/specialities", tags=["speciality"])
-main_api_router.include_router(group_router, prefix="/groups", tags=["group"])
+main_api_router.include_router(teacher_router, prefix="/teachers", tags=["teachers"])
+main_api_router.include_router(building_router, prefix="/buildings", tags=["buildings"])
+main_api_router.include_router(cabinet_router, prefix="/cabinets", tags=["cabinets"])
+main_api_router.include_router(speciality_router, prefix="/specialities", tags=["specialities"])
+main_api_router.include_router(group_router, prefix="/groups", tags=["groups"])
 # main_api_router.include_router(subject_router, prefix="/subjects", tags=["subject"])
 # main_api_router.include_router(curriculum_router, prefix="/curriculums", tags=["curriculum"])
 # main_api_router.include_router(employment_router, prefix="/employments", tags=["employment"])
 # main_api_router.include_router(request_router, prefix="/requests", tags=["request"])
-# main_api_router.include_router(session_router, prefix="/sessions", tags=["session"])
+main_api_router.include_router(session_router, prefix="/sessions", tags=["sessions"])
 # main_api_router.include_router(teachers_groups_router, prefix="/teachers-groups", tags=["teachers-groups"])
 # main_api_router.include_router(teachers_subjects_router, prefix="/teachers-subjects", tags=["teachers-subjects"])
 main_api_router.include_router(category_router, prefix="/teacher-category", tags=["teacher-category"])

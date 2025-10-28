@@ -413,46 +413,40 @@ class ShowTeacherRequestListWithHATEOAS(TunedModel):
 
 
 '''
-=======
+========
 Session
-=======
+========
 '''
 
-
 class ShowSession(TunedModel):
+    """Class for get session info"""
     session_number: int
-    date: date
-    group_name: str
+    session_date: date
+    teacher_in_plan: int
     session_type: str
-    subject_code: str | None = None
-    teacher_id: int | None = None
-    cabinet_number: int
-    building_number: int
+    cabinet_number: int | None = None
+    building_number: int | None = None
 
 
 class CreateSession(TunedModel):
     session_number: int
-    date: date
-    group_name: str
+    session_date: date
+    teacher_in_plan: int
     session_type: str
-    subject_code: str | None = None
-    teacher_id: int | None = None
-    cabinet_number: int
-    building_number: int
+    cabinet_number: int | None = None
+    building_number: int | None = None
 
 
 class UpdateSession(TunedModel):
     session_number: int
     session_date: date
-    group_name: str
+    teacher_in_plan: int
     new_session_number: int | None = None
     new_session_date: date | None = None
-    new_group_name: str | None = None
-    session_type: str | None = None
-    subject_code: str | None = None
-    teacher_id: int | None = None
-    cabinet_number: int | None = None
-    building_number: int | None = None
+    new_teacher_in_plan: int | None = None
+    new_session_type: str | None = None
+    new_cabinet_number: int | None = None
+    new_building_number: int | None = None
 
 
 class ShowSessionWithHATEOAS(TunedModel):
@@ -927,3 +921,4 @@ class ShowTeacherBuildingWithHATEOAS(TunedModel):
 class ShowTeacherBuildingListWithHATEOAS(TunedModel):
     teacher_buildings: List[ShowTeacherBuildingWithHATEOAS]
     links: dict[str, str] = {}
+

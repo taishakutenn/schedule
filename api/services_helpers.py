@@ -4,6 +4,7 @@ from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL
 from config.logging_config import configure_logging
 
 from sqlalchemy import Date
+from datetime import date
 
 logger = configure_logging()
 
@@ -20,8 +21,8 @@ async def ensure_building_exists(building_dal: BuildingDAL, building_number: int
     return building
 
 # Cabinet
-async def ensure_cabinet_exists(cabinet_dal, building_number: int, cabinet_number: int) -> bool:
-    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
+async def ensure_cabinet_exists(cabinet_dal, cabinet_number: int, building_number: int) -> bool:
+    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(cabinet_number, building_number) 
     return cabinet is not None
 
 # Speciality
@@ -103,6 +104,10 @@ async def ensure_teacher_building_exists(teacher_building_dal, teacher_building_
     teacher_building = await teacher_building_dal.get_teacher_building_by_id(teacher_building_id)
     return teacher_building is not None
 
+async def ensure_session_exists(session_dal, session_number: int, session_date: date, teacher_in_plan: int) -> bool:
+    session = await session_dal.get_session_by_composite_key(session_number, session_date, teacher_in_plan)
+    return session is not None
+
 
 '''
 ======
@@ -115,8 +120,8 @@ async def ensure_group_unique(group_dal, group_name: str) -> bool:
     return group is None
     
 # Cabinet
-async def ensure_cabinet_unique(cabinet_dal, building_number: int, cabinet_number: int) -> bool:
-    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
+async def ensure_cabinet_unique(cabinet_dal, cabinet_number: int, building_number: int) -> bool:
+    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(cabinet_number, building_number) 
     return cabinet is None
 
 # # Curriculum
@@ -221,6 +226,10 @@ async def ensure_teacher_in_plan_unique(teacher_in_plan_dal, teacher_in_plan_id:
 async def ensure_teacher_building_unique(teacher_building_dal, teacher_building_id: int) -> bool:
     teacher_building = await teacher_building_dal.get_teacher_building_by_id(teacher_building_id)
     return teacher_building is None
+
+async def ensure_session_unique(session_dal, session_number: int, session_date: date, teacher_in_plan: int) -> bool:
+    session = await session_dal.get_session_by_composite_key(session_number, session_date, teacher_in_plan)
+    return session is None
 
 
 '''

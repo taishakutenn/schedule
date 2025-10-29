@@ -104,9 +104,15 @@ async def ensure_teacher_building_exists(teacher_building_dal, teacher_building_
     teacher_building = await teacher_building_dal.get_teacher_building_by_id(teacher_building_id)
     return teacher_building is not None
 
+# Session
 async def ensure_session_exists(session_dal, session_number: int, session_date: date, teacher_in_plan: int) -> bool:
     session = await session_dal.get_session_by_composite_key(session_number, session_date, teacher_in_plan)
     return session is not None
+
+# Stream
+async def ensure_stream_exists(stream_dal, stream_id: int, group_name: str, subject_id: int) -> bool:
+    stream = await stream_dal.get_stream_by_composite_key(stream_id, group_name, subject_id)
+    return stream is not None
 
 
 '''
@@ -230,6 +236,10 @@ async def ensure_teacher_building_unique(teacher_building_dal, teacher_building_
 async def ensure_session_unique(session_dal, session_number: int, session_date: date, teacher_in_plan: int) -> bool:
     session = await session_dal.get_session_by_composite_key(session_number, session_date, teacher_in_plan)
     return session is None
+
+async def ensure_stream_unique(stream_dal, stream_id: int, group_name: str, subject_id: int) -> bool:
+    stream = await stream_dal.get_stream_by_composite_key(stream_id, group_name, subject_id)
+    return stream is None
 
 
 '''

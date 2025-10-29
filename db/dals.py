@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Certification, Teacher, Group, Cabinet, Building, Speciality, Session, TeacherBuilding, TeacherCategory, SessionType, Semester, Plan, Chapter, Cycle, Module, SubjectsInCycle, SubjectsInCycleHours, TeacherInPlan
+from db.models import Certification, Stream, Teacher, Group, Cabinet, Building, Speciality, Session, TeacherBuilding, TeacherCategory, SessionType, Semester, Plan, Chapter, Cycle, Module, SubjectsInCycle, SubjectsInCycleHours, TeacherInPlan
 from config.decorators import log_exceptions
 from db.session import get_db
 
@@ -471,7 +471,7 @@ class SessionDAL:
     async def create_session(
         self,
         session_number: int,
-        session_date: Date, # Используем Date из sqlalchemy
+        session_date: Date,
         teacher_in_plan: int,
         session_type: str,
         cabinet_number: int | None = None,
@@ -479,7 +479,7 @@ class SessionDAL:
     ) -> Session:
         new_session = Session(
             session_number=session_number,
-            date=session_date, # Поле в модели называется 'date'
+            date=session_date, 
             teacher_in_plan=teacher_in_plan,
             session_type=session_type,
             cabinet_number=cabinet_number,
@@ -490,10 +490,10 @@ class SessionDAL:
         return new_session
 
     @log_exceptions
-    async def delete_session(self, session_number: int, session_date: Date, teacher_in_plan: int) -> Session | None: # Date из sqlalchemy
+    async def delete_session(self, session_number: int, session_date: Date, teacher_in_plan: int) -> Session | None:
         query = delete(Session).where(
             (Session.session_number == session_number) &
-            (Session.date == session_date) & # Date из sqlalchemy
+            (Session.date == session_date) & 
             (Session.teacher_in_plan == teacher_in_plan)
         ).returning(Session)
         res = await self.db_session.execute(query)
@@ -503,7 +503,7 @@ class SessionDAL:
     @log_exceptions
     async def get_all_sessions(self, page: int, limit: int) -> list[Session]:
         if page == 0:
-            query = select(Session).order_by(Session.date.asc(), Session.session_number.asc()) # Date из sqlalchemy
+            query = select(Session).order_by(Session.date.asc(), Session.session_number.asc()) 
         else:
             query = select(Session).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
@@ -511,10 +511,10 @@ class SessionDAL:
         return sessions
 
     @log_exceptions
-    async def get_session_by_composite_key(self, session_number: int, session_date: Date, teacher_in_plan: int) -> Session | None: # Date из sqlalchemy
+    async def get_session_by_composite_key(self, session_number: int, session_date: Date, teacher_in_plan: int) -> Session | None: 
         query = select(Session).where(
             (Session.session_number == session_number) &
-            (Session.date == session_date) & # Date из sqlalchemy
+            (Session.date == session_date) & 
             (Session.teacher_in_plan == teacher_in_plan)
         )
         res = await self.db_session.execute(query)
@@ -524,7 +524,7 @@ class SessionDAL:
     @log_exceptions
     async def get_sessions_by_plan(self, teacher_in_plan_id: int, page: int, limit: int) -> list[Session]:
         if page == 0:
-            query = select(Session).where(Session.teacher_in_plan == teacher_in_plan_id).order_by(Session.date.asc(), Session.session_number.asc()) # Date из sqlalchemy
+            query = select(Session).where(Session.teacher_in_plan == teacher_in_plan_id).order_by(Session.date.asc(), Session.session_number.asc()) 
         else:
             query = select(Session).where(Session.teacher_in_plan == teacher_in_plan_id).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
@@ -532,11 +532,11 @@ class SessionDAL:
         return sessions if sessions is not None else []
 
     @log_exceptions
-    async def get_sessions_by_date(self, session_date: Date, page: int, limit: int) -> list[Session]: # Date из sqlalchemy
+    async def get_sessions_by_date(self, session_date: Date, page: int, limit: int) -> list[Session]: 
         if page == 0:
-            query = select(Session).where(Session.date == session_date).order_by(Session.session_number.asc()) # Date из sqlalchemy
+            query = select(Session).where(Session.date == session_date).order_by(Session.session_number.asc()) 
         else:
-            query = select(Session).where(Session.date == session_date).offset((page - 1) * limit).limit(limit) # Date из sqlalchemy
+            query = select(Session).where(Session.date == session_date).offset((page - 1) * limit).limit(limit) 
         result = await self.db_session.execute(query)
         sessions = list(result.scalars().all())
         return sessions if sessions is not None else []
@@ -544,7 +544,7 @@ class SessionDAL:
     @log_exceptions
     async def get_sessions_by_type(self, session_type: str, page: int, limit: int) -> list[Session]:
         if page == 0:
-            query = select(Session).where(Session.session_type == session_type).order_by(Session.date.asc(), Session.session_number.asc()) # Date из sqlalchemy
+            query = select(Session).where(Session.session_type == session_type).order_by(Session.date.asc(), Session.session_number.asc()) 
         else:
             query = select(Session).where(Session.session_type == session_type).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
@@ -569,7 +569,7 @@ class SessionDAL:
             query = select(Session).where(
                 (Session.cabinet_number == cabinet_number) &
                 (Session.building_number == building_number)
-            ).order_by(Session.date.asc(), Session.session_number.asc()) # Date из sqlalchemy
+            ).order_by(Session.date.asc(), Session.session_number.asc()) 
         else:
             query = select(Session).where(
                 (Session.cabinet_number == cabinet_number) &
@@ -580,10 +580,10 @@ class SessionDAL:
         return sessions if sessions is not None else []
 
     @log_exceptions
-    async def update_session(self, target_session_number: int, target_session_date: Date, target_teacher_in_plan: int, **kwargs) -> Session | None: # Date из sqlalchemy
+    async def update_session(self, target_session_number: int, target_session_date: Date, target_teacher_in_plan: int, **kwargs) -> Session | None: 
         query = update(Session).where(
             (Session.session_number == target_session_number) &
-            (Session.date == target_session_date) & # Date из sqlalchemy
+            (Session.date == target_session_date) &
             (Session.teacher_in_plan == target_teacher_in_plan)
         ).values(**kwargs).returning(Session)
         res = await self.db_session.execute(query)
@@ -1579,3 +1579,88 @@ class TeacherBuildingDAL:
         res = await self.db_session.execute(query)
         updated_teacher_building = res.scalar_one_or_none()
         return updated_teacher_building
+    
+
+'''
+================
+DAL for Stream
+================
+'''
+class StreamDAL:
+    """Data Access Layer for operating stream info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_stream(self, stream_id: int, group_name: str, subject_id: int) -> Stream:
+        new_stream = Stream(
+            stream_id=stream_id,
+            group_name=group_name,
+            subject_id=subject_id
+        )
+        self.db_session.add(new_stream)
+        await self.db_session.flush()
+        return new_stream
+
+    @log_exceptions
+    async def delete_stream(self, stream_id: int, group_name: str, subject_id: int) -> Stream | None:
+        query = delete(Stream).where(
+            (Stream.stream_id == stream_id) &
+            (Stream.group_name == group_name) &
+            (Stream.subject_id == subject_id)
+        ).returning(Stream)
+        res = await self.db_session.execute(query)
+        deleted_stream = res.scalar_one_or_none()
+        return deleted_stream
+
+    @log_exceptions
+    async def get_all_streams(self, page: int, limit: int) -> list[Stream]:
+        if page == 0:
+            query = select(Stream).order_by(Stream.stream_id.asc())
+        else:
+            query = select(Stream).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        streams = list(result.scalars().all())
+        return streams
+
+    @log_exceptions
+    async def get_stream_by_composite_key(self, stream_id: int, group_name: str, subject_id: int) -> Stream | None:
+        query = select(Stream).where(
+            (Stream.stream_id == stream_id) &
+            (Stream.group_name == group_name) &
+            (Stream.subject_id == subject_id)
+        )
+        res = await self.db_session.execute(query)
+        stream_row = res.scalar_one_or_none()
+        return stream_row
+
+    @log_exceptions
+    async def get_streams_by_group(self, group_name: str, page: int, limit: int) -> list[Stream]:
+        if page == 0:
+            query = select(Stream).where(Stream.group_name == group_name).order_by(Stream.stream_id.asc())
+        else:
+            query = select(Stream).where(Stream.group_name == group_name).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        streams = list(result.scalars().all())
+        return streams if streams is not None else []
+
+    @log_exceptions
+    async def get_streams_by_subject(self, subject_id: int, page: int, limit: int) -> list[Stream]:
+        if page == 0:
+            query = select(Stream).where(Stream.subject_id == subject_id).order_by(Stream.stream_id.asc())
+        else:
+            query = select(Stream).where(Stream.subject_id == subject_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        streams = list(result.scalars().all())
+        return streams if streams is not None else []
+
+    @log_exceptions
+    async def update_stream(self, target_stream_id: int, target_group_name: str, target_subject_id: int, **kwargs) -> Stream | None:
+        query = update(Stream).where(
+            (Stream.stream_id == target_stream_id) &
+            (Stream.group_name == target_group_name) &
+            (Stream.subject_id == target_subject_id)
+        ).values(**kwargs).returning(Stream)
+        res = await self.db_session.execute(query)
+        updated_stream = res.scalar_one_or_none()
+        return updated_stream

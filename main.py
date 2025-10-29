@@ -9,6 +9,8 @@ import uvicorn
 #from api.handlers import, building_router, cabinet_router, subject_router, curriculum_router, speciality_router, group_router, request_router, employment_router, session_router, teachers_groups_router, teachers_subjects_router
 from api.handlers import category_router, teacher_router, building_router, cabinet_router, session_type_router, speciality_router, plan_router, semester_router
 
+from api.teacher_category.teacher_category_handlers import category_router
+
 # Create fastapi app
 app = FastAPI(title="OGTIScheduleApi")
 
@@ -32,6 +34,10 @@ main_api_router.include_router(category_router, prefix="/teacher-category", tags
 main_api_router.include_router(session_type_router, prefix="/session-type", tags=["session-type"])
 main_api_router.include_router(plan_router, prefix="/plans", tags=["plans"])
 main_api_router.include_router(semester_router, prefix="/semesters", tags=["semesters"])
+
+
+# Test routers from entity
+main_api_router.include_router(category_router, prefix="/teacher-category", tags=["teacher-category"])
 
 # Add main api router into fastapi app
 app.include_router(main_api_router)

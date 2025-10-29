@@ -1,6 +1,7 @@
 '''File with settings and configs'''
 
 from envparse import Env
+from pathlib import Path
 
 env = Env()
 
@@ -13,3 +14,5 @@ TEST_DATABASE_URL = env.str(
     "REAL_DATABASE_URL",
     default="postgresql+asyncpg://postgres_test:123456_test@localhost:5434/schedule_db_test"
 )   # connect string for the test database
+
+ROOT_PATH = str(Path(__file__).parent.parent)

@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy import select, delete, update, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Teacher, Group, Cabinet, Building, Speciality, Session, TeacherCategory, SessionType, Semester, Plan
+from db.models import Certification, Stream, Teacher, Group, Cabinet, Building, Speciality, Session, TeacherBuilding, TeacherCategory, SessionType, Semester, Plan, Chapter, Cycle, Module, SubjectsInCycle, SubjectsInCycleHours, TeacherInPlan
 from config.decorators import log_exceptions
 from db.session import get_db
 
@@ -275,22 +275,17 @@ class SpecialityDAL:
 
 
 '''
-==============
+================
 DAL for Group
-==============
+================
 '''
-
-
 class GroupDAL:
     """Data Access Layer for operating group info"""
-
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
     @log_exceptions
-    async def create_group(
-            self, group_name: str, speciality_code: str = None, quantity_students: int = None, group_advisor_id: int = None,
-    ) -> Group:
+    async def create_group(self, group_name: str, speciality_code: str = None, quantity_students: int = None, group_advisor_id: int = None) -> Group:
         new_group = Group(
             group_name=group_name,
             speciality_code=speciality_code,
@@ -309,19 +304,7 @@ class GroupDAL:
         return deleted_group
 
     @log_exceptions
-    async def get_group(self, group_name: str) -> Group | None:
-        query = select(Group).where(Group.group_name == group_name)
-        res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
-
-    @log_exceptions
-    async def get_group_by_advisor_id(self, advisor_id: int) -> Group | None:
-        query = select(Group).where(Group.group_advisor_id == advisor_id)
-        res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
-
-    @log_exceptions
-    async def get_all_groups(self, page: int, limit: int) -> list[Group] | None:
+    async def get_all_groups(self, page: int, limit: int) -> list[Group]:
         if page == 0:
             query = select(Group).order_by(Group.group_name.asc())
         else:
@@ -331,27 +314,35 @@ class GroupDAL:
         return groups
 
     @log_exceptions
-    async def get_all_groups_by_speciality(self, speciality_code: str, page: int, limit: int) -> list[Group] | None:
-        if page == 0:
-            query = select(Group).where(
-                Group.speciality_code == speciality_code
-                ).order_by(Group.group_name.asc())
-        else:
-            query = select(Group).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        groups = list(result.scalars().all())
-        return groups
+    async def get_group_by_name(self, group_name: str) -> Group | None:
+        query = select(Group).where(Group.group_name == group_name)
+        res = await self.db_session.execute(query)
+        group_row = res.scalar_one_or_none()
+        return group_row
 
     @log_exceptions
-    async def update_group(self, target_group: str, **kwargs) -> Group | None:
-        query = (
-            update(Group)
-            .where(Group.group_name == target_group)
-            .values(**kwargs)
-            .returning(Group)
-        )
+    async def get_group_by_advisor_id(self, group_advisor_id: int) -> Group | None:
+        query = select(Group).where(Group.group_advisor_id == group_advisor_id)
         res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
+        group_row = res.scalar_one_or_none()
+        return group_row
+    
+    @log_exceptions
+    async def get_groups_by_speciality(self, speciality_code: str, page: int, limit: int) -> list[Group]:
+        if page == 0:
+            query = select(Group).where(Group.speciality_code == speciality_code).order_by(Group.group_name.asc())
+        else:
+            query = select(Group).where(Group.speciality_code == speciality_code).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        groups = list(result.scalars().all())
+        return groups if groups is not None else []
+
+    @log_exceptions
+    async def update_group(self, target_group_name: str, **kwargs) -> Group | None:
+        query = update(Group).where(Group.group_name == target_group_name).values(**kwargs).returning(Group)
+        res = await self.db_session.execute(query)
+        updated_group = res.scalar_one_or_none()
+        return updated_group
 
 
 # '''
@@ -467,31 +458,30 @@ class GroupDAL:
 
 
 '''
-===============
+================
 DAL for Session
-===============
+================
 '''
-
-
 class SessionDAL:
     """Data Access Layer for operating session info"""
-
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
     @log_exceptions
     async def create_session(
-            self, session_number: int, date: Date, group_name: str,  session_type: str,
-            subject_code: str = None, teacher_id: int = None, cabinet_number: int = None,
-            building_number: int = None
+        self,
+        session_number: int,
+        session_date: Date,
+        teacher_in_plan: int,
+        session_type: str,
+        cabinet_number: int | None = None,
+        building_number: int | None = None
     ) -> Session:
         new_session = Session(
             session_number=session_number,
-            date=date,
-            group_name=group_name,
+            date=session_date, 
+            teacher_in_plan=teacher_in_plan,
             session_type=session_type,
-            subject_code=subject_code,
-            teacher_id=teacher_id,
             cabinet_number=cabinet_number,
             building_number=building_number
         )
@@ -500,23 +490,20 @@ class SessionDAL:
         return new_session
 
     @log_exceptions
-    async def delete_session(self, session_number: int, date: Date, group_name: str) -> Session | None:
-        query = (
-            delete(Session)
-            .where(
-                Session.session_number == session_number,
-                Session.date == date,
-                Session.group_name == group_name
-            ).returning(Session)
-        )
+    async def delete_session(self, session_number: int, session_date: Date, teacher_in_plan: int) -> Session | None:
+        query = delete(Session).where(
+            (Session.session_number == session_number) &
+            (Session.date == session_date) & 
+            (Session.teacher_in_plan == teacher_in_plan)
+        ).returning(Session)
         res = await self.db_session.execute(query)
         deleted_session = res.scalar_one_or_none()
         return deleted_session
 
     @log_exceptions
-    async def get_all_sessions(self, page: int, limit: int) -> list[Session] | None:
+    async def get_all_sessions(self, page: int, limit: int) -> list[Session]:
         if page == 0:
-            query = select(Session).order_by(Session.session_number.asc())
+            query = select(Session).order_by(Session.date.asc(), Session.session_number.asc()) 
         else:
             query = select(Session).offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
@@ -524,70 +511,84 @@ class SessionDAL:
         return sessions
 
     @log_exceptions
-    async def get_session(self, session_number: int, date: Date, group_name: str) -> Session | None:
+    async def get_session_by_composite_key(self, session_number: int, session_date: Date, teacher_in_plan: int) -> Session | None: 
         query = select(Session).where(
-                Session.session_number == session_number,
-                Session.date == date,
-                Session.group_name == group_name
-            )
-        res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
-
-    @log_exceptions
-    async def get_all_sessions_by_date(self, date: Date, page: int, limit: int) -> list[Session] | None:
-        if page == 0:
-            query = select(Session).where(Session.date == date).order_by(Session.session_number.asc())
-        else:
-            query = select(Session).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        sessions = list(result.scalars().all())
-        return sessions
-
-    @log_exceptions
-    async def get_all_sessions_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[Session] | None:
-        if page == 0:
-            query = select(Session).where(Session.teacher_id == teacher_id).order_by(Session.date.asc())
-        else:
-            query = select(Session).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        sessions = list(result.scalars().all())
-        return sessions
-
-    @log_exceptions
-    async def get_all_sessions_by_group(self, group_name: str, page: int, limit: int) -> list[Session] | None:
-        if page == 0:
-            query = select(Session).where(Session.group_name == group_name).order_by(Session.date.asc())
-        else:
-            query = select(Session).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        sessions = list(result.scalars().all())
-        return sessions
-
-    @log_exceptions
-    async def get_all_sessions_by_subject(self, subject: str, page: int, limit: int) -> list[Session] | None:
-        if page == 0:
-            query = select(Session).where(Session.subject_code == subject).order_by(Session.date.asc())
-        else:
-            query = select(Session).offset((page - 1) * limit).limit(limit)
-        result = await self.db_session.execute(query)
-        sessions = list(result.scalars().all())
-        return sessions
-
-    # tg_ mean target
-    @log_exceptions
-    async def update_session(self, tg_session_number: int, tg_date: Date, tg_group_name: str, **kwargs) -> Session | None:
-        query = (
-            update(Session)
-            .where(
-                Session.session_number == tg_session_number,
-                Session.date == tg_date,
-                Session.group_name == tg_group_name
-            )
-            .values(**kwargs)
-            .returning(Session)
+            (Session.session_number == session_number) &
+            (Session.date == session_date) & 
+            (Session.teacher_in_plan == teacher_in_plan)
         )
         res = await self.db_session.execute(query)
-        return res.scalar_one_or_none()
+        session_row = res.scalar_one_or_none()
+        return session_row
+
+    @log_exceptions
+    async def get_sessions_by_plan(self, teacher_in_plan_id: int, page: int, limit: int) -> list[Session]:
+        if page == 0:
+            query = select(Session).where(Session.teacher_in_plan == teacher_in_plan_id).order_by(Session.date.asc(), Session.session_number.asc()) 
+        else:
+            query = select(Session).where(Session.teacher_in_plan == teacher_in_plan_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        sessions = list(result.scalars().all())
+        return sessions if sessions is not None else []
+
+    @log_exceptions
+    async def get_sessions_by_date(self, session_date: Date, page: int, limit: int) -> list[Session]: 
+        if page == 0:
+            query = select(Session).where(Session.date == session_date).order_by(Session.session_number.asc()) 
+        else:
+            query = select(Session).where(Session.date == session_date).offset((page - 1) * limit).limit(limit) 
+        result = await self.db_session.execute(query)
+        sessions = list(result.scalars().all())
+        return sessions if sessions is not None else []
+
+    @log_exceptions
+    async def get_sessions_by_type(self, session_type: str, page: int, limit: int) -> list[Session]:
+        if page == 0:
+            query = select(Session).where(Session.session_type == session_type).order_by(Session.date.asc(), Session.session_number.asc()) 
+        else:
+            query = select(Session).where(Session.session_type == session_type).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        sessions = list(result.scalars().all())
+        return sessions if sessions is not None else []
+    
+    @log_exceptions
+    async def get_session_by_cabinet_and_time(self, cabinet_number: int, building_number: int, session_date: Date, session_number: int) -> Session | None:
+        query = select(Session).where(
+            (Session.cabinet_number == cabinet_number) &
+            (Session.building_number == building_number) &
+            (Session.date == session_date) &
+            (Session.session_number == session_number)
+        )
+        res = await self.db_session.execute(query)
+        session_row = res.scalar_one_or_none()
+        return session_row
+
+    @log_exceptions
+    async def get_sessions_by_cabinet(self, cabinet_number: int, building_number: int, page: int, limit: int) -> list[Session]:
+        if page == 0:
+            query = select(Session).where(
+                (Session.cabinet_number == cabinet_number) &
+                (Session.building_number == building_number)
+            ).order_by(Session.date.asc(), Session.session_number.asc()) 
+        else:
+            query = select(Session).where(
+                (Session.cabinet_number == cabinet_number) &
+                (Session.building_number == building_number)
+            ).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        sessions = list(result.scalars().all())
+        return sessions if sessions is not None else []
+
+    @log_exceptions
+    async def update_session(self, target_session_number: int, target_session_date: Date, target_teacher_in_plan: int, **kwargs) -> Session | None: 
+        query = update(Session).where(
+            (Session.session_number == target_session_number) &
+            (Session.date == target_session_date) &
+            (Session.teacher_in_plan == target_teacher_in_plan)
+        ).values(**kwargs).returning(Session)
+        res = await self.db_session.execute(query)
+        updated_session = res.scalar_one_or_none()
+        return updated_session
 
 
 # '''
@@ -982,3 +983,684 @@ class PlanDAL:
         res = await self.db_session.execute(query)
         updated_plan = res.scalar_one_or_none()
         return updated_plan
+
+
+'''
+================
+DAL for Chapter
+================
+'''
+class ChapterDAL:
+    """Data Access Layer for operating chapter info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_chapter(self, code: str, name: str, plan_id: int) -> Chapter:
+        new_chapter = Chapter(
+            code=code,
+            name=name,
+            plan_id=plan_id
+        )
+        self.db_session.add(new_chapter)
+        await self.db_session.flush()
+        return new_chapter
+
+    @log_exceptions
+    async def delete_chapter(self, id: int) -> Chapter | None:
+        query = delete(Chapter).where(Chapter.id == id).returning(Chapter)
+        res = await self.db_session.execute(query)
+        deleted_chapter = res.scalar_one_or_none()
+        return deleted_chapter
+
+    @log_exceptions
+    async def get_all_chapters(self, page: int, limit: int) -> list[Chapter]:
+        if page == 0:
+            query = select(Chapter).order_by(Chapter.id.asc())
+        else:
+            query = select(Chapter).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        chapters = list(result.scalars().all())
+        return chapters
+
+    @log_exceptions
+    async def get_chapter_by_id(self, id: int) -> Chapter | None:
+        query = select(Chapter).where(Chapter.id == id)
+        res = await self.db_session.execute(query)
+        chapter_row = res.scalar_one_or_none()
+        return chapter_row
+
+    @log_exceptions
+    async def get_chapters_by_plan(self, plan_id: int, page: int, limit: int) -> list[Chapter]:
+        if page == 0:
+            query = select(Chapter).where(Chapter.plan_id == plan_id).order_by(Chapter.id.asc())
+        else:
+            query = select(Chapter).where(Chapter.plan_id == plan_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        chapters = list(result.scalars().all())
+        return chapters
+
+    @log_exceptions
+    async def update_chapter(self, target_id: int, **kwargs) -> Chapter | None:
+        query = update(Chapter).where(Chapter.id == target_id).values(**kwargs).returning(Chapter)
+        res = await self.db_session.execute(query)
+        updated_chapter = res.scalar_one_or_none()
+        return updated_chapter
+    
+
+'''
+================
+DAL for Cycle
+================
+'''
+class CycleDAL:
+    """Data Access Layer for operating cycle info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_cycle(self, contains_modules: bool, code: str, name: str, chapter_in_plan_id: int) -> Cycle:
+        new_cycle = Cycle(
+            contains_modules=contains_modules,
+            code=code,
+            name=name,
+            chapter_in_plan_id=chapter_in_plan_id
+        )
+        self.db_session.add(new_cycle)
+        await self.db_session.flush()
+        return new_cycle
+
+    @log_exceptions
+    async def delete_cycle(self, id: int) -> Cycle | None:
+        query = delete(Cycle).where(Cycle.id == id).returning(Cycle)
+        res = await self.db_session.execute(query)
+        deleted_cycle = res.scalar_one_or_none()
+        return deleted_cycle
+
+    @log_exceptions
+    async def get_all_cycles(self, page: int, limit: int) -> list[Cycle]:
+        if page == 0:
+            query = select(Cycle).order_by(Cycle.id.asc())
+        else:
+            query = select(Cycle).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        cycles = list(result.scalars().all())
+        return cycles
+
+    @log_exceptions
+    async def get_cycle_by_id(self, id: int) -> Cycle | None:
+        query = select(Cycle).where(Cycle.id == id)
+        res = await self.db_session.execute(query)
+        cycle_row = res.scalar_one_or_none()
+        return cycle_row
+
+    @log_exceptions
+    async def get_cycles_by_chapter(self, chapter_in_plan_id: int, page: int, limit: int) -> list[Cycle]:
+        if page == 0:
+            query = select(Cycle).where(Cycle.chapter_in_plan_id == chapter_in_plan_id).order_by(Cycle.id.asc())
+        else:
+            query = select(Cycle).where(Cycle.chapter_in_plan_id == chapter_in_plan_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        cycles = list(result.scalars().all())
+        return cycles
+
+    @log_exceptions
+    async def update_cycle(self, target_id: int, **kwargs) -> Cycle | None:
+        query = update(Cycle).where(Cycle.id == target_id).values(**kwargs).returning(Cycle)
+        res = await self.db_session.execute(query)
+        updated_cycle = res.scalar_one_or_none()
+        return updated_cycle
+    
+
+'''
+================
+DAL for Module
+================
+'''
+class ModuleDAL:
+    """Data Access Layer for operating module info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_module(self, name: str, code: str, cycle_in_chapter_id: int) -> Module:
+        new_module = Module(
+            name=name,
+            code=code,
+            cycle_in_chapter_id=cycle_in_chapter_id
+        )
+        self.db_session.add(new_module)
+        await self.db_session.flush()
+        return new_module
+
+    @log_exceptions
+    async def delete_module(self, id: int) -> Module | None:
+        query = delete(Module).where(Module.id == id).returning(Module)
+        res = await self.db_session.execute(query)
+        deleted_module = res.scalar_one_or_none()
+        return deleted_module
+
+    @log_exceptions
+    async def get_all_modules(self, page: int, limit: int) -> list[Module]:
+        if page == 0:
+            query = select(Module).order_by(Module.id.asc())
+        else:
+            query = select(Module).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        modules = list(result.scalars().all())
+        return modules
+
+    @log_exceptions
+    async def get_module_by_id(self, id: int) -> Module | None:
+        query = select(Module).where(Module.id == id)
+        res = await self.db_session.execute(query)
+        module_row = res.scalar_one_or_none()
+        return module_row
+
+    @log_exceptions
+    async def get_modules_by_cycle(self, cycle_in_chapter_id: int, page: int, limit: int) -> list[Module]:
+        if page == 0:
+            query = select(Module).where(Module.cycle_in_chapter_id == cycle_in_chapter_id).order_by(Module.id.asc())
+        else:
+            query = select(Module).where(Module.cycle_in_chapter_id == cycle_in_chapter_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        modules = list(result.scalars().all())
+        return modules
+
+    @log_exceptions
+    async def update_module(self, target_id: int, **kwargs) -> Module | None:
+        query = update(Module).where(Module.id == target_id).values(**kwargs).returning(Module)
+        res = await self.db_session.execute(query)
+        updated_module = res.scalar_one_or_none()
+        return updated_module
+    
+
+'''
+=======================
+DAL for SubjectsInCycle
+=======================
+'''
+class SubjectsInCycleDAL:
+    """Data Access Layer for operating subjects in cycle info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_subject_in_cycle(self, code: str, title: str, cycle_in_chapter_id: int, module_in_cycle_id: int | None = None) -> SubjectsInCycle:
+        new_subject_in_cycle = SubjectsInCycle(
+            code=code,
+            title=title,
+            cycle_in_chapter_id=cycle_in_chapter_id,
+            module_in_cycle_id=module_in_cycle_id
+        )
+        self.db_session.add(new_subject_in_cycle)
+        await self.db_session.flush()
+        return new_subject_in_cycle
+
+    @log_exceptions
+    async def delete_subject_in_cycle(self, id: int) -> SubjectsInCycle | None:
+        query = delete(SubjectsInCycle).where(SubjectsInCycle.id == id).returning(SubjectsInCycle)
+        res = await self.db_session.execute(query)
+        deleted_subject_in_cycle = res.scalar_one_or_none()
+        return deleted_subject_in_cycle
+
+    @log_exceptions
+    async def get_all_subjects_in_cycles(self, page: int, limit: int) -> list[SubjectsInCycle]:
+        if page == 0:
+            query = select(SubjectsInCycle).order_by(SubjectsInCycle.id.asc())
+        else:
+            query = select(SubjectsInCycle).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycles = list(result.scalars().all())
+        return subjects_in_cycles
+
+    @log_exceptions
+    async def get_subject_in_cycle_by_id(self, id: int) -> SubjectsInCycle | None:
+        query = select(SubjectsInCycle).where(SubjectsInCycle.id == id)
+        res = await self.db_session.execute(query)
+        subject_in_cycle_row = res.scalar_one_or_none()
+        return subject_in_cycle_row
+
+    @log_exceptions
+    async def get_subjects_in_cycle_by_cycle(self, cycle_in_chapter_id: int, page: int, limit: int) -> list[SubjectsInCycle]:
+        if page == 0:
+            query = select(SubjectsInCycle).where(SubjectsInCycle.cycle_in_chapter_id == cycle_in_chapter_id).order_by(SubjectsInCycle.id.asc())
+        else:
+            query = select(SubjectsInCycle).where(SubjectsInCycle.cycle_in_chapter_id == cycle_in_chapter_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycles = list(result.scalars().all())
+        return subjects_in_cycles
+
+    @log_exceptions
+    async def get_subjects_in_cycle_by_module(self, module_in_cycle_id: int, page: int, limit: int) -> list[SubjectsInCycle]:
+        if page == 0:
+            query = select(SubjectsInCycle).where(SubjectsInCycle.module_in_cycle_id == module_in_cycle_id).order_by(SubjectsInCycle.id.asc())
+        else:
+            query = select(SubjectsInCycle).where(SubjectsInCycle.module_in_cycle_id == module_in_cycle_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycles = list(result.scalars().all())
+        return subjects_in_cycles
+
+    @log_exceptions
+    async def update_subject_in_cycle(self, target_id: int, **kwargs) -> SubjectsInCycle | None:
+        query = update(SubjectsInCycle).where(SubjectsInCycle.id == target_id).values(**kwargs).returning(SubjectsInCycle)
+        res = await self.db_session.execute(query)
+        updated_subject_in_cycle = res.scalar_one_or_none()
+        return updated_subject_in_cycle
+    
+
+'''
+================
+DAL for SubjectsInCycleHours
+================
+'''
+class SubjectsInCycleHoursDAL:
+    """Data Access Layer for operating subjects in cycle hours info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_subject_in_cycle_hours(
+        self,
+        semester: int,
+        self_study_hours: int,
+        lectures_hours: int,
+        laboratory_hours: int,
+        practical_hours: int,
+        course_project_hours: int,
+        consultation_hours: int,
+        intermediate_assessment_hours: int,
+        subject_in_cycle_id: int
+    ) -> SubjectsInCycleHours:
+        new_subject_in_cycle_hours = SubjectsInCycleHours(
+            semester=semester,
+            self_study_hours=self_study_hours,
+            lectures_hours=lectures_hours,
+            laboratory_hours=laboratory_hours,
+            practical_hours=practical_hours,
+            course_project_hours=course_project_hours,
+            consultation_hours=consultation_hours,
+            intermediate_assessment_hours=intermediate_assessment_hours,
+            subject_in_cycle_id=subject_in_cycle_id
+        )
+        self.db_session.add(new_subject_in_cycle_hours)
+        await self.db_session.flush()
+        return new_subject_in_cycle_hours
+
+    @log_exceptions
+    async def delete_subject_in_cycle_hours(self, id: int) -> SubjectsInCycleHours | None:
+        query = delete(SubjectsInCycleHours).where(SubjectsInCycleHours.id == id).returning(SubjectsInCycleHours)
+        res = await self.db_session.execute(query)
+        deleted_subject_in_cycle_hours = res.scalar_one_or_none()
+        return deleted_subject_in_cycle_hours
+
+    @log_exceptions
+    async def get_all_subjects_in_cycle_hours(self, page: int, limit: int) -> list[SubjectsInCycleHours]:
+        if page == 0:
+            query = select(SubjectsInCycleHours).order_by(SubjectsInCycleHours.id.asc())
+        else:
+            query = select(SubjectsInCycleHours).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycle_hours = list(result.scalars().all())
+        return subjects_in_cycle_hours
+
+    @log_exceptions
+    async def get_subject_in_cycle_hours_by_id(self, id: int) -> SubjectsInCycleHours | None:
+        query = select(SubjectsInCycleHours).where(SubjectsInCycleHours.id == id)
+        res = await self.db_session.execute(query)
+        subject_in_cycle_hours_row = res.scalar_one_or_none()
+        return subject_in_cycle_hours_row
+
+    @log_exceptions
+    async def get_subjects_in_cycle_hours_by_subject_in_cycle(self, subject_in_cycle_id: int, page: int, limit: int) -> list[SubjectsInCycleHours]:
+        if page == 0:
+            query = select(SubjectsInCycleHours).where(SubjectsInCycleHours.subject_in_cycle_id == subject_in_cycle_id).order_by(SubjectsInCycleHours.semester.asc(), SubjectsInCycleHours.id.asc())
+        else:
+            query = select(SubjectsInCycleHours).where(SubjectsInCycleHours.subject_in_cycle_id == subject_in_cycle_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycle_hours = list(result.scalars().all())
+        return subjects_in_cycle_hours if subjects_in_cycle_hours is not None else []
+    
+    @log_exceptions
+    async def get_subjects_in_cycle_hours_by_subject_and_semester(self, subject_in_cycle_id: int, semester: int) -> list[SubjectsInCycleHours]:
+        query = select(SubjectsInCycleHours).where(
+            (SubjectsInCycleHours.subject_in_cycle_id == subject_in_cycle_id) &
+            (SubjectsInCycleHours.semester == semester)
+        ).order_by(SubjectsInCycleHours.id.asc())
+        result = await self.db_session.execute(query)
+        subjects_in_cycle_hours = list(result.scalars().all())
+        return subjects_in_cycle_hours if subjects_in_cycle_hours is not None else []
+
+    @log_exceptions
+    async def get_subjects_in_cycle_hours_by_semester(self, semester: int, page: int, limit: int) -> list[SubjectsInCycleHours]:
+        if page == 0:
+            query = select(SubjectsInCycleHours).where(SubjectsInCycleHours.semester == semester).order_by(SubjectsInCycleHours.id.asc())
+        else:
+            query = select(SubjectsInCycleHours).where(SubjectsInCycleHours.semester == semester).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        subjects_in_cycle_hours = list(result.scalars().all())
+        return subjects_in_cycle_hours
+
+    @log_exceptions
+    async def update_subject_in_cycle_hours(self, target_id: int, **kwargs) -> SubjectsInCycleHours | None:
+        query = update(SubjectsInCycleHours).where(SubjectsInCycleHours.id == target_id).values(**kwargs).returning(SubjectsInCycleHours)
+        res = await self.db_session.execute(query)
+        updated_subject_in_cycle_hours = res.scalar_one_or_none()
+        return updated_subject_in_cycle_hours
+
+
+'''
+================
+DAL for Certification
+================
+'''
+class CertificationDAL:
+    """Data Access Layer for operating certification info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_certification(
+        self,
+        id: int,
+        credit: bool = False,
+        differentiated_credit: bool = False,
+        course_project: bool = False,
+        course_work: bool = False,
+        control_work: bool = False,
+        other_form: bool = False
+    ) -> Certification:
+        new_certification = Certification(
+            id=id,
+            credit=credit,
+            differentiated_credit=differentiated_credit,
+            course_project=course_project,
+            course_work=course_work,
+            control_work=control_work,
+            other_form=other_form
+        )
+        self.db_session.add(new_certification)
+        await self.db_session.flush()
+        return new_certification
+
+    @log_exceptions
+    async def delete_certification(self, id: int) -> Certification | None:
+        query = delete(Certification).where(Certification.id == id).returning(Certification)
+        res = await self.db_session.execute(query)
+        deleted_certification = res.scalar_one_or_none()
+        return deleted_certification
+
+    @log_exceptions
+    async def get_all_certifications(self, page: int, limit: int) -> list[Certification]:
+        if page == 0:
+            query = select(Certification).order_by(Certification.id.asc())
+        else:
+            query = select(Certification).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        certifications = list(result.scalars().all())
+        return certifications
+
+    @log_exceptions
+    async def get_certification_by_id(self, id: int) -> Certification | None:
+        query = select(Certification).where(Certification.id == id)
+        res = await self.db_session.execute(query)
+        certification_row = res.scalar_one_or_none()
+        return certification_row
+
+    @log_exceptions
+    async def update_certification(self, target_id: int, **kwargs) -> Certification | None:
+        query = update(Certification).where(Certification.id == target_id).values(**kwargs).returning(Certification)
+        res = await self.db_session.execute(query)
+        updated_certification = res.scalar_one_or_none()
+        return updated_certification
+
+
+'''
+================
+DAL for TeacherInPlan
+================
+'''
+class TeacherInPlanDAL:
+    """Data Access Layer for operating teacher in plan info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_teacher_in_plan(self, subject_in_cycle_hours_id: int, teacher_id: int, group_name: str, session_type: str) -> TeacherInPlan:
+        new_teacher_in_plan = TeacherInPlan(
+            subject_in_cycle_hours_id=subject_in_cycle_hours_id,
+            teacher_id=teacher_id,
+            group_name=group_name,
+            session_type=session_type
+        )
+        self.db_session.add(new_teacher_in_plan)
+        await self.db_session.flush()
+        return new_teacher_in_plan
+
+    @log_exceptions
+    async def delete_teacher_in_plan(self, id: int) -> TeacherInPlan | None:
+        query = delete(TeacherInPlan).where(TeacherInPlan.id == id).returning(TeacherInPlan)
+        res = await self.db_session.execute(query)
+        deleted_teacher_in_plan = res.scalar_one_or_none()
+        return deleted_teacher_in_plan
+
+    @log_exceptions
+    async def get_all_teachers_in_plans(self, page: int, limit: int) -> list[TeacherInPlan]:
+        if page == 0:
+            query = select(TeacherInPlan).order_by(TeacherInPlan.id.asc())
+        else:
+            query = select(TeacherInPlan).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers_in_plans = list(result.scalars().all())
+        return teachers_in_plans
+
+    @log_exceptions
+    async def get_teacher_in_plan_by_id(self, id: int) -> TeacherInPlan | None:
+        query = select(TeacherInPlan).where(TeacherInPlan.id == id)
+        res = await self.db_session.execute(query)
+        teacher_in_plan_row = res.scalar_one_or_none()
+        return teacher_in_plan_row
+
+    @log_exceptions
+    async def get_teachers_in_plans_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherInPlan]:
+        if page == 0:
+            query = select(TeacherInPlan).where(TeacherInPlan.teacher_id == teacher_id).order_by(TeacherInPlan.id.asc())
+        else:
+            query = select(TeacherInPlan).where(TeacherInPlan.teacher_id == teacher_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers_in_plans = list(result.scalars().all())
+        return teachers_in_plans if teachers_in_plans is not None else []
+
+    @log_exceptions
+    async def get_teachers_in_plans_by_group(self, group_name: str, page: int, limit: int) -> list[TeacherInPlan]:
+        if page == 0:
+            query = select(TeacherInPlan).where(TeacherInPlan.group_name == group_name).order_by(TeacherInPlan.id.asc())
+        else:
+            query = select(TeacherInPlan).where(TeacherInPlan.group_name == group_name).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers_in_plans = list(result.scalars().all())
+        return teachers_in_plans if teachers_in_plans is not None else []
+
+    @log_exceptions
+    async def get_teachers_in_plans_by_subject_hours(self, subject_in_cycle_hours_id: int, page: int, limit: int) -> list[TeacherInPlan]:
+        if page == 0:
+            query = select(TeacherInPlan).where(TeacherInPlan.subject_in_cycle_hours_id == subject_in_cycle_hours_id).order_by(TeacherInPlan.id.asc())
+        else:
+            query = select(TeacherInPlan).where(TeacherInPlan.subject_in_cycle_hours_id == subject_in_cycle_hours_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers_in_plans = list(result.scalars().all())
+        return teachers_in_plans if teachers_in_plans is not None else []
+
+    @log_exceptions
+    async def get_teachers_in_plans_by_session_type(self, session_type: str, page: int, limit: int) -> list[TeacherInPlan]:
+        if page == 0:
+            query = select(TeacherInPlan).where(TeacherInPlan.session_type == session_type).order_by(TeacherInPlan.id.asc())
+        else:
+            query = select(TeacherInPlan).where(TeacherInPlan.session_type == session_type).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers_in_plans = list(result.scalars().all())
+        return teachers_in_plans if teachers_in_plans is not None else []
+
+    @log_exceptions
+    async def update_teacher_in_plan(self, target_id: int, **kwargs) -> TeacherInPlan | None:
+        query = update(TeacherInPlan).where(TeacherInPlan.id == target_id).values(**kwargs).returning(TeacherInPlan)
+        res = await self.db_session.execute(query)
+        updated_teacher_in_plan = res.scalar_one_or_none()
+        return updated_teacher_in_plan
+    
+
+'''
+================
+DAL for TeacherBuilding
+================
+'''
+class TeacherBuildingDAL:
+    """Data Access Layer for operating teacher-building relation info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_teacher_building(self, teacher_id: int, building_number: int) -> TeacherBuilding:
+        new_teacher_building = TeacherBuilding(
+            teacher_id=teacher_id,
+            building_number=building_number
+        )
+        self.db_session.add(new_teacher_building)
+        await self.db_session.flush()
+        return new_teacher_building
+
+    @log_exceptions
+    async def delete_teacher_building(self, id: int) -> TeacherBuilding | None:
+        query = delete(TeacherBuilding).where(TeacherBuilding.id == id).returning(TeacherBuilding)
+        res = await self.db_session.execute(query)
+        deleted_teacher_building = res.scalar_one_or_none()
+        return deleted_teacher_building
+
+    @log_exceptions
+    async def get_all_teachers_buildings(self, page: int, limit: int) -> list[TeacherBuilding]:
+        if page == 0:
+            query = select(TeacherBuilding).order_by(TeacherBuilding.id.asc())
+        else:
+            query = select(TeacherBuilding).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers_buildings = list(result.scalars().all())
+        return teachers_buildings
+
+    @log_exceptions
+    async def get_teacher_building_by_id(self, id: int) -> TeacherBuilding | None:
+        query = select(TeacherBuilding).where(TeacherBuilding.id == id)
+        res = await self.db_session.execute(query)
+        teacher_building_row = res.scalar_one_or_none()
+        return teacher_building_row
+
+    @log_exceptions
+    async def get_teachers_buildings_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherBuilding]:
+        if page == 0:
+            query = select(TeacherBuilding).where(TeacherBuilding.teacher_id == teacher_id).order_by(TeacherBuilding.id.asc())
+        else:
+            query = select(TeacherBuilding).where(TeacherBuilding.teacher_id == teacher_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers_buildings = list(result.scalars().all())
+        return teachers_buildings if teachers_buildings is not None else []
+
+    @log_exceptions
+    async def get_teachers_buildings_by_building(self, building_number: int, page: int, limit: int) -> list[TeacherBuilding]:
+        if page == 0:
+            query = select(TeacherBuilding).where(TeacherBuilding.building_number == building_number).order_by(TeacherBuilding.id.asc())
+        else:
+            query = select(TeacherBuilding).where(TeacherBuilding.building_number == building_number).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers_buildings = list(result.scalars().all())
+        return teachers_buildings if teachers_buildings is not None else []
+
+    @log_exceptions
+    async def update_teacher_building(self, target_id: int, **kwargs) -> TeacherBuilding | None:
+        query = update(TeacherBuilding).where(TeacherBuilding.id == target_id).values(**kwargs).returning(TeacherBuilding)
+        res = await self.db_session.execute(query)
+        updated_teacher_building = res.scalar_one_or_none()
+        return updated_teacher_building
+    
+
+'''
+================
+DAL for Stream
+================
+'''
+class StreamDAL:
+    """Data Access Layer for operating stream info"""
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+
+    @log_exceptions
+    async def create_stream(self, stream_id: int, group_name: str, subject_id: int) -> Stream:
+        new_stream = Stream(
+            stream_id=stream_id,
+            group_name=group_name,
+            subject_id=subject_id
+        )
+        self.db_session.add(new_stream)
+        await self.db_session.flush()
+        return new_stream
+
+    @log_exceptions
+    async def delete_stream(self, stream_id: int, group_name: str, subject_id: int) -> Stream | None:
+        query = delete(Stream).where(
+            (Stream.stream_id == stream_id) &
+            (Stream.group_name == group_name) &
+            (Stream.subject_id == subject_id)
+        ).returning(Stream)
+        res = await self.db_session.execute(query)
+        deleted_stream = res.scalar_one_or_none()
+        return deleted_stream
+
+    @log_exceptions
+    async def get_all_streams(self, page: int, limit: int) -> list[Stream]:
+        if page == 0:
+            query = select(Stream).order_by(Stream.stream_id.asc())
+        else:
+            query = select(Stream).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        streams = list(result.scalars().all())
+        return streams
+
+    @log_exceptions
+    async def get_stream_by_composite_key(self, stream_id: int, group_name: str, subject_id: int) -> Stream | None:
+        query = select(Stream).where(
+            (Stream.stream_id == stream_id) &
+            (Stream.group_name == group_name) &
+            (Stream.subject_id == subject_id)
+        )
+        res = await self.db_session.execute(query)
+        stream_row = res.scalar_one_or_none()
+        return stream_row
+
+    @log_exceptions
+    async def get_streams_by_group(self, group_name: str, page: int, limit: int) -> list[Stream]:
+        if page == 0:
+            query = select(Stream).where(Stream.group_name == group_name).order_by(Stream.stream_id.asc())
+        else:
+            query = select(Stream).where(Stream.group_name == group_name).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        streams = list(result.scalars().all())
+        return streams if streams is not None else []
+
+    @log_exceptions
+    async def get_streams_by_subject(self, subject_id: int, page: int, limit: int) -> list[Stream]:
+        if page == 0:
+            query = select(Stream).where(Stream.subject_id == subject_id).order_by(Stream.stream_id.asc())
+        else:
+            query = select(Stream).where(Stream.subject_id == subject_id).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        streams = list(result.scalars().all())
+        return streams if streams is not None else []
+
+    @log_exceptions
+    async def update_stream(self, target_stream_id: int, target_group_name: str, target_subject_id: int, **kwargs) -> Stream | None:
+        query = update(Stream).where(
+            (Stream.stream_id == target_stream_id) &
+            (Stream.group_name == target_group_name) &
+            (Stream.subject_id == target_subject_id)
+        ).values(**kwargs).returning(Stream)
+        res = await self.db_session.execute(query)
+        updated_stream = res.scalar_one_or_none()
+        return updated_stream

@@ -4,6 +4,7 @@ from db.dals import BuildingDAL, CabinetDAL, TeacherDAL, SpecialityDAL, GroupDAL
 from config.logging_config import configure_logging
 
 from sqlalchemy import Date
+from datetime import date
 
 logger = configure_logging()
 
@@ -20,14 +21,9 @@ async def ensure_building_exists(building_dal: BuildingDAL, building_number: int
     return building
 
 # Cabinet
-async def ensure_cabinet_exists(cabinet_dal, building_number: int, cabinet_number: int) -> bool:
-    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
+async def ensure_cabinet_exists(cabinet_dal, cabinet_number: int, building_number: int) -> bool:
+    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(cabinet_number, building_number) 
     return cabinet is not None
-
-# Teacher
-async def ensure_teacher_exists(teacher_dal: TeacherDAL, teacher_id: int):
-    teacher = await teacher_dal.get_teacher_by_id(teacher_id)
-    return teacher
 
 # Speciality
 async def ensure_speciality_exists(speciality_dal, speciality_code: str) -> bool:
@@ -35,9 +31,9 @@ async def ensure_speciality_exists(speciality_dal, speciality_code: str) -> bool
     return speciality is not None
 
 # Group
-async def ensure_group_exists(group_dal: GroupDAL, group_name: str):
-    group = await group_dal.get_group(group_name)
-    return group
+async def ensure_group_exists(group_dal, group_name: str) -> bool:
+    group = await group_dal.get_group_by_name(group_name)
+    return group is not None
 
 async def ensure_plan_exists(plan_dal, plan_id: int) -> bool:
     plan = await plan_dal.get_plan_by_id(plan_id)
@@ -48,21 +44,75 @@ async def ensure_plan_exists(plan_dal, plan_id: int) -> bool:
 #     subject = await subject_dal.get_subject(subject_code)
 #     return subject
 
+# Category
 async def ensure_category_exists(category_dal, category_name: str) -> bool:
     category = await category_dal.get_teacher_category(category_name)
     return category is not None
 
+# Teacher
 async def ensure_teacher_exists(teacher_dal, teacher_id: int) -> bool:
     teacher = await teacher_dal.get_teacher_by_id(teacher_id)
     return teacher is not None
 
+# SessionType
 async def ensure_session_type_exists(session_type_dal, name: str) -> bool:
     session_type = await session_type_dal.get_session_type(name)
     return session_type is not None
 
+# Semester
 async def ensure_semester_exists(semester_dal, semester: int, plan_id: int) -> bool:
     semester_obj = await semester_dal.get_semester_by_semester_and_plan(semester, plan_id)
     return semester_obj is not None
+
+# Chapter
+async def ensure_chapter_exists(chapter_dal, chapter_id: int) -> bool:
+    chapter = await chapter_dal.get_chapter_by_id(chapter_id)
+    return chapter is not None
+
+# Cycle
+async def ensure_cycle_exists(cycle_dal, cycle_id: int) -> bool:
+    cycle = await cycle_dal.get_cycle_by_id(cycle_id)
+    return cycle is not None
+
+# Module
+async def ensure_module_exists(module_dal, module_id: int) -> bool:
+    module = await module_dal.get_module_by_id(module_id)
+    return module is not None
+
+# Subject
+async def ensure_subject_in_cycle_exists(subject_in_cycle_dal, subject_in_cycle_id: int) -> bool:
+    subject_in_cycle = await subject_in_cycle_dal.get_subject_in_cycle_by_id(subject_in_cycle_id)
+    return subject_in_cycle is not None
+
+# Hours for Subject
+async def ensure_subject_in_cycle_hours_exists(subject_in_cycle_hours_dal, hours_id: int) -> bool:
+    subject_in_cycle_hours = await subject_in_cycle_hours_dal.get_subject_in_cycle_hours_by_id(hours_id)
+    return subject_in_cycle_hours is not None
+
+# Certification
+async def ensure_certification_exists(certification_dal, certification_id: int) -> bool:
+    certification = await certification_dal.get_certification_by_id(certification_id)
+    return certification is not None
+
+# TeacherInPlan
+async def ensure_teacher_in_plan_exists(teacher_in_plan_dal, teacher_in_plan_id: int) -> bool:
+    teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_id(teacher_in_plan_id)
+    return teacher_in_plan is not None
+
+#TeacherBuilding
+async def ensure_teacher_building_exists(teacher_building_dal, teacher_building_id: int) -> bool:
+    teacher_building = await teacher_building_dal.get_teacher_building_by_id(teacher_building_id)
+    return teacher_building is not None
+
+# Session
+async def ensure_session_exists(session_dal, session_number: int, session_date: date, teacher_in_plan: int) -> bool:
+    session = await session_dal.get_session_by_composite_key(session_number, session_date, teacher_in_plan)
+    return session is not None
+
+# Stream
+async def ensure_stream_exists(stream_dal, stream_id: int, group_name: str, subject_id: int) -> bool:
+    stream = await stream_dal.get_stream_by_composite_key(stream_id, group_name, subject_id)
+    return stream is not None
 
 
 '''
@@ -70,15 +120,14 @@ async def ensure_semester_exists(semester_dal, semester: int, plan_id: int) -> b
 Unique
 ======
 '''
-
 # Group
-async def ensure_group_unique(group_dal: GroupDAL, group_name: str):
-    group = await group_dal.get_group(group_name)
+async def ensure_group_unique(group_dal, group_name: str) -> bool:
+    group = await group_dal.get_group_by_name(group_name)
     return group is None
     
 # Cabinet
-async def ensure_cabinet_unique(cabinet_dal, building_number: int, cabinet_number: int) -> bool:
-    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(building_number, cabinet_number)
+async def ensure_cabinet_unique(cabinet_dal, cabinet_number: int, building_number: int) -> bool:
+    cabinet = await cabinet_dal.get_cabinet_by_number_and_building(cabinet_number, building_number) 
     return cabinet is None
 
 # # Curriculum
@@ -119,6 +168,7 @@ async def ensure_session_unique(session_dal: SessionDAL, session_number: int, da
 #         existing_relation = await teacher_subject_dal.get_teachers_subjects_relation(teacher_id, subject_code)
 #         return existing_relation is None
 
+# Category
 async def ensure_category_unique(category_dal, category_name: str) -> bool:
     category = await category_dal.get_teacher_category(category_name)
     return category is None
@@ -150,3 +200,53 @@ async def ensure_plan_unique(plan_dal, plan_id: int) -> bool:
 async def ensure_speciality_unique(speciality_dal, speciality_code: str) -> bool:
     speciality = await speciality_dal.get_speciality(speciality_code)
     return speciality is None
+
+async def ensure_chapter_unique(chapter_dal, chapter_id: int) -> bool:
+    chapter = await chapter_dal.get_chapter_by_id(chapter_id)
+    return chapter is None
+
+async def ensure_cycle_unique(cycle_dal, cycle_id: int) -> bool:
+    cycle = await cycle_dal.get_cycle_by_id(cycle_id)
+    return cycle is None
+
+async def ensure_module_unique(module_dal, module_id: int) -> bool:
+    module = await module_dal.get_module_by_id(module_id)
+    return module is None
+
+async def ensure_subject_in_cycle_unique(subject_in_cycle_dal, subject_in_cycle_id: int) -> bool:
+    subject_in_cycle = await subject_in_cycle_dal.get_subject_in_cycle_by_id(subject_in_cycle_id)
+    return subject_in_cycle is None
+
+async def ensure_subject_in_cycle_hours_unique(subject_in_cycle_hours_dal, hours_id: int) -> bool:
+    subject_in_cycle_hours = await subject_in_cycle_hours_dal.get_subject_in_cycle_hours_by_id(hours_id)
+    return subject_in_cycle_hours is None
+
+async def ensure_certification_unique(certification_dal, certification_id: int) -> bool:
+    certification = await certification_dal.get_certification_by_id(certification_id)
+    return certification is None
+
+async def ensure_teacher_in_plan_unique(teacher_in_plan_dal, teacher_in_plan_id: int) -> bool:
+    teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_id(teacher_in_plan_id)
+    return teacher_in_plan is None
+
+async def ensure_teacher_building_unique(teacher_building_dal, teacher_building_id: int) -> bool:
+    teacher_building = await teacher_building_dal.get_teacher_building_by_id(teacher_building_id)
+    return teacher_building is None
+
+async def ensure_session_unique(session_dal, session_number: int, session_date: date, teacher_in_plan: int) -> bool:
+    session = await session_dal.get_session_by_composite_key(session_number, session_date, teacher_in_plan)
+    return session is None
+
+async def ensure_stream_unique(stream_dal, stream_id: int, group_name: str, subject_id: int) -> bool:
+    stream = await stream_dal.get_stream_by_composite_key(stream_id, group_name, subject_id)
+    return stream is None
+
+
+'''
+Other
+'''
+
+async def ensure_cycle_contains_modules(cycle_dal, cycle_id: int) -> bool:
+    """Checks whether a cycle is allowed to contain modules (contains_modules = True)."""
+    cycle = await cycle_dal.get_cycle_by_id(cycle_id)
+    return cycle.contains_modules if cycle else False

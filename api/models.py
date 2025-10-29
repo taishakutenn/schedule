@@ -182,11 +182,10 @@ class ShowSpecialityListWithHATEOAS(TunedModel):
 
 
 '''
-=====
+========
 Group
-=====
+========
 '''
-
 
 class ShowGroup(TunedModel):
     """Class for get group info"""
@@ -414,46 +413,40 @@ class ShowTeacherRequestListWithHATEOAS(TunedModel):
 
 
 '''
-=======
+========
 Session
-=======
+========
 '''
 
-
 class ShowSession(TunedModel):
+    """Class for get session info"""
     session_number: int
-    date: date
-    group_name: str
+    session_date: date
+    teacher_in_plan: int
     session_type: str
-    subject_code: str | None = None
-    teacher_id: int | None = None
-    cabinet_number: int
-    building_number: int
+    cabinet_number: int | None = None
+    building_number: int | None = None
 
 
 class CreateSession(TunedModel):
     session_number: int
-    date: date
-    group_name: str
+    session_date: date
+    teacher_in_plan: int
     session_type: str
-    subject_code: str | None = None
-    teacher_id: int | None = None
-    cabinet_number: int
-    building_number: int
+    cabinet_number: int | None = None
+    building_number: int | None = None
 
 
 class UpdateSession(TunedModel):
     session_number: int
     session_date: date
-    group_name: str
+    teacher_in_plan: int
     new_session_number: int | None = None
     new_session_date: date | None = None
-    new_group_name: str | None = None
-    session_type: str | None = None
-    subject_code: str | None = None
-    teacher_id: int | None = None
-    cabinet_number: int | None = None
-    building_number: int | None = None
+    new_teacher_in_plan: int | None = None
+    new_session_type: str | None = None
+    new_cabinet_number: int | None = None
+    new_building_number: int | None = None
 
 
 class ShowSessionWithHATEOAS(TunedModel):
@@ -567,9 +560,9 @@ class ShowSemesterListWithHATEOAS(TunedModel):
 
 
 '''
-========
+====
 Plan
-========
+====
 '''
 
 class ShowPlan(TunedModel):
@@ -599,3 +592,370 @@ class ShowPlanListWithHATEOAS(TunedModel):
     plans: List[ShowPlanWithHATEOAS]
     links: dict[str, str] = {}
 
+
+'''
+========
+Chapter
+========
+'''
+
+class ShowChapter(TunedModel):
+    """Class for get chapter info"""
+    id: int
+    code: str
+    name: str
+    plan_id: int
+
+
+class CreateChapter(TunedModel):
+    code: str
+    name: str
+    plan_id: int
+
+
+class UpdateChapter(TunedModel):
+    chapter_id: int
+    code: str | None = None
+    name: str | None = None
+    plan_id: int | None = None
+
+
+class ShowChapterWithHATEOAS(TunedModel):
+    chapter: ShowChapter
+    links: dict[str, str] = {}
+
+
+class ShowChapterListWithHATEOAS(TunedModel):
+    chapters: List[ShowChapterWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+Cycle
+========
+'''
+
+class ShowCycle(TunedModel):
+    """Class for get cycle info"""
+    id: int
+    contains_modules: bool
+    code: str
+    name: str
+    chapter_in_plan_id: int
+
+
+class CreateCycle(TunedModel):
+    contains_modules: bool
+    code: str
+    name: str
+    chapter_in_plan_id: int
+
+
+class UpdateCycle(TunedModel):
+    cycle_id: int
+    contains_modules: bool | None = None
+    code: str | None = None
+    name: str | None = None
+    chapter_in_plan_id: int | None = None
+
+
+class ShowCycleWithHATEOAS(TunedModel):
+    cycle: ShowCycle
+    links: dict[str, str] = {}
+
+
+class ShowCycleListWithHATEOAS(TunedModel):
+    cycles: List[ShowCycleWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+Module
+========
+'''
+
+class ShowModule(TunedModel):
+    """Class for get module info"""
+    id: int
+    name: str
+    code: str
+    cycle_in_chapter_id: int
+
+
+class CreateModule(TunedModel):
+    name: str
+    code: str
+    cycle_in_chapter_id: int
+
+
+class UpdateModule(TunedModel):
+    module_id: int
+    name: str | None = None
+    code: str | None = None
+    cycle_in_chapter_id: int | None = None
+
+
+class ShowModuleWithHATEOAS(TunedModel):
+    module: ShowModule
+    links: dict[str, str] = {}
+
+
+class ShowModuleListWithHATEOAS(TunedModel):
+    modules: List[ShowModuleWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+===============
+SubjectsInCycle
+===============
+'''
+
+class ShowSubjectsInCycle(TunedModel):
+    """Class for get subject in cycle info"""
+    id: int
+    code: str
+    title: str
+    module_in_cycle_id: int | None = None
+    cycle_in_chapter_id: int
+
+
+class CreateSubjectsInCycle(TunedModel):
+    code: str
+    title: str
+    module_in_cycle_id: int | None = None
+    cycle_in_chapter_id: int
+
+
+class UpdateSubjectsInCycle(TunedModel):
+    subject_in_cycle_id: int
+    code: str | None = None
+    title: str | None = None
+    module_in_cycle_id: int | None = None
+    cycle_in_chapter_id: int | None = None
+
+
+class ShowSubjectsInCycleWithHATEOAS(TunedModel):
+    subject_in_cycle: ShowSubjectsInCycle
+    links: dict[str, str] = {}
+
+
+class ShowSubjectsInCycleListWithHATEOAS(TunedModel):
+    subjects_in_cycles: List[ShowSubjectsInCycleWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+SubjectsInCycleHours
+========
+'''
+
+class ShowSubjectsInCycleHours(TunedModel):
+    """Class for get subject in cycle hours info"""
+    id: int
+    semester: int
+    self_study_hours: int
+    lectures_hours: int
+    laboratory_hours: int
+    practical_hours: int
+    course_project_hours: int
+    consultation_hours: int
+    intermediate_assessment_hours: int
+    subject_in_cycle_id: int
+
+
+class CreateSubjectsInCycleHours(TunedModel):
+    semester: int
+    self_study_hours: int
+    lectures_hours: int
+    laboratory_hours: int
+    practical_hours: int
+    course_project_hours: int
+    consultation_hours: int
+    intermediate_assessment_hours: int
+    subject_in_cycle_id: int
+
+
+class UpdateSubjectsInCycleHours(TunedModel):
+    hours_id: int
+    semester: int | None = None
+    self_study_hours: int | None = None
+    lectures_hours: int | None = None
+    laboratory_hours: int | None = None
+    practical_hours: int | None = None
+    course_project_hours: int | None = None
+    consultation_hours: int | None = None
+    intermediate_assessment_hours: int | None = None
+    subject_in_cycle_id: int | None = None
+
+
+class ShowSubjectsInCycleHoursWithHATEOAS(TunedModel):
+    subject_in_cycle_hours: ShowSubjectsInCycleHours
+    links: dict[str, str] = {}
+
+
+class ShowSubjectsInCycleHoursListWithHATEOAS(TunedModel):
+    subjects_in_cycle_hours: List[ShowSubjectsInCycleHoursWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+Certification
+========
+'''
+
+class ShowCertification(TunedModel):
+    """Class for get certification info"""
+    id: int
+    credit: bool
+    differentiated_credit: bool
+    course_project: bool
+    course_work: bool
+    control_work: bool
+    other_form: bool
+
+
+class CreateCertification(TunedModel):
+    id: int
+    credit: bool = False
+    differentiated_credit: bool = False
+    course_project: bool = False
+    course_work: bool = False
+    control_work: bool = False
+    other_form: bool = False
+
+
+class UpdateCertification(TunedModel):
+    certification_id: int
+    credit: bool | None = None
+    differentiated_credit: bool | None = None
+    course_project: bool | None = None
+    course_work: bool | None = None
+    control_work: bool | None = None
+    other_form: bool | None = None
+
+
+class ShowCertificationWithHATEOAS(TunedModel):
+    certification: ShowCertification
+    links: dict[str, str] = {}
+
+
+class ShowCertificationListWithHATEOAS(TunedModel):
+    certifications: List[ShowCertificationWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+TeacherInPlan
+========
+'''
+
+class ShowTeacherInPlan(TunedModel):
+    """Class for get teacher in plan info"""
+    id: int
+    subject_in_cycle_hours_id: int
+    teacher_id: int
+    group_name: str
+    session_type: str
+
+
+class CreateTeacherInPlan(TunedModel):
+    subject_in_cycle_hours_id: int
+    teacher_id: int
+    group_name: str
+    session_type: str
+
+
+class UpdateTeacherInPlan(TunedModel):
+    teacher_in_plan_id: int
+    subject_in_cycle_hours_id: int | None = None
+    teacher_id: int | None = None
+    group_name: str | None = None
+    session_type: str | None = None
+
+
+class ShowTeacherInPlanWithHATEOAS(TunedModel):
+    teacher_in_plan: ShowTeacherInPlan
+    links: dict[str, str] = {}
+
+
+class ShowTeacherInPlanListWithHATEOAS(TunedModel):
+    teachers_in_plans: List[ShowTeacherInPlanWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+TeacherBuilding
+========
+'''
+
+class ShowTeacherBuilding(TunedModel):
+    """Class for get teacher-building relation info"""
+    id: int
+    teacher_id: int
+    building_number: int
+
+
+class CreateTeacherBuilding(TunedModel):
+    teacher_id: int
+    building_number: int
+
+
+class UpdateTeacherBuilding(TunedModel):
+    teacher_building_id: int
+    teacher_id: int | None = None
+    building_number: int | None = None
+
+
+class ShowTeacherBuildingWithHATEOAS(TunedModel):
+    teacher_building: ShowTeacherBuilding
+    links: dict[str, str] = {}
+
+
+class ShowTeacherBuildingListWithHATEOAS(TunedModel):
+    teacher_buildings: List[ShowTeacherBuildingWithHATEOAS]
+    links: dict[str, str] = {}
+
+
+'''
+========
+Stream
+========
+'''
+
+class ShowStream(TunedModel):
+    """Class for get stream info"""
+    stream_id: int
+    group_name: str
+    subject_id: int
+
+
+class CreateStream(TunedModel):
+    stream_id: int
+    group_name: str
+    subject_id: int
+
+
+class UpdateStream(TunedModel):
+    stream_id: int
+    group_name: str
+    subject_id: int
+    new_stream_id: int | None = None
+    new_group_name: str | None = None
+    new_subject_id: int | None = None
+
+
+class ShowStreamWithHATEOAS(TunedModel):
+    stream: ShowStream
+    links: dict[str, str] = {}
+
+
+class ShowStreamListWithHATEOAS(TunedModel):
+    streams: List[ShowStreamWithHATEOAS]
+    links: dict[str, str] = {}

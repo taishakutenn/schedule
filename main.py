@@ -7,10 +7,11 @@ from fastapi.routing import APIRouter
 import uvicorn
 
 #from api.handlers import, building_router, cabinet_router, subject_router, curriculum_router, speciality_router, group_router, request_router, employment_router, session_router, teachers_groups_router, teachers_subjects_router
-from api.handlers import category_router, teacher_router, building_router, cabinet_router, session_type_router, speciality_router, plan_router, semester_router, chapter_router, \
+from api.handlers import  teacher_router, building_router, cabinet_router, session_type_router, speciality_router, plan_router, semester_router, chapter_router, \
                          cycle_router, module_router, subject_in_cycle_router, subject_in_cycle_hours_router, certification_router, group_router, teacher_in_plan_router, teacher_building_router, \
                          session_router, stream_router
 
+# from api.handlers import category_router
 from api.teacher_category.teacher_category_handlers import category_router
 
 # Create fastapi app
@@ -50,7 +51,7 @@ main_api_router.include_router(stream_router, prefix="/streams", tags=["streams"
 
 
 # Test routers from entity
-main_api_router.include_router(category_router, prefix="/teacher-category", tags=["teacher-category"])
+# main_api_router.include_router(category_router, prefix="/teacher-category", tags=["teacher-category"])
 
 # Add main api router into fastapi app
 app.include_router(main_api_router)

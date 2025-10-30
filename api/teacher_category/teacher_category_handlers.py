@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
-from api.models import *
+from api.teacher_category.teacher_category_pydantic import *
+from api.models import QueryParams
 from db.session import get_db
 from api.teacher_category.teacher_category_services import TeacherCategoryService
 
@@ -12,7 +13,7 @@ teacher_category_service = TeacherCategoryService()
 
 
 @category_router.post("/create", response_model=ShowTeacherCategoryWithHATEOAS, status_code=status.HTTP_201_CREATED)
-async def create_category(self, body: CreateTeacherCategory, request: Request, db: AsyncSession = Depends(get_db)):
+async def create_category(body: CreateTeacherCategory, request: Request, db: AsyncSession = Depends(get_db)):
     return await teacher_category_service._create_new_category(body, request, db)
 
 

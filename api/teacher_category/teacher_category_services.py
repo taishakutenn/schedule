@@ -10,7 +10,7 @@ logger = configure_logging()
 
 
 class TeacherCategoryService:
-    async def _create_new_category(body: CreateTeacherCategory, request: Request, db) -> ShowTeacherCategoryWithHATEOAS:
+    async def _create_new_category(self, body: CreateTeacherCategory, request: Request, db) -> ShowTeacherCategoryWithHATEOAS:
         async with db as session:
             async with session.begin():
                 category_dal = TeacherCategoryDAL(session)
@@ -48,7 +48,7 @@ class TeacherCategoryService:
                     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                         detail="Внутренняя ошибка сервера при создании категории преподавателя.")
 
-    async def _get_category(teacher_category: str, request: Request, db) -> ShowTeacherCategoryWithHATEOAS:
+    async def _get_category(self, teacher_category: str, request: Request, db) -> ShowTeacherCategoryWithHATEOAS:
         async with db as session:
             async with session.begin():
                 category_dal = TeacherCategoryDAL(session)
@@ -81,7 +81,7 @@ class TeacherCategoryService:
                     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                         detail="Внутренняя ошибка сервера при получении категории преподавателя.")
 
-    async def _get_all_categories(page: int, limit: int, request: Request, db) -> ShowTeacherCategoryListWithHATEOAS:
+    async def _get_all_categories(self, page: int, limit: int, request: Request, db) -> ShowTeacherCategoryListWithHATEOAS:
         async with db as session:
             async with session.begin():
                 category_dal = TeacherCategoryDAL(session)
@@ -122,7 +122,7 @@ class TeacherCategoryService:
                     raise HTTPException(status_code=500,
                                         detail="Внутренняя ошибка сервера при получении списка категорий преподавателей.")
 
-    async def _delete_category(teacher_category: str, request: Request, db) -> ShowTeacherCategoryWithHATEOAS:
+    async def _delete_category(self, teacher_category: str, request: Request, db) -> ShowTeacherCategoryWithHATEOAS:
         async with db as session:
             try:
                 async with session.begin():
@@ -155,7 +155,7 @@ class TeacherCategoryService:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                     detail="Внутренняя ошибка сервера при удалении категории преподавателя.")
 
-    async def _update_category(body: UpdateTeacherCategory, request: Request, db) -> ShowTeacherCategoryWithHATEOAS:
+    async def _update_category(self, body: UpdateTeacherCategory, request: Request, db) -> ShowTeacherCategoryWithHATEOAS:
         async with db as session:
             try:
                 async with session.begin():

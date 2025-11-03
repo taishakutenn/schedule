@@ -66,6 +66,7 @@ main_api_router.include_router(speciality_router, prefix="/specialities", tags=[
 main_api_router.include_router(group_router, prefix="/groups", tags=["groups"])
 main_api_router.include_router(session_type_router, prefix="/session-type", tags=["session-type"])
 main_api_router.include_router(session_router, prefix="/sessions", tags=["sessions"])
+main_api_router.include_router(teacher_in_plan_router, prefix="/teachers_in_plans", tags=["teachers-in-plans"])
 
 # Add main api router into fastapi app
 app.include_router(main_api_router)

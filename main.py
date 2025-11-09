@@ -6,10 +6,6 @@ from fastapi import FastAPI
 from fastapi.routing import APIRouter
 import uvicorn
 
-#from api.handlers import, building_router, cabinet_router, subject_router, curriculum_router, speciality_router, group_router, request_router, employment_router, session_router, teachers_groups_router, teachers_subjects_router
-from api.handlers import teacher_building_router
-
-# from api.handlers import category_router
 from api.teacher_category.teacher_category_handlers import category_router
 from api.teacher.teacher_handlers import teacher_router
 from api.building.building_handlers import building_router
@@ -28,6 +24,7 @@ from api.plan.plan_handlers import plan_router
 from api.semester.semester_handlers import semester_router
 from api.certification.certification_handlers import certification_router
 from api.stream.stream_handlers import stream_router
+from api.teacher_building.teacher_building_handlers import teacher_building_router
 
 # Create fastapi app
 app = FastAPI(title="OGTIScheduleApi")
@@ -58,7 +55,7 @@ main_api_router = APIRouter()
 # main_api_router.include_router(subject_in_cycle_hours_router, prefix="/subjects_in_cycles_hours", tags=["subjects-in-cycles-hours"])
 # main_api_router.include_router(certification_router, prefix="/certifications", tags=["certifications"])
 # main_api_router.include_router(teacher_in_plan_router, prefix="/teachers_in_plans", tags=["teachers-in-plans"])
-main_api_router.include_router(teacher_building_router, prefix="/teachers_buildings", tags=["teachers-buildings"])
+# main_api_router.include_router(teacher_building_router, prefix="/teachers_buildings", tags=["teachers-buildings"])
 # main_api_router.include_router(stream_router, prefix="/streams", tags=["streams"])
 
 
@@ -83,6 +80,7 @@ main_api_router.include_router(plan_router, prefix="/plans", tags=["plans"])
 main_api_router.include_router(semester_router, prefix="/semesters", tags=["semesters"])
 main_api_router.include_router(certification_router, prefix="/certifications", tags=["certifications"])
 main_api_router.include_router(stream_router, prefix="/streams", tags=["streams"])
+main_api_router.include_router(teacher_building_router, prefix="/teachers_buildings", tags=["teachers-buildings"])
 
 # Add main api router into fastapi app
 app.include_router(main_api_router)

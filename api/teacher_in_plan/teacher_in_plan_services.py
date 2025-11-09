@@ -4,7 +4,11 @@ from api.session_type.session_type_DAL import SessionTypeDAL
 from api.teacher_in_plan.teacher_in_plan_pydantic import *
 from api.services_helpers import ensure_group_exists, ensure_session_type_exists, ensure_subject_in_cycle_hours_exists, ensure_teacher_exists, ensure_teacher_in_plan_exists
 from api.teacher_in_plan.teacher_in_plan_DAL import TeacherInPlanDAL 
+<<<<<<< HEAD
 from api.subject_in_cycle_hours.subject_in_cycle_DAL import SubjectsInCycleHoursDAL
+=======
+# from api.subject_in_cycle_hours.subject_in_cycle_hours_DAL import SubjectsInCycleHoursDAL <--- DEBUG THIS
+>>>>>>> 5bfc84b3b8ec1937e76a65a68834163a4fc9aee4
 from fastapi import HTTPException, Request
 
 from config.logging_config import configure_logging
@@ -17,7 +21,7 @@ class TeacherInPlanService:
     async def _create_new_teacher_in_plan(self, body: CreateTeacherInPlan, request: Request, db) -> ShowTeacherInPlanWithHATEOAS:
         async with db as session:
             async with session.begin():
-                subjects_in_cycle_hours_dal = SubjectsInCycleHoursDAL(session)
+                subjects_in_cycle_hours_dal = SubjectsInCycleHoursDAL(session) # <--- AND DEBUG THIS
                 teacher_dal = TeacherDAL(session)
                 group_dal = GroupDAL(session)
                 session_type_dal = SessionTypeDAL(session)

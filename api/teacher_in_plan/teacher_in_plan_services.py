@@ -4,7 +4,7 @@ from api.session_type.session_type_DAL import SessionTypeDAL
 from api.teacher_in_plan.teacher_in_plan_pydantic import *
 from api.services_helpers import ensure_group_exists, ensure_session_type_exists, ensure_subject_in_cycle_hours_exists, ensure_teacher_exists, ensure_teacher_in_plan_exists
 from api.teacher_in_plan.teacher_in_plan_DAL import TeacherInPlanDAL 
-from api.subject_in_cycle_hours.subject_in_cycle_hours_DAL import SubjectsInCycleHoursDAL
+from api.subject_in_cycle_hours.subject_in_cycle_DAL import SubjectsInCycleHoursDAL
 from fastapi import HTTPException, Request
 
 from config.logging_config import configure_logging

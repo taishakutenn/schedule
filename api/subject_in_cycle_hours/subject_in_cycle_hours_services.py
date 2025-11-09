@@ -1,6 +1,6 @@
-from api.subject_in_cycle_hours.subject_in_cycle_pydantic import *
+from api.subject_in_cycle_hours.subject_in_cycle_hours_pydantic import *
 from api.services_helpers import ensure_subject_in_cycle_exists, ensure_subject_in_cycle_hours_exists
-from api.subject_in_cycle_hours.subject_in_cycle_DAL import SubjectsInCycleHoursDAL
+from api.subject_in_cycle_hours.subject_in_cycle_hours_DAL import SubjectsInCycleHoursDAL
 from api.subject_in_cycle.subject_in_cycle_DAL import SubjectsInCycleDAL
 from fastapi import HTTPException, Request
 

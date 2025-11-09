@@ -21,7 +21,7 @@ from api.group.group_handlers import group_router
 from api.session_type.session_type_handlers import session_type_router
 from api.session.session_handlers import session_router
 from api.teacher_in_plan.teacher_in_plan_handlers import teacher_in_plan_router
-from api.subject_in_cycle_hours.subject_in_cycle_handlers import subject_in_cycle_hours_router
+from api.subject_in_cycle_hours.subject_in_cycle_hours_handlers import subject_in_cycle_hours_router
 
 # Create fastapi app
 app = FastAPI(title="OGTIScheduleApi")

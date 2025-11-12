@@ -10,7 +10,7 @@ from config.logging_config import configure_logging
 logger = configure_logging()
 
 
-class SubjectInCycleService:
+class SubjectInCycleHoursService:
     async def _create_new_subject_in_cycle_hours(self, body: CreateSubjectsInCycleHours, request: Request, db) -> ShowSubjectsInCycleHoursWithHATEOAS:
         async with db as session:
             async with session.begin():

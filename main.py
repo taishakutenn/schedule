@@ -4,6 +4,7 @@ This file is the entry point to the api
 
 from fastapi import FastAPI
 from fastapi.routing import APIRouter
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from api.teacher_category.teacher_category_handlers import category_router
@@ -84,6 +85,15 @@ main_api_router.include_router(teacher_building_router, prefix="/teachers_buildi
 
 # Add main api router into fastapi app
 app.include_router(main_api_router)
+
+# Add CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"], # React-server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if __name__ == "__main__":
     # start local server

@@ -8,14 +8,14 @@ class ShowSubjectsInCycle(TunedModel):
     code: str
     title: str
     module_in_cycle_id: int | None = None
-    cycle_in_chapter_id: int
+    cycle_in_chapter_id: int | None = None
 
 
 class CreateSubjectsInCycle(TunedModel):
     code: str
     title: str
     module_in_cycle_id: int | None = None
-    cycle_in_chapter_id: int
+    cycle_in_chapter_id: int | None = None
 
 
 class UpdateSubjectsInCycle(TunedModel):

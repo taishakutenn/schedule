@@ -19,16 +19,17 @@ class SubjectInCycleService:
                 module_dal = ModuleDAL(session)
                 subject_in_cycle_dal = SubjectsInCycleDAL(session)
                 try:
-                    if not await ensure_cycle_exists(cycle_dal, body.cycle_in_chapter_id):
-                        raise HTTPException(status_code=404, detail=f"Цикл с id {body.cycle_in_chapter_id} не найден")
+                    if body.cycle_in_chapter_id is not None:
+                        if not await ensure_cycle_exists(cycle_dal, body.cycle_in_chapter_id):
+                            raise HTTPException(status_code=404, detail=f"Цикл с id {body.cycle_in_chapter_id} не найден")
 
                     if body.module_in_cycle_id is not None:
                         if not await ensure_module_exists(module_dal, body.module_in_cycle_id):
                             raise HTTPException(status_code=404, detail=f"Модуль с id {body.module_in_cycle_id} не найден")
-                        
-                        module_obj = await module_dal.get_module_by_id(body.module_in_cycle_id)
-                        if module_obj.cycle_in_chapter_id != body.cycle_in_chapter_id:
-                            raise HTTPException(status_code=400, detail=f"Модуль с id {body.module_in_cycle_id} не принадлежит циклу с id {body.cycle_in_chapter_id}")
+                        if body.cycle_in_chapter_id is not None:
+                            module_obj = await module_dal.get_module_by_id(body.module_in_cycle_id)
+                            if module_obj.cycle_in_chapter_id != body.cycle_in_chapter_id:
+                                raise HTTPException(status_code=400, detail=f"Модуль с id {body.module_in_cycle_id} не принадлежит циклу с id {body.cycle_in_chapter_id}")
                     
                     subject_in_cycle = await subject_in_cycle_dal.create_subject_in_cycle(
                         code=body.code,

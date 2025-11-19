@@ -63,13 +63,13 @@ main_api_router = APIRouter()
 
 
 # Test routers from entity
-main_api_router.include_router(category_router, prefix="/teacher-category", tags=["teacher-category"])
+main_api_router.include_router(category_router, prefix="/teacher_category", tags=["teacher-category"])
 main_api_router.include_router(teacher_router, prefix="/teachers", tags=["teachers"])
 main_api_router.include_router(building_router, prefix="/buildings", tags=["buildings"])
 main_api_router.include_router(cabinet_router, prefix="/cabinets", tags=["cabinets"])
 main_api_router.include_router(speciality_router, prefix="/specialities", tags=["specialities"])
 main_api_router.include_router(group_router, prefix="/groups", tags=["groups"])
-main_api_router.include_router(session_type_router, prefix="/session-type", tags=["session-type"])
+main_api_router.include_router(session_type_router, prefix="/session_type", tags=["session-type"])
 main_api_router.include_router(session_router, prefix="/sessions", tags=["sessions"])
 main_api_router.include_router(teacher_in_plan_router, prefix="/teachers_in_plans", tags=["teachers-in-plans"])
 main_api_router.include_router(subject_in_cycle_hours_router, prefix="/subjects_in_cycles_hours", tags=["subjects-in-cycles-hours"])

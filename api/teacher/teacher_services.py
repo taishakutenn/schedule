@@ -31,7 +31,6 @@ class TeacherService:
                         fathername=body.fathername,
                         phone_number=body.phone_number,
                         email=body.email,
-                        salary_rate=body.salary_rate,
                         teacher_category=body.teacher_category
                     )
                     new_teacher_pydantic = ShowTeacher.model_validate(new_teacher_orm, from_attributes=True)

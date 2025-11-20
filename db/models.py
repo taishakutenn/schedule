@@ -118,7 +118,7 @@ class Teacher(Base):
     fathername = Column(String, nullable=True)
     phone_number = Column(String, unique=True, nullable=False)
     email = Column(String, unique=True, nullable=True)
-    salary_rate = Column(Numeric, nullable=True)
+    # salary_rate = Column(Numeric, nullable=True)
 
     # Foreign keys
     teacher_category = Column(String,

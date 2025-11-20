@@ -12,7 +12,7 @@ class TeacherDAL:
 
     @log_exceptions
     async def create_teacher(
-            self, name: str, surname: str, phone_number: str, email: str = None, fathername: str = None, salary_rate: float = None, teacher_category: str = None
+            self, name: str, surname: str, phone_number: str, email: str = None, fathername: str = None, teacher_category: str = None
     ) -> Teacher:
         new_teacher = Teacher(
             name=name,
@@ -20,7 +20,6 @@ class TeacherDAL:
             phone_number=phone_number,
             email=email,
             fathername=fathername,
-            salary_rate=salary_rate,
             teacher_category=teacher_category
         )
         self.db_session.add(new_teacher)

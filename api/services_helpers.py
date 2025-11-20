@@ -114,6 +114,11 @@ async def ensure_stream_exists(stream_dal, stream_id: int, group_name: str, subj
     stream = await stream_dal.get_stream_by_composite_key(stream_id, group_name, subject_id)
     return stream is not None
 
+#Payment
+async def ensure_payment_form_exists(payment_form_dal, payment_name: str) -> bool:
+    payment_form = await payment_form_dal.get_payment_form(payment_name)
+    return payment_form is not None
+
 
 '''
 ======
@@ -240,6 +245,10 @@ async def ensure_session_unique(session_dal, session_number: int, session_date: 
 async def ensure_stream_unique(stream_dal, stream_id: int, group_name: str, subject_id: int) -> bool:
     stream = await stream_dal.get_stream_by_composite_key(stream_id, group_name, subject_id)
     return stream is None
+
+async def ensure_payment_form_unique(payment_form_dal, payment_name: str) -> bool:
+    payment_form = await payment_form_dal.get_payment_form(payment_name)
+    return payment_form is None
 
 
 '''

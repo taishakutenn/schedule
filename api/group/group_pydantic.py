@@ -8,6 +8,7 @@ class ShowGroup(TunedModel):
     speciality_code: str | None = None
     quantity_students: int | None = None
     group_advisor_id: int | None = None
+    payment_form: str
 
 
 class CreateGroup(TunedModel):
@@ -15,6 +16,7 @@ class CreateGroup(TunedModel):
     speciality_code: str | None = None
     quantity_students: int | None = None
     group_advisor_id: int | None = None
+    payment_form: str
 
 
 class UpdateGroup(TunedModel):
@@ -23,6 +25,7 @@ class UpdateGroup(TunedModel):
     speciality_code: str | None = None
     quantity_students: int | None = None
     group_advisor_id: int | None = None
+    payment_form: str
 
 
 class ShowGroupWithHATEOAS(TunedModel):

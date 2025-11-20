@@ -1,5 +1,6 @@
 from api.group.group_pydantic import *
-from api.services_helpers import ensure_group_exists, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists 
+from api.payment.payment_DAL import PaymentFormDAL
+from api.services_helpers import ensure_group_exists, ensure_group_unique, ensure_speciality_exists, ensure_teacher_exists, ensure_payment_form_exists
 from api.group.group_DAL import GroupDAL
 from api.speciality.speciality_DAL import SpecialityDAL
 from api.teacher.teacher_DAL import TeacherDAL
@@ -18,12 +19,17 @@ class GroupService:
                 group_dal = GroupDAL(session)
                 teacher_dal = TeacherDAL(session)
                 speciality_dal = SpecialityDAL(session)
+                payment_dal = PaymentFormDAL(session)
+                
                 try:
                     if body.speciality_code is not None and not await ensure_speciality_exists(speciality_dal, body.speciality_code):
                         raise HTTPException(status_code=404, detail=f"Специальность с кодом {body.speciality_code} не найдена")
                     
                     if body.group_advisor_id is not None and not await ensure_teacher_exists(teacher_dal, body.group_advisor_id):
                         raise HTTPException(status_code=404, detail=f"Преподаватель с id {body.group_advisor_id} не найден")
+                    
+                    if body.payment_form is not None and not await ensure_payment_form_exists(payment_dal, body.payment_form):
+                        raise HTTPException(status_code=404, detail=f"Форма оплаты {body.payment_form} не найдена")
                     
                     if not await ensure_group_unique(group_dal, body.group_name):
                         raise HTTPException(status_code=400, detail=f"Группа {body.group_name} уже существует")
@@ -282,6 +288,7 @@ class GroupService:
                     group_dal = GroupDAL(session)
                     teacher_dal = TeacherDAL(session)
                     speciality_dal = SpecialityDAL(session)
+                    payment_dal = PaymentFormDAL(session)
 
                     if not await ensure_group_exists(group_dal, body.group_name):
                         raise HTTPException(status_code=404, detail=f"Группа {body.group_name} не найдена")
@@ -292,7 +299,10 @@ class GroupService:
                     if "speciality_code" in update_data and update_data["speciality_code"] is not None:
                         if not await ensure_speciality_exists(speciality_dal, update_data["speciality_code"]):
                             raise HTTPException(status_code=404, detail=f"Специальность с кодом {update_data['speciality_code']} не найдена")
-
+                    if "payment" in update_data and update_data["payment"] is not None:
+                        if not await ensure_payment_form_exists(payment_dal, body.payment_form):
+                            raise HTTPException(status_code=404, detail=f"Форма оплаты {body.payment_form} не найдена")
+                    
                     group = await group_dal.update_group(target_group_name=body.group_name, **update_data)
                     if not group:
                         raise HTTPException(status_code=404, detail=f"Группа {body.group_name} не найдена")

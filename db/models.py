@@ -37,20 +37,44 @@ class Group(Base):
 
     group_name = Column(String, primary_key=True, unique=True, nullable=False)
     quantity_students = Column(Integer, nullable=True)
-
+    
+    
     # Foreign keys
     group_advisor_id = Column(Integer, ForeignKey("teachers.id", onupdate="CASCADE", ondelete="SET NULL"),
                               nullable=True)
     speciality_code = Column(String,
                              ForeignKey("specialties.speciality_code", onupdate="CASCADE", ondelete="SET NULL"),
                              nullable=True)
-
+    payment_form = Column(String,
+                             ForeignKey("payment_forms.payment_name", onupdate="CASCADE", ondelete="SET NULL"),
+                             nullable=True)
+    
     # Relationships
     advisor = relationship("Teacher", back_populates="advisory_group", uselist=False)  # uselist for one to one
     speciality = relationship("Speciality", back_populates="groups")
     # requests = relationship("TeacherRequest", back_populates="group")
+    payment = relationship("PaymentForm", back_populates="groups")
     streams = relationship("Stream", back_populates="group")
     teachers_in_plans = relationship("TeacherInPlan", back_populates="group")
+    
+
+class PaymentForm(Base):
+    """
+    Represents the tuition payment form in the database
+
+    Fields:
+        payment_name (str): The unique name of the payment form (primary key)
+
+    Relations:
+        payment_form (Group): Relationship to access the payment form of the group
+        
+    """
+    __tablename__ = "payment_forms"
+    
+    payment_name = Column(String, primary_key=True, unique=True, nullable=False)
+    
+    # Relationships
+    groups = relationship("Group", back_populates="payment")
 
 
 class Speciality(Base):

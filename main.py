@@ -26,6 +26,7 @@ from api.semester.semester_handlers import semester_router
 from api.certification.certification_handlers import certification_router
 from api.stream.stream_handlers import stream_router
 from api.teacher_building.teacher_building_handlers import teacher_building_router
+from api.payment.payment_handlers import payment_form_router
 
 # Create fastapi app
 app = FastAPI(title="OGTIScheduleApi")
@@ -69,6 +70,7 @@ main_api_router.include_router(building_router, prefix="/buildings", tags=["buil
 main_api_router.include_router(cabinet_router, prefix="/cabinets", tags=["cabinets"])
 main_api_router.include_router(speciality_router, prefix="/specialities", tags=["specialities"])
 main_api_router.include_router(group_router, prefix="/groups", tags=["groups"])
+main_api_router.include_router(payment_form_router, prefix="/payment_forms", tags=["payment-forms"])
 main_api_router.include_router(session_type_router, prefix="/session_type", tags=["session-type"])
 main_api_router.include_router(session_router, prefix="/sessions", tags=["sessions"])
 main_api_router.include_router(teacher_in_plan_router, prefix="/teachers_in_plans", tags=["teachers-in-plans"])

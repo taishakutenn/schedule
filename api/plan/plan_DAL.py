@@ -38,6 +38,13 @@ class PlanDAL:
         return plans
 
     @log_exceptions
+    async def get_plan_by_year_and_speciality(self, year: int, speciality_code: str) -> Plan | None:
+        query = select(Plan).where((Plan.year == year) & (Plan.speciality_code == speciality_code))
+        res = await self.db_session.execute(query)
+        plan_row = res.scalar_one_or_none()
+        return plan_row
+
+    @log_exceptions
     async def get_plan_by_id(self, id: int) -> Plan | None:
         query = select(Plan).where(Plan.id == id)
         res = await self.db_session.execute(query)

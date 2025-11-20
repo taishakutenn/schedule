@@ -21,6 +21,11 @@ async def get_plan_by_id(plan_id: int, request: Request, db: AsyncSession = Depe
     return await plan_service._get_plan_by_id(plan_id, request, db)
 
 
+@plan_router.get("/search/by_year_and_speciality/{year}/{speciality}", response_model=ShowPlanWithHATEOAS, responses={404: {"description": "Учебный план не найден"}})
+async def get_plan_by_year_and_speciality(year: int, speciality: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await plan_service._get_plan_by_year_and_speciality(year, speciality, request, db)
+
+
 @plan_router.get("/search", response_model=ShowPlanListWithHATEOAS)
 async def get_all_plans(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
     return await plan_service._get_all_plans(query_param.page, query_param.limit, request, db)

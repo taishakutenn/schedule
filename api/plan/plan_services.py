@@ -1,6 +1,6 @@
 from api.plan.plan_pydantic import *
 from api.services_helpers import ensure_plan_exists, ensure_speciality_exists
-from api.plan.plan_DAL import PlanDAL 
+from api.plan.plan_DAL import PlanDAL
 from api.speciality.speciality_DAL import SpecialityDAL
 from fastapi import HTTPException, Request
 
@@ -24,7 +24,7 @@ class PlanService:
                         year=body.year,
                         speciality_code=body.speciality_code
                     )
-                    plan_id = plan.id 
+                    plan_id = plan.id
                     plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
 
                     base_url = str(request.base_url).rstrip('/')
@@ -65,6 +65,40 @@ class PlanService:
                     base_url = str(request.base_url).rstrip('/')
                     api_prefix = ''
                     api_base_url = f'{base_url}{api_prefix}'
+
+                    hateoas_links = {
+                        "self": f'{api_base_url}/plans/search/by_id/{plan_id}',
+                        "update": f'{api_base_url}/plans/update',
+                        "delete": f'{api_base_url}/plans/delete/{plan_id}',
+                        "plans": f'{api_base_url}/plans',
+                        "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{plan.speciality_code}',
+                        "chapters": f'{api_base_url}/chapters/search/by_plan/{plan_id}',
+                        "semesters": f'{api_base_url}/semesters/search/by_plan/{plan_id}'
+                    }
+
+                    return ShowPlanWithHATEOAS(plan=plan_pydantic, links=hateoas_links)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение учебного плана {plan_id} отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+    async def _get_plan_by_year_and_speciality(self, year: int, speciality: str, request: Request, db) -> ShowPlanWithHATEOAS:
+        async with db as session:
+            async with session.begin():
+                plan_dal = PlanDAL(session)
+                try:
+                    plan = await plan_dal.get_plan_by_year_and_speciality(year, speciality)
+                    if not plan:
+                        raise HTTPException(status_code=404, detail=f"Учебный план для специальнсоти {speciality} в {year} году не найден")
+                    plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
+
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+                    plan_id = plan.id
 
                     hateoas_links = {
                         "self": f'{api_base_url}/plans/search/by_id/{plan_id}',
@@ -131,7 +165,7 @@ class PlanService:
             try:
                 async with session.begin():
                     plan_dal = PlanDAL(session)
-                    
+
                     if not await ensure_plan_exists(plan_dal, plan_id):
                         raise HTTPException(status_code=404, detail=f"Учебный план с id {plan_id} не найден")
 
@@ -167,9 +201,9 @@ class PlanService:
         async with db as session:
             try:
                 async with session.begin():
-                    
+
                     update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["plan_id"]}
-                    
+
                     if "speciality_code" in update_data:
                         speciality_code_to_check = update_data["speciality_code"]
                         speciality_dal = SpecialityDAL(session)
@@ -185,7 +219,7 @@ class PlanService:
                     if not plan:
                         raise HTTPException(status_code=404, detail=f"Учебный план с id {body.plan_id} не найден")
 
-                    plan_id = plan.id 
+                    plan_id = plan.id
                     plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
 
                     base_url = str(request.base_url).rstrip('/')
@@ -211,4 +245,3 @@ class PlanService:
                 await session.rollback()
                 logger.warning(f"Изменение данных о учебном плане отменено (Ошибка: {e})")
                 raise e
-            

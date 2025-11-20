@@ -168,25 +168,25 @@ class TeacherService:
                     teacher_dal = TeacherDAL(session)
                     category_dal = TeacherCategoryDAL(session) 
 
-                    if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
-                        raise HTTPException(status_code=404, detail=f"Преподаватель с id: {body.teacher_id} не найден для обновления")
+                    if not await ensure_teacher_exists(teacher_dal, body.id):
+                        raise HTTPException(status_code=404, detail=f"Преподаватель с id: {body.id} не найден для обновления")
 
-                    update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["teacher_id"]}
+                    update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["id"]}
 
                     if 'email' in update_data and update_data['email'] is not None:
-                        if not await ensure_teacher_email_unique(teacher_dal, update_data['email'], exclude_id=body.teacher_id):
+                        if not await ensure_teacher_email_unique(teacher_dal, update_data['email'], exclude_id=body.id):
                             raise HTTPException(status_code=400, detail=f"Email '{update_data['email']}' уже используется другим преподавателем")
                     if 'phone_number' in update_data:
-                        if not await ensure_teacher_phone_unique(teacher_dal, update_data['phone_number'], exclude_id=body.teacher_id):
+                        if not await ensure_teacher_phone_unique(teacher_dal, update_data['phone_number'], exclude_id=body.id):
                             raise HTTPException(status_code=400, detail=f"Номер телефона '{update_data['phone_number']}' уже используется другим преподавателем")
 
                     if 'teacher_category' in update_data and update_data['teacher_category'] is not None:
                         if not await ensure_category_exists(category_dal, update_data['teacher_category']):
                             raise HTTPException(status_code=404, detail=f"Категория преподавателя '{update_data['teacher_category']}' не найдена")
 
-                    updated_teacher_orm = await teacher_dal.update_teacher(id=body.teacher_id, **update_data)
+                    updated_teacher_orm = await teacher_dal.update_teacher(id=body.id, **update_data)
                     if not updated_teacher_orm:
-                        raise HTTPException(status_code=404, detail=f"Преподаватель с id: {body.teacher_id} не найден для обновления")
+                        raise HTTPException(status_code=404, detail=f"Преподаватель с id: {body.id} не найден для обновления")
 
                     updated_teacher_pydantic = ShowTeacher.model_validate(updated_teacher_orm, from_attributes=True)
 
@@ -209,5 +209,5 @@ class TeacherService:
                 raise
             except Exception as e:
                 await session.rollback()
-                logger.error(f"Неожиданная ошибка при обновлении преподавателя с id: {body.teacher_id}: {e}", exc_info=True)
+                logger.error(f"Неожиданная ошибка при обновлении преподавателя с id: {body.id}: {e}", exc_info=True)
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Внутренняя ошибка сервера при обновлении преподавателя.")

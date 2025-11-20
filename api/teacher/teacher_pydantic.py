@@ -24,7 +24,7 @@ class CreateTeacher(TunedModel):
 
 
 class UpdateTeacher(TunedModel):
-    teacher_id: int
+    id: int
     surname: str
     name: str | None = None
     fathername: str | None = None

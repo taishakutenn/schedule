@@ -5,8 +5,8 @@ from typing import List
 class ShowGroup(TunedModel):
     """Class for get group info"""
     group_name: str
-    payment_form: str | None = None
     speciality_code: str | None = None
+    payment_form: str | None = None
     quantity_students: int | None = None
     group_advisor_id: int | None = None
 

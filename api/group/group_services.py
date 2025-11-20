@@ -36,6 +36,7 @@ class GroupService:
 
                     group = await group_dal.create_group(
                         group_name=body.group_name,
+                        payment_form=body.payment_form,
                         speciality_code=body.speciality_code,
                         quantity_students=body.quantity_students,
                         group_advisor_id=body.group_advisor_id

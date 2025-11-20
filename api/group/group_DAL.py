@@ -14,10 +14,10 @@ class GroupDAL:
     async def create_group(self, group_name: str, payment_form: str, speciality_code: str = None, quantity_students: int = None, group_advisor_id: int = None) -> Group:
         new_group = Group(
             group_name=group_name,
+            payment_form=payment_form,
             speciality_code=speciality_code,
             quantity_students=quantity_students,
-            group_advisor_id=group_advisor_id,
-            payment_form=payment_form
+            group_advisor_id=group_advisor_id
         )
         self.db_session.add(new_group)
         await self.db_session.flush()

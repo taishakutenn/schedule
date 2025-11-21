@@ -273,6 +273,41 @@ class SubjectInCycleHoursService:
                 except Exception as e:
                     logger.warning(f"Получение записей о часах для предметов  отменено (Ошибка: {e})")
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+                
+                
+    async def _get_subjects_hours_by_ids(self, ids: list[int], page: int, limit: int, request: Request, db) -> ShowSubjectsInCycleHoursListWithHATEOAS:
+        async with db as session:
+            async with session.begin():
+                subjects_in_cycle_hours_dal = SubjectsInCycleHoursDAL(session)
+                try:
+                    subjects_in_cycle_hours_list = await subjects_in_cycle_hours_dal.get_subjects_hours_by_ids(ids, page, limit)
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+
+                    subjects_in_cycles_hours_with_hateoas = []
+                    for subject_hours in subjects_in_cycle_hours_list:
+                        subject_hours_pydantic = ShowSubjectsInCycleHours.model_validate(subject_hours, from_attributes=True)
+                        subject_hours_id = subject_hours.id
+                        subject_hours_links = {
+                            "self": f'{api_base_url}/subjects_in_cycles_hours/search/by_id/{subject_hours_id}',
+                            "subjects_in_cycle": f'{api_base_url}/subjects_in_cycles/search/by_id/{subject_hours.subject_in_cycle_id}',
+                        }
+                        subject_hours_with_links = ShowSubjectsInCycleHoursWithHATEOAS(subject_in_cycle_hours=subject_hours_pydantic, links=subject_hours_links)
+                        subjects_in_cycles_hours_with_hateoas.append(subject_hours_with_links)
+
+                    collection_links = {
+                        "self": f'{api_base_url}/subjects_in_cycles_hours/search/by_ids?page={page}&limit={limit}&ids={",".join(map(str, ids))}',
+                    }
+                    collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                    return ShowSubjectsInCycleHoursListWithHATEOAS(subjects_in_cycle_hours=subjects_in_cycles_hours_with_hateoas, links=collection_links)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение записей о часах по списку id отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
     async def _delete_subject_in_cycle_hours(self, hours_id: int, request: Request, db) -> ShowSubjectsInCycleHoursWithHATEOAS:

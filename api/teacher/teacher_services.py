@@ -129,6 +129,43 @@ class TeacherService:
                 except Exception as e:
                     logger.error(f"Неожиданная ошибка при получении списка преподавателей (page={page}, limit={limit}): {e}", exc_info=True)
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении списка преподавателей.")
+                
+                
+    async def _get_teachers_by_ids(self, ids: list[int], page: int, limit: int, request: Request, db) -> ShowTeacherListWithHATEOAS:
+        async with db as session:
+            async with session.begin():
+                teacher_dal = TeacherDAL(session)
+                try:
+                    teachers_list = await teacher_dal.get_teachers_by_ids(ids, page, limit)
+
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+
+                    teachers_with_hateoas = []
+                    for teacher in teachers_list:
+                        teacher_pydantic = ShowTeacher.model_validate(teacher, from_attributes=True)
+                        teacher_id = teacher.id
+                        teacher_links = {
+                            "self": f'{api_base_url}/teachers/search/by_id/{teacher_id}',
+                            "category": f'{api_base_url}/categories/search/{teacher.teacher_category}' if teacher.teacher_category else None,
+                        }
+                        teacher_links = {k: v for k, v in teacher_links.items() if v is not None}
+                        teacher_with_links = ShowTeacherWithHATEOAS(teacher=teacher_pydantic, links=teacher_links)
+                        teachers_with_hateoas.append(teacher_with_links)
+
+                    collection_links = {
+                        "self": f'{api_base_url}/teachers/search/by_ids?page={page}&limit={limit}&ids={",".join(map(str, ids))}',
+                    }
+                    collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                    return ShowTeacherListWithHATEOAS(teachers=teachers_with_hateoas, links=collection_links)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение преподавателей по списку id отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
     async def _delete_teacher(self, teacher_id: int, request: Request, db) -> ShowTeacherWithHATEOAS:

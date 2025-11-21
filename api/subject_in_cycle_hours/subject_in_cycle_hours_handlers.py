@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 from api.subject_in_cycle_hours.subject_in_cycle_hours_pydantic  import *
@@ -34,6 +34,11 @@ async def get_subjects_in_cycle_hours_by_subject_and_semester(subject_in_cycle_i
 @subject_in_cycle_hours_router.get("/search/by_semester/{semester}", response_model=ShowSubjectsInCycleHoursListWithHATEOAS, responses={404: {"description": "Записи о часах для семестра не найдены"}})
 async def get_subjects_in_cycle_hours_by_semester(semester: int, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
     return await subject_in_cycle_service_hours._get_subjects_in_cycle_hours_by_semester(semester, query_param.page, query_param.limit, request, db)
+
+
+@subject_in_cycle_hours_router.get("/search/by_ids", response_model=ShowSubjectsInCycleHoursListWithHATEOAS, responses={404: {"description": "Записи о часах не найдены"}})
+async def get_subjects_hours_by_ids( query_param: Annotated[QueryParams, Depends()], request: Request, ids: list[int] = Query(...), db: AsyncSession = Depends(get_db)):
+    return await subject_in_cycle_service_hours._get_subjects_hours_by_ids(ids, query_param.page, query_param.limit, request, db)
 
 
 @subject_in_cycle_hours_router.get("/search", response_model=ShowSubjectsInCycleHoursListWithHATEOAS)

@@ -65,6 +65,18 @@ class SubjectsInCycleDAL:
         result = await self.db_session.execute(query)
         subjects_in_cycles = list(result.scalars().all())
         return subjects_in_cycles
+    
+    @log_exceptions
+    async def get_subjects_in_cycle_by_ids(self, ids: list[int], page: int, limit: int) -> list[SubjectsInCycle]:
+        query = select(SubjectsInCycle).where(SubjectsInCycle.id.in_(ids))
+
+        if page > 0:
+            offset_value = (page - 1) * limit
+            query = query.offset(offset_value).limit(limit)
+
+        result = await self.db_session.execute(query)
+        subjects_in_cycle = list(result.scalars().all())
+        return subjects_in_cycle if subjects_in_cycle is not None else []
 
     @log_exceptions
     async def update_subject_in_cycle(self, target_id: int, **kwargs) -> SubjectsInCycle | None:

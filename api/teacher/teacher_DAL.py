@@ -82,3 +82,15 @@ class TeacherDAL:
             query = query.offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)
         return list(result.scalars().all())
+    
+    @log_exceptions
+    async def get_teachers_by_ids(self, ids: list[int], page: int, limit: int) -> list[Teacher]:
+        query = select(Teacher).where(Teacher.id.in_(ids))
+        if page > 0:
+            offset_value = (page - 1) * limit
+            query = query.offset(offset_value).limit(limit)
+        result = await self.db_session.execute(query)
+        teachers = list(result.scalars().all())
+        return teachers if teachers is not None else []
+    
+    

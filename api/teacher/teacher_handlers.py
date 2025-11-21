@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Request
+from fastapi import APIRouter, Depends, Query, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 from api.teacher.teacher_pydantic import *
@@ -19,6 +19,11 @@ async def create_teacher(body: CreateTeacher, request: Request, db: AsyncSession
 @teacher_router.get("/search/by_id/{teacher_id}", response_model=ShowTeacherWithHATEOAS, responses={404: {"description": "Преподаватель не найден"}})
 async def get_teacher_by_id(teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await teacher_service._get_teacher_by_id(teacher_id, request, db)
+
+
+@teacher_router.get("/search/by_ids", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})
+async def get_teachers_by_ids( query_param: Annotated[QueryParams, Depends()], request: Request, ids: list[int] = Query(...), db: AsyncSession = Depends(get_db)):
+    return await teacher_service._get_teachers_by_ids(ids, query_param.page, query_param.limit, request, db)
 
 
 @teacher_router.get("/search", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})

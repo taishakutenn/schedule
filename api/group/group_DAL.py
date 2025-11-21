@@ -63,6 +63,16 @@ class GroupDAL:
         result = await self.db_session.execute(query)
         groups = list(result.scalars().all())
         return groups if groups is not None else []
+    
+    @log_exceptions
+    async def get_groups_by_names(self, group_names: list[str], page: int, limit: int) -> list[Group]:
+        query = select(Group).where(Group.group_name.in_(group_names))
+        if page > 0:
+            offset_value = (page - 1) * limit
+            query = query.offset(offset_value).limit(limit)
+        result = await self.db_session.execute(query)
+        groups = list(result.scalars().all())
+        return groups if groups is not None else []
 
     @log_exceptions
     async def update_group(self, target_group_name: str, **kwargs) -> Group | None:

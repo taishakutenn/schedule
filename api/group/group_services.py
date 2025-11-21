@@ -239,6 +239,45 @@ class GroupService:
                 except Exception as e:
                     logger.warning(f"Получение групп для специальности {speciality_code} отменено (Ошибка: {e})")
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+                
+                
+    async def _get_groups_by_names(names: list[str], page: int, limit: int, request: Request, db) -> ShowGroupListWithHATEOAS:
+        async with db as session:
+            async with session.begin():
+                group_dal = GroupDAL(session)
+                try:
+                    groups_list = await group_dal.get_groups_by_names(names, page, limit)
+
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+
+                    groups_with_hateoas = []
+                    for group in groups_list:
+                        group_pydantic = ShowGroup.model_validate(group, from_attributes=True)
+                        group_name = group.group_name
+                        group_links = {
+                            "self": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                            "advisor": f'{api_base_url}/teachers/search/by_id/{group.group_advisor_id}' if group.group_advisor_id else None,
+                            "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{group.speciality_code}' if group.speciality_code else None,
+                        }
+                        
+                        group_links = {k: v for k, v in group_links.items() if v is not None}
+                        group_with_links = ShowGroupWithHATEOAS(group=group_pydantic, links=group_links)
+                        groups_with_hateoas.append(group_with_links)
+
+                    collection_links = {
+                        "self": f'{api_base_url}/groups/search/by_names?page={page}&limit={limit}&names={",".join(map(str, names))}',
+                    }
+                    collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                    return ShowGroupListWithHATEOAS(groups=groups_with_hateoas, links=collection_links)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение групп по списку имён отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
     async def _delete_group(self, group_name: str, request: Request, db) -> ShowGroupWithHATEOAS:

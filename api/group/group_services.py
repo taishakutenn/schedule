@@ -241,7 +241,7 @@ class GroupService:
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
                 
                 
-    async def _get_groups_by_names(names: list[str], page: int, limit: int, request: Request, db) -> ShowGroupListWithHATEOAS:
+    async def _get_groups_by_names(self, names: list[str], page: int, limit: int, request: Request, db) -> ShowGroupListWithHATEOAS:
         async with db as session:
             async with session.begin():
                 group_dal = GroupDAL(session)

@@ -17,19 +17,19 @@ class TeacherInPlanService:
     async def _create_new_teacher_in_plan(self, body: CreateTeacherInPlan, request: Request, db) -> ShowTeacherInPlanWithHATEOAS:
         async with db as session:
             async with session.begin():
-                subjects_in_cycle_hours_dal = SubjectsInCycleHoursDAL(session) # <--- AND DEBUG THIS
+                subjects_in_cycle_hours_dal = SubjectsInCycleHoursDAL(session)
                 teacher_dal = TeacherDAL(session)
                 group_dal = GroupDAL(session)
                 session_type_dal = SessionTypeDAL(session)
                 teacher_in_plan_dal = TeacherInPlanDAL(session)
                 try:
                     if not await ensure_subject_in_cycle_hours_exists(subjects_in_cycle_hours_dal, body.subject_in_cycle_hours_id):
-                        raise HTTPException(status_code=404, detail=f"Запись о часах для предмета в цикле с id {body.subject_in_cycle_hours_id} не найдена")
+                        raise HTTPException(status_code=404, detail=f"Запись о часах для предмsета в цикле с id {body.subject_in_cycle_hours_id} не найдена")
                     if not await ensure_teacher_exists(teacher_dal, body.teacher_id):
                         raise HTTPException(status_code=404, detail=f"Преподаватель с id {body.teacher_id} не найден")
                     if not await ensure_group_exists(group_dal, body.group_name):
                         raise HTTPException(status_code=404, detail=f"Группа с названием {body.group_name} не найдена")
-                    if not await ensure_session_type_exists(session_type_dal, body.session_type):
+                    if body.session_type and not await ensure_session_type_exists(session_type_dal, body.session_type):
                         raise HTTPException(status_code=404, detail=f"Тип занятия {body.session_type} не найден")
 
                     teacher_in_plan = await teacher_in_plan_dal.create_teacher_in_plan(

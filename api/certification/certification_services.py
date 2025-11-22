@@ -126,6 +126,42 @@ class CertificationService:
                 except Exception as e:
                     logger.warning(f"Получение сертификаций отменено (Ошибка: {e})")
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+                
+                
+    async def _get_certifications_by_ids(self, ids: list[int], page: int, limit: int, request: Request, db) -> ShowCertificationListWithHATEOAS:
+        async with db as session:
+            async with session.begin():
+                certification_dal = CertificationDAL(session)
+                try:
+                    certifications_list = await certification_dal.get_certifications_by_ids(ids, page, limit)
+
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+
+                    certifications_with_hateoas = []
+                    for certification in certifications_list:
+                        certification_pydantic = ShowCertification.model_validate(certification, from_attributes=True)
+                        certification_id = certification.id
+                        certification_links = {
+                            "self": f'{api_base_url}/certifications/search/by_id/{certification_id}',
+                            "subjects_in_cycle_hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_id/{certification_id}', 
+                        }
+                        certification_with_links = ShowCertificationWithHATEOAS(certification=certification_pydantic, links=certification_links)
+                        certifications_with_hateoas.append(certification_with_links)
+
+                    collection_links = {
+                        "self": f'{api_base_url}/certifications/search/by_ids?page={page}&limit={limit}&ids={",".join(map(str, ids))}',
+                    }
+                    collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                    return ShowCertificationListWithHATEOAS(certifications=certifications_with_hateoas, links=collection_links)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение сертификаций по списку id отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
     async def _delete_certification(self, certification_id: int, request: Request, db) -> ShowCertificationWithHATEOAS:

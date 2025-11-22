@@ -11,7 +11,7 @@ class TeacherInPlanDAL:
         self.db_session = db_session
 
     @log_exceptions
-    async def create_teacher_in_plan(self, subject_in_cycle_hours_id: int, teacher_id: int, group_name: str, session_type: str) -> TeacherInPlan:
+    async def create_teacher_in_plan(self, subject_in_cycle_hours_id: int, teacher_id: int, group_name: str, session_type: str = None) -> TeacherInPlan:
         new_teacher_in_plan = TeacherInPlan(
             subject_in_cycle_hours_id=subject_in_cycle_hours_id,
             teacher_id=teacher_id,

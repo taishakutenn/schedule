@@ -8,14 +8,14 @@ class ShowTeacherInPlan(TunedModel):
     subject_in_cycle_hours_id: int
     teacher_id: int
     group_name: str
-    session_type: str
+    session_type: str | None = None
 
 
 class CreateTeacherInPlan(TunedModel):
     subject_in_cycle_hours_id: int
     teacher_id: int
     group_name: str
-    session_type: str
+    session_type: str | None = None
 
 
 class UpdateTeacherInPlan(TunedModel):

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 from api.certification.certification_pydantic  import *
@@ -19,6 +19,11 @@ async def create_certification(body: CreateCertification, request: Request, db: 
 @certification_router.get("/search/by_id/{certification_id}", response_model=ShowCertificationWithHATEOAS, responses={404: {"description": "Сертификация не найдена"}})
 async def get_certification_by_id(certification_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await certification_service._get_certification_by_id(certification_id, request, db)
+
+
+@certification_router.get("/search/by_ids", response_model=ShowCertificationListWithHATEOAS, responses={404: {"description": "Сертификации не найдены"}})
+async def get_certifications_by_ids(query_param: Annotated[QueryParams, Depends()], request: Request, ids: list[int] = Query(...), db: AsyncSession = Depends(get_db)):
+    return await certification_service._get_certifications_by_ids(ids, query_param.page, query_param.limit, request, db)
 
 
 @certification_router.get("/search", response_model=ShowCertificationListWithHATEOAS)

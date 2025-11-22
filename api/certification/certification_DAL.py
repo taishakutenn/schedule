@@ -57,6 +57,16 @@ class CertificationDAL:
         res = await self.db_session.execute(query)
         certification_row = res.scalar_one_or_none()
         return certification_row
+    
+    @log_exceptions
+    async def get_certifications_by_ids(self, ids: list[int], page: int, limit: int) -> list[Certification]:
+        query = select(Certification).where(Certification.id.in_(ids))
+        if page > 0:
+            offset_value = (page - 1) * limit
+            query = query.offset(offset_value).limit(limit)
+        result = await self.db_session.execute(query)
+        certifications = list(result.scalars().all())
+        return certifications if certifications is not None else []
 
     @log_exceptions
     async def update_certification(self, target_id: int, **kwargs) -> Certification | None:

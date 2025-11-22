@@ -128,7 +128,7 @@ class CertificationService:
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
                 
                 
-    async def _get_certifications_by_ids(ids: list[int], page: int, limit: int, request: Request, db) -> ShowCertificationListWithHATEOAS:
+    async def _get_certifications_by_ids(self, ids: list[int], page: int, limit: int, request: Request, db) -> ShowCertificationListWithHATEOAS:
         async with db as session:
             async with session.begin():
                 certification_dal = CertificationDAL(session)

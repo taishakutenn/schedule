@@ -31,6 +31,11 @@ async def get_subjects_in_cycle_by_module(module_in_cycle_id: int, query_param: 
     return await subject_in_cycle_service._get_subjects_in_cycle_by_module(module_in_cycle_id, query_param.page, query_param.limit, request, db)
 
 
+@subject_in_cycle_router.get("/search/by_plan/{plan_id}", response_model=ShowSubjectsInCycleListWithHATEOAS, responses={404: {"description": "Предметы в цикле не найдены"}})
+async def get_subjects_in_plan(plan_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await subject_in_cycle_service._get_subjects_in_plan(plan_id, request, db)
+
+
 @subject_in_cycle_router.get("/search/by_ids", response_model=ShowSubjectsInCycleListWithHATEOAS, responses={404: {"description": "Предметы в цикле не найдены"}})
 async def get_subjects_in_cycle_by_ids(query_param: Annotated[QueryParams, Depends()], request: Request, ids: list[int] = Query(...), db: AsyncSession = Depends(get_db)):
     return await subject_in_cycle_service._get_subjects_in_cycle_by_ids(ids, query_param.page, query_param.limit, request, db)

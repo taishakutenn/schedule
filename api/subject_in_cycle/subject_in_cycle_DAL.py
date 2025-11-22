@@ -1,7 +1,8 @@
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from db.models import SubjectsInCycle
+from db.models import Chapter, Cycle, Module, Plan, SubjectsInCycle
 from config.decorators import log_exceptions
 
 
@@ -77,6 +78,52 @@ class SubjectsInCycleDAL:
         result = await self.db_session.execute(query)
         subjects_in_cycle = list(result.scalars().all())
         return subjects_in_cycle if subjects_in_cycle is not None else []
+    
+
+    @log_exceptions
+    async def get_subjects_in_plan(self, plan_id: int) -> list[SubjectsInCycle]:
+        """
+        Plan -> Chapter -> Cycle -> [Module -> SubjectsInCycle OR SubjectsInCycle]
+        """
+        plan_alias = aliased(Plan)
+        chapter_alias = aliased(Chapter)
+        cycle_alias = aliased(Cycle)
+        module_alias = aliased(Module)
+        sic_alias = aliased(SubjectsInCycle) 
+        
+        query_modules = (
+            select(sic_alias.id) 
+            .select_from(plan_alias)
+            .join(chapter_alias, plan_alias.id == chapter_alias.plan_id)
+            .join(cycle_alias, chapter_alias.id == cycle_alias.chapter_in_plan_id)
+            .join(module_alias, cycle_alias.id == module_alias.cycle_in_chapter_id)
+            .join(sic_alias, module_alias.id == sic_alias.module_in_cycle_id) 
+            .where(plan_alias.id == plan_id)
+        )
+
+        query_cycles = (
+            select(sic_alias.id) 
+            .select_from(plan_alias)
+            .join(chapter_alias, plan_alias.id == chapter_alias.plan_id)
+            .join(cycle_alias, chapter_alias.id == cycle_alias.chapter_in_plan_id)
+            .join(sic_alias, cycle_alias.id == sic_alias.cycle_in_chapter_id) 
+            .where(plan_alias.id == plan_id)
+            .where(cycle_alias.contains_modules == False) 
+            .where(sic_alias.module_in_cycle_id == None) 
+        )
+
+        union_subq = query_modules.union(query_cycles).subquery()
+
+        union_alias = aliased(SubjectsInCycle, union_subq)
+
+        final_query = (
+            select(SubjectsInCycle)
+            .select_from(union_alias)
+            .join(SubjectsInCycle, union_alias.id == SubjectsInCycle.id) 
+        )
+        result = await self.db_session.execute(final_query)
+        subjects_in_cycles = list(result.scalars().all())
+        return subjects_in_cycles if subjects_in_cycles is not None else []
 
     @log_exceptions
     async def update_subject_in_cycle(self, target_id: int, **kwargs) -> SubjectsInCycle | None:

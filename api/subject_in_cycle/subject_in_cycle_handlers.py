@@ -36,6 +36,11 @@ async def get_all_subjects_in_cycles(query_param: Annotated[QueryParams, Depends
     return await subject_in_cycle_service._get_all_subjects_in_cycles(query_param.page, query_param.limit, request, db)
 
 
+@subject_in_cycle_router.get("/search/info_for_create/{group_name}/{semester}")
+async def get_info_to_create_schedule(group_name: str, semester: int, db: AsyncSession = Depends(get_db)):
+    return await subject_in_cycle_service._get_info_to_create_schedule(group_name, semester, db)
+
+
 @subject_in_cycle_router.delete("/delete/{subject_in_cycle_id}", response_model=ShowSubjectsInCycleWithHATEOAS, responses={404: {"description": "Предмет в цикле не найден"}})
 async def delete_subject_in_cycle(subject_in_cycle_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await subject_in_cycle_service._delete_subject_in_cycle(subject_in_cycle_id, request, db)

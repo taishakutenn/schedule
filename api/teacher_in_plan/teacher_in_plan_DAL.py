@@ -47,6 +47,18 @@ class TeacherInPlanDAL:
         return teacher_in_plan_row
 
     @log_exceptions
+    async def get_teacher_in_plan_by_group_and_subject_in_cycle_hours(
+            self, group_name: str, subject_in_cycle_hours_id: int) -> TeacherInPlan | None:
+
+        query = select(TeacherInPlan).where(
+            (TeacherInPlan.group_name == group_name)
+            & (TeacherInPlan.subject_in_cycle_hours_id == subject_in_cycle_hours_id)
+        )
+        res = await self.db_session.execute(query)
+        teacher_in_plan_row = res.scalar_one_or_none()
+        return teacher_in_plan_row
+
+    @log_exceptions
     async def get_teachers_in_plans_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherInPlan]:
         if page == 0:
             query = select(TeacherInPlan).where(TeacherInPlan.teacher_id == teacher_id).order_by(TeacherInPlan.id.asc())

@@ -3,7 +3,7 @@ from api.group.group_DAL import GroupDAL
 from api.session_type.session_type_DAL import SessionTypeDAL
 from api.teacher_in_plan.teacher_in_plan_pydantic import *
 from api.services_helpers import ensure_group_exists, ensure_session_type_exists, ensure_subject_in_cycle_hours_exists, ensure_teacher_exists, ensure_teacher_in_plan_exists
-from api.teacher_in_plan.teacher_in_plan_DAL import TeacherInPlanDAL 
+from api.teacher_in_plan.teacher_in_plan_DAL import TeacherInPlanDAL
 from api.subject_in_cycle_hours.subject_in_cycle_hours_DAL import SubjectsInCycleHoursDAL
 from fastapi import HTTPException, Request
 
@@ -101,6 +101,55 @@ class TeacherInPlanService:
                     raise
                 except Exception as e:
                     logger.warning(f"Получение записи в расписании преподавателя {teacher_in_plan_id} отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+    async def _get_teacher_in_plan_by_group_and_subject_hours(
+            self, group_name: str, subject_in_cycle_hours_id: int, request: Request, db) -> ShowTeacherInPlanWithHATEOAS:
+        async with db as session:
+            async with session.begin():
+                teacher_in_plan_dal = TeacherInPlanDAL(session)
+                group_dal = GroupDAL(session)
+                subject_in_cycle_hours_dal = SubjectsInCycleHoursDAL(session)
+                try:
+                    if not await ensure_group_exists(group_dal, group_name):
+                        raise HTTPException(status_code=404,
+                                            detail=f"Группы с таким названием: {group_name} не существует")
+
+                    if not await ensure_subject_in_cycle_hours_exists(subject_in_cycle_hours_dal, subject_in_cycle_hours_id):
+                        raise HTTPException(status_code=404,
+                                            detail=f"Часов предмета с таким id: {subject_in_cycle_hours_id} не существует")
+
+                    teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_group_and_subject_in_cycle_hours(
+                        group_name, subject_in_cycle_hours_id)
+                    if not teacher_in_plan:
+                        raise HTTPException(status_code=404,
+                                            detail=f"Учитель в плане для группы: {group_name} и предмета с id: {subject_in_cycle_hours_id} не найден")
+
+                    teacher_in_plan_pydantic = ShowTeacherInPlan.model_validate(teacher_in_plan, from_attributes=True)
+
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+
+                    hateoas_links = {
+                        "self": f'{api_base_url}/teachers_in_plans/search/by_id/{teacher_in_plan.id}',
+                        "update": f'{api_base_url}/teachers_in_plans/update',
+                        "delete": f'{api_base_url}/teachers_in_plans/delete/{teacher_in_plan.id}',
+                        "teachers_in_plans": f'{api_base_url}/teachers_in_plans',
+                        "subjects_in_cycle_hours": f'{api_base_url}/subjects_in_cycles_hours/search/by_id/{subject_in_cycle_hours_id}',
+                        "teacher": f'{api_base_url}/teachers/search/by_id/{teacher_in_plan.teacher_id}',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{teacher_in_plan.group_name}',
+                        "session_type": f'{api_base_url}/session-types/search/by_name/{teacher_in_plan.session_type}',
+                        "sessions": f'{api_base_url}/sessions/search/by_plan/{teacher_in_plan.id}'
+                    }
+
+                    return ShowTeacherInPlanWithHATEOAS(teacher_in_plan=teacher_in_plan_pydantic, links=hateoas_links)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение записи в расписании преподавателя по группе: {group_name} и id часов предмета: {subject_in_cycle_hours_id} отменено (Ошибка: {e})")
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
@@ -344,12 +393,12 @@ class TeacherInPlanService:
             try:
                 async with session.begin():
                     teacher_in_plan_dal = TeacherInPlanDAL(session)
-                    
+
                     if not await ensure_teacher_in_plan_exists(teacher_in_plan_dal, teacher_in_plan_id):
                         raise HTTPException(status_code=404, detail=f"Запись в расписании преподавателя с id {teacher_in_plan_id} не найдена")
 
                     teacher_in_plan = await teacher_in_plan_dal.delete_teacher_in_plan(teacher_in_plan_id)
-                    
+
                     if not teacher_in_plan:
                         raise HTTPException(status_code=404, detail=f"Запись в расписании преподавателя с id {teacher_in_plan_id} не найдена")
 
@@ -381,7 +430,7 @@ class TeacherInPlanService:
             try:
                 async with session.begin():
                     update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["teacher_in_plan_id"]}
-                    
+
                     if "subject_in_cycle_hours_id" in update_data:
                         subjects_in_cycle_hours_dal = SubjectsInCycleHoursDAL(session)
                         if not await ensure_subject_in_cycle_hours_exists(subjects_in_cycle_hours_dal, update_data["subject_in_cycle_hours_id"]):
@@ -436,4 +485,3 @@ class TeacherInPlanService:
                 await session.rollback()
                 logger.warning(f"Изменение данных о записи в расписании преподавателя отменено (Ошибка: {e})")
                 raise e
-            

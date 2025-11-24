@@ -12,7 +12,7 @@ class CreateSessionType(TunedModel):
 
 
 class UpdateSessionType(TunedModel):
-    current_name: str
+    name: str
     new_name: str
 
 

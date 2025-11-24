@@ -44,8 +44,8 @@ class SessionTypeDAL:
         return type_row
 
     @log_exceptions
-    async def update_session_type(self, current_name: str, **kwargs) -> SessionType | None:
-        query = update(SessionType).where(SessionType.name == current_name).values(**kwargs).returning(SessionType)
+    async def update_session_type(self, tg_name: str, **kwargs) -> SessionType | None:
+        query = update(SessionType).where(SessionType.name == tg_name).values(**kwargs).returning(SessionType)
         res = await self.db_session.execute(query)
         updated_type = res.scalar_one_or_none()
         return updated_type

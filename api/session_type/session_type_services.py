@@ -158,16 +158,16 @@ class SessionTypeService:
                 async with session.begin():
                     session_type_dal = SessionTypeDAL(session)
 
-                    if not await ensure_session_type_exists(session_type_dal, body.current_name):
-                        raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{body.current_name}' не найден")
+                    if not await ensure_session_type_exists(session_type_dal, body.name):
+                        raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{body.name}' не найден")
 
-                    if body.new_name != body.current_name:
+                    if body.new_name != body.name:
                         if not await ensure_session_type_unique(session_type_dal, body.new_name):
                             raise HTTPException(status_code=400, detail=f"Тип сессии с именем '{body.new_name}' уже существует")
 
-                    session_type = await session_type_dal.update_session_type(current_name=body.current_name, name=body.new_name)
+                    session_type = await session_type_dal.update_session_type(tg_name=body.name, name=body.new_name)
                     if not session_type:
-                        raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{body.current_name}' не найден")
+                        raise HTTPException(status_code=404, detail=f"Тип сессии с именем '{body.name}' не найден")
 
                     session_type_name = session_type.name
                     session_type_pydantic = ShowSessionType.model_validate(session_type, from_attributes=True)

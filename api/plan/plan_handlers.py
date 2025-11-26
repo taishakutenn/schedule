@@ -26,6 +26,11 @@ async def get_plan_by_year_and_speciality(year: int, speciality: str, request: R
     return await plan_service._get_plan_by_year_and_speciality(year, speciality, request, db)
 
 
+@plan_router.get("/search/by_subject_hours_id/{subject_hours_id}", response_model=ShowPlanWithHATEOAS, responses={404: {"description": "Учебный план не найден"}})
+async def get_plan_by_subject_hours_id(subject_hours_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    return await plan_service._get_plan_by_subject_hours_id(subject_hours_id, request, db)
+
+
 @plan_router.get("/search", response_model=ShowPlanListWithHATEOAS)
 async def get_all_plans(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
     return await plan_service._get_all_plans(query_param.page, query_param.limit, request, db)

@@ -158,6 +158,42 @@ class PlanService:
                 except Exception as e:
                     logger.warning(f"Получение учебных планов отменено (Ошибка: {e})")
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+                
+                
+    async def _get_plan_by_subject_hours_id(self, subject_hours_id: int, request: Request, db) -> ShowPlanWithHATEOAS:
+        async with db as session:
+            async with session.begin():
+                plan_dal = PlanDAL(session)
+                try:
+                    plan = await plan_dal.get_plan_by_subject_hours_id(subject_hours_id)
+                    if not plan:
+                        raise HTTPException(status_code=404, detail=f"Учебный план, связанный с записью о часах предмета с id {subject_hours_id}, не найден")
+
+                    plan_pydantic = ShowPlan.model_validate(plan, from_attributes=True)
+                    plan_id = plan.id
+
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+
+                    hateoas_links = {
+                        "self": f'{api_base_url}/plans/search/by_id/{plan_id}',
+                        "update": f'{api_base_url}/plans/update',
+                        "delete": f'{api_base_url}/plans/delete/{plan_id}',
+                        "plans": f'{api_base_url}/plans',
+                        "speciality": f'{api_base_url}/specialities/search/by_speciality_code/{plan.speciality_code}',
+                        "chapters": f'{api_base_url}/chapters/search/by_plan/{plan_id}',
+                        "semesters": f'{api_base_url}/semesters/search/by_plan/{plan_id}',
+                    }
+                    hateoas_links = {k: v for k, v in hateoas_links.items() if v is not None}
+
+                    return ShowPlanWithHATEOAS(plan=plan_pydantic, links=hateoas_links)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение плана по id записи о часах предмета {subject_hours_id} отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
     async def _delete_plan(self, plan_id: int, request: Request, db) -> ShowPlanWithHATEOAS:

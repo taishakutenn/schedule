@@ -1,7 +1,7 @@
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Plan
+from db.models import Chapter, Cycle, Module, Plan, SubjectsInCycle, SubjectsInCycleHours
 from config.decorators import log_exceptions
 
 
@@ -50,6 +50,37 @@ class PlanDAL:
         res = await self.db_session.execute(query)
         plan_row = res.scalar_one_or_none()
         return plan_row
+    
+    @log_exceptions
+    async def get_plan_by_subject_hours_id(self, subject_hours_id: int) -> Plan | None:
+        """
+        Return Plan from SubjectsInCycleHours:
+        variant 1: SubjectsInCycleHours -> SubjectsInCycle -> Module -> Cycle -> Chapter -> Plan 
+        variant 2: SubjectsInCycleHours -> SubjectsInCycle -> Cycle -> Chapter -> Plan 
+        """
+        query_via_module = (
+            select(Plan.id)
+            .join(Chapter, Plan.id == Chapter.plan_id)
+            .join(Cycle, Chapter.id == Cycle.chapter_in_plan_id)
+            .join(Module, Cycle.id == Module.cycle_in_chapter_id)
+            .join(SubjectsInCycle, Module.id == SubjectsInCycle.module_in_cycle_id)
+            .join(SubjectsInCycleHours, SubjectsInCycle.id == SubjectsInCycleHours.subject_in_cycle_id)
+            .where(SubjectsInCycleHours.id == subject_hours_id)
+        )
+        query_direct = (
+            select(Plan.id)
+            .join(Chapter, Plan.id == Chapter.plan_id)
+            .join(Cycle, Chapter.id == Cycle.chapter_in_plan_id)
+            .join(SubjectsInCycle, Cycle.id == SubjectsInCycle.cycle_in_chapter_id)
+            .join(SubjectsInCycleHours, SubjectsInCycle.id == SubjectsInCycleHours.subject_in_cycle_id)
+            .where(SubjectsInCycle.module_in_cycle_id.is_(None))
+            .where(SubjectsInCycleHours.id == subject_hours_id)
+        )
+        final_query = select(Plan).where(Plan.id.in_(query_via_module.union(query_direct)))
+
+        result = await self.db_session.execute(final_query)
+        plan = result.scalar_one_or_none()
+        return plan
 
     @log_exceptions
     async def update_plan(self, target_id: int, **kwargs) -> Plan | None:

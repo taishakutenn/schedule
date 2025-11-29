@@ -103,7 +103,6 @@ class SubjectsInCycleHoursDAL:
         result = await self.db_session.execute(query)
         subjects_in_cycle_hours = list(result.scalars().all())
         return subjects_in_cycle_hours if subjects_in_cycle_hours is not None else []
-# ...
 
     @log_exceptions
     async def update_subject_in_cycle_hours(self, target_id: int, **kwargs) -> SubjectsInCycleHours | None:

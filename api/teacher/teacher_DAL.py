@@ -38,7 +38,7 @@ class TeacherDAL:
 
     @log_exceptions
     async def get_all_teachers(self, page: int, limit: int) -> list[Teacher]:
-        query = select(Teacher).order_by(Teacher.id.asc())
+        query = select(Teacher).order_by(Teacher.surname.asc())
         if page > 0:
             query = query.offset((page - 1) * limit).limit(limit)
         result = await self.db_session.execute(query)

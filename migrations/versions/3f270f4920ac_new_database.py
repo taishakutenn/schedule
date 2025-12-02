@@ -1,8 +1,8 @@
-"""new start
+"""new database
 
-Revision ID: 6b60bc442354
+Revision ID: 3f270f4920ac
 Revises: 
-Create Date: 2025-10-22 14:45:40.048180
+Create Date: 2025-12-02 18:01:51.162903
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '6b60bc442354'
+revision: str = '3f270f4920ac'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,6 +26,11 @@ def upgrade() -> None:
     sa.Column('city', sa.String(), nullable=False),
     sa.Column('building_address', sa.String(), nullable=False),
     sa.PrimaryKeyConstraint('building_number')
+    )
+    op.create_table('payment_forms',
+    sa.Column('payment_name', sa.String(), nullable=False),
+    sa.PrimaryKeyConstraint('payment_name'),
+    sa.UniqueConstraint('payment_name')
     )
     op.create_table('session_types',
     sa.Column('name', sa.String(), nullable=False),
@@ -69,7 +74,6 @@ def upgrade() -> None:
     sa.Column('fathername', sa.String(), nullable=True),
     sa.Column('phone_number', sa.String(), nullable=False),
     sa.Column('email', sa.String(), nullable=True),
-    sa.Column('salary_rate', sa.Numeric(), nullable=True),
     sa.Column('teacher_category', sa.String(), nullable=True),
     sa.ForeignKeyConstraint(['teacher_category'], ['teacher_categories.teacher_category'], onupdate='CASCADE', ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id'),
@@ -90,7 +94,9 @@ def upgrade() -> None:
     sa.Column('quantity_students', sa.Integer(), nullable=True),
     sa.Column('group_advisor_id', sa.Integer(), nullable=True),
     sa.Column('speciality_code', sa.String(), nullable=True),
+    sa.Column('payment_form', sa.String(), nullable=True),
     sa.ForeignKeyConstraint(['group_advisor_id'], ['teachers.id'], onupdate='CASCADE', ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['payment_form'], ['payment_forms.payment_name'], onupdate='CASCADE', ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['speciality_code'], ['specialties.speciality_code'], onupdate='CASCADE', ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('group_name'),
     sa.UniqueConstraint('group_name')
@@ -102,6 +108,14 @@ def upgrade() -> None:
     sa.Column('plan_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['plan_id'], ['plans.id'], onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('semester', 'plan_id')
+    )
+    op.create_table('teachers_buildings',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('teacher_id', sa.Integer(), nullable=False),
+    sa.Column('building_number', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['building_number'], ['buildings.building_number'], onupdate='CASCADE', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['teacher_id'], ['teachers.id'], onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('cycle_in_chapter',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -124,12 +138,6 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('code', sa.String(), nullable=False),
     sa.Column('title', sa.String(), nullable=False),
-    sa.Column('credit', sa.String(), nullable=False),
-    sa.Column('differentiated_credit', sa.String(), nullable=False),
-    sa.Column('course_project', sa.String(), nullable=False),
-    sa.Column('course_work', sa.String(), nullable=False),
-    sa.Column('control_work', sa.String(), nullable=False),
-    sa.Column('other_form', sa.String(), nullable=False),
     sa.Column('module_in_cycle_id', sa.Integer(), nullable=True),
     sa.Column('cycle_in_chapter_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['cycle_in_chapter_id'], ['cycle_in_chapter.id'], onupdate='CASCADE', ondelete='CASCADE'),
@@ -158,6 +166,17 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['subject_in_cycle_id'], ['subjects_in_cycle.id'], onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('certifications',
+    sa.Column('credit', sa.Boolean(), nullable=False),
+    sa.Column('differentiated_credit', sa.Boolean(), nullable=False),
+    sa.Column('course_project', sa.Boolean(), nullable=False),
+    sa.Column('course_work', sa.Boolean(), nullable=False),
+    sa.Column('control_work', sa.Boolean(), nullable=False),
+    sa.Column('other_form', sa.Boolean(), nullable=False),
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['id'], ['subjects_in_cycle_hours.id'], onupdate='CASCADE', ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('teachers_in_plans',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('subject_in_cycle_hours_id', sa.Integer(), nullable=True),
@@ -171,6 +190,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('sessions',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=True),
     sa.Column('session_number', sa.Integer(), nullable=False),
     sa.Column('date', sa.Date(), nullable=False),
     sa.Column('teacher_in_plan', sa.Integer(), nullable=True),
@@ -180,7 +200,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['cabinet_number', 'building_number'], ['cabinets.cabinet_number', 'cabinets.building_number'], onupdate='CASCADE', ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['session_type'], ['session_types.name'], onupdate='CASCADE', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['teacher_in_plan'], ['teachers_in_plans.id'], onupdate='CASCADE', ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('session_number', 'date')
+    sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
 
@@ -190,11 +210,13 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('sessions')
     op.drop_table('teachers_in_plans')
+    op.drop_table('certifications')
     op.drop_table('subjects_in_cycle_hours')
     op.drop_table('streams')
     op.drop_table('subjects_in_cycle')
     op.drop_table('module_in_cycle')
     op.drop_table('cycle_in_chapter')
+    op.drop_table('teachers_buildings')
     op.drop_table('semesters')
     op.drop_table('groups')
     op.drop_table('chapter_in_plan')
@@ -205,5 +227,6 @@ def downgrade() -> None:
     op.drop_table('teacher_categories')
     op.drop_table('specialties')
     op.drop_table('session_types')
+    op.drop_table('payment_forms')
     op.drop_table('buildings')
     # ### end Alembic commands ###

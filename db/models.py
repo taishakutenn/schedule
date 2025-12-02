@@ -287,11 +287,10 @@ class Session(Base):
     Represents a one learn session in the database
 
     Fields:
-        session_number (int): This is what number the session is on that day (primary key)
-        date (date): This is the date of the session (primary key)
+        id (int): Primary key for session
+        session_number (int): This is what number the session is on that day
+        date (date): This is the date of the session
         session_type (int): This is the type of the session (e.g. "lecture" or "laboratory")
-        group_name (int): Foreign key field for linking to the teacher_in table,
-            which has information about: teacher, group, subject (primary key)
         cabinet_number (int): Foreign key field for linking to the cabinets table
         building_number (int): Second foreign key field for linking to the building number
 
@@ -302,8 +301,9 @@ class Session(Base):
     """
     __tablename__ = "sessions"
 
-    session_number = Column(Integer, primary_key=True, nullable=False)
-    date = Column(Date, primary_key=True, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True, nullable=True)
+    session_number = Column(Integer, nullable=False)
+    date = Column(Date, nullable=False)
 
     # Foreign keys
     teacher_in_plan = Column(Integer, ForeignKey("teachers_in_plans.id", onupdate="CASCADE", ondelete="CASCADE"))

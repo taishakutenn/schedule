@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.models import Session
 from config.decorators import log_exceptions
 
+from datetime import date, timedelta
+
 
 class SessionDAL:
     """Data Access Layer for operating session info"""
@@ -118,6 +120,21 @@ class SessionDAL:
                 (Session.cabinet_number == cabinet_number) &
                 (Session.building_number == building_number)
             ).offset((page - 1) * limit).limit(limit)
+        result = await self.db_session.execute(query)
+        sessions = list(result.scalars().all())
+        return sessions if sessions is not None else []
+
+    @log_exceptions
+    async def get_sessions_by_teacher_in_plan_and_date(self, teacher_in_plan_ids: list[int], start_period_date: date) -> list[Session]:
+        # Give end range days
+        delta = timedelta(days=6)
+        end_period_date = start_period_date + delta
+
+        query = select(Session).where(
+            (Session.teacher_in_plan.in_(teacher_in_plan_ids)) &
+            (Session.date.between(start_period_date, end_period_date))
+        ).order_by(Session.date).order_by(Session.session_number)
+
         result = await self.db_session.execute(query)
         sessions = list(result.scalars().all())
         return sessions if sessions is not None else []

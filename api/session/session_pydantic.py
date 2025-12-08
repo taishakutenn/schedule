@@ -5,6 +5,7 @@ from typing import List
 
 class ShowSession(TunedModel):
     """Class for get session info"""
+    # id: int
     session_number: int
     session_date: date
     teacher_in_plan: int

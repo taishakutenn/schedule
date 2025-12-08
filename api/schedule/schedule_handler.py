@@ -1,0 +1,13 @@
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
+from datetime import date
+from db.session import get_db
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from api.schedule.schedule_services import ScheduleService
+
+schedule_router = APIRouter()
+schedule_service = ScheduleService()
+
+@schedule_router.get("/search/sessions/report/for-group/{group_name}/{period_start_date}", status_code=200)
+async def get_sessions_report_by_group(group_name: str, period_start_date: date, AsyncSession = Depends(get_db)):
+    return await schedule_service._get_sessions_report_by_group(group_name, period_start_date, AsyncSession)

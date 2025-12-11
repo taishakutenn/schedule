@@ -59,7 +59,7 @@ class TeacherInPlanDAL:
         return teacher_in_plan_row
 
     @log_exceptions
-    async def get_teachers_in_plans_by_teacher(self, teacher_id: int, page: int, limit: int) -> list[TeacherInPlan]:
+    async def get_teachers_in_plans_by_teacher(self, teacher_id: int, page: int = 0, limit: int = 0) -> list[TeacherInPlan]:
         if page == 0:
             query = select(TeacherInPlan).where(TeacherInPlan.teacher_id == teacher_id).order_by(TeacherInPlan.id.asc())
         else:

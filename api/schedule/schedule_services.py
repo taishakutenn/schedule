@@ -9,6 +9,8 @@ from config.logging_config import configure_logging
 
 from api.schedule.generate_doc import generate_schedule
 
+from datetime import timedelta
+
 # Create logger object
 logger = configure_logging()
 
@@ -30,8 +32,14 @@ class ScheduleService:
                     teachers_in_plan = await teacher_in_plan_dal.get_teachers_in_plans_by_group(group_name, page=0, limit=10)
                     teachers_in_plan_ids = [teacher.teacher_id for teacher in teachers_in_plan]
 
+                    # Give end range days
+                    delta = timedelta(days=6)
+                    end_period_date = start_period_date + delta
+
                     # Get session
-                    sessions = await session_dal.get_sessions_by_teacher_in_plan_and_date(teachers_in_plan_ids, start_period_date)
+                    sessions = await session_dal.get_sessions_by_teacher_in_plan_and_date(teachers_in_plan_ids,
+                                                                                          start_period_date,
+                                                                                          end_period_date)
                     if not sessions:
                         raise HTTPException(status_code=404,
                                             detail=f"Для группы: {group_name} на неделю с начала даты: {start_period_date} не найдено учебных занятий")

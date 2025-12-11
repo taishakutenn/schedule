@@ -125,10 +125,10 @@ class SessionDAL:
         return sessions if sessions is not None else []
 
     @log_exceptions
-    async def get_sessions_by_teacher_in_plan_and_date(self, teacher_in_plan_ids: list[int], start_period_date: date) -> list[Session]:
-        # Give end range days
-        delta = timedelta(days=6)
-        end_period_date = start_period_date + delta
+    async def get_sessions_by_teacher_in_plan_and_date(self,
+                                                       teacher_in_plan_ids: list[int],
+                                                       start_period_date: date,
+                                                       end_period_date: date) -> list[Session]:
 
         query = select(Session).where(
             (Session.teacher_in_plan.in_(teacher_in_plan_ids)) &

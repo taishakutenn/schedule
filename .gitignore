@@ -3,3 +3,5 @@ __pycache__
 loggs/schedule.log
 .vscode/
 *.code-workspace
+.env
+*.pyc

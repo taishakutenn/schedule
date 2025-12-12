@@ -5,3 +5,4 @@ loggs/schedule.log
 *.code-workspace
 .env
 *.pyc
+*.idea

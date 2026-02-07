@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import re
 from typing import List, Dict, Any, Optional, Tuple, Union
@@ -63,7 +64,54 @@ class ParserService:
         self.chapters = chapters or ["ОП", "ПП"]
         self.cycles = cycles or ["НО", "ОО", "СО", "ОГСЭ", "ЕН", "ОПЦ", "ПЦ"]
         self.modules = modules or ["ОУД", "ПОО", "ПМ.02", "ПМ.03", "ПМ.05", "ПМ.06", "ПМ.07"]
-        self.sheet_name = sheet_name 
+        self.sheet_name = sheet_name
+        self.reference_file_path = "data/reference_configs.json"  
+
+    def get_reference_lists(self) -> Dict[str, Dict[str, List[str]]]:
+        """
+        Возвращает список доступных справочников из JSON-файла.
+        """
+        if os.path.exists(self.reference_file_path):
+            with open(self.reference_file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            return {}
+
+    def load_config_from_reference(self, reference_name: str) -> tuple[List[str], List[str], List[str]]:
+        """
+        Загружает конфигурацию из справочника по имени.
+        Возвращает (chapters, cycles, modules).
+        """
+        refs = self.get_reference_lists()
+        if reference_name in refs:
+            config = refs[reference_name]
+            return (
+                config.get("chapters", []),
+                config.get("cycles", []),
+                config.get("modules", [])
+            )
+        else:
+            raise ValueError(f"Справочник '{reference_name}' не найден")
+
+    def save_reference_to_file(self, name: str, chapters: List[str], cycles: List[str], modules: List[str]):
+        """
+        Сохраняет новый справочник в JSON-файл.
+        """
+        os.makedirs(os.path.dirname(self.reference_file_path), exist_ok=True)
+        
+        # Загружаем текущие справочники
+        refs = self.get_reference_lists()
+        
+        # Добавляем новый
+        refs[name] = {
+            "chapters": chapters,
+            "cycles": cycles,
+            "modules": modules
+        }
+        
+        # Сохраняем обратно в файл
+        with open(self.reference_file_path, 'w', encoding='utf-8') as f:
+            json.dump(refs, f, ensure_ascii=False, indent=2)
     
     def debug_print_file_structure(self, file_path: str):
         print("=== ОТЛАДКА ФАЙЛА ===")

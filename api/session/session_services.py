@@ -31,9 +31,23 @@ class SessionService:
                         if not cabinet_exists:
                             raise HTTPException(status_code=404, detail=f"Кабинет {body.cabinet_number} в здании {body.building_number} не найден")
 
-                    existing_session = await session_dal.get_session_by_composite_key(body.session_number, body.session_date, body.teacher_in_plan)
-                    if existing_session:
-                        raise HTTPException(status_code=400, detail=f"Занятие с номером {body.session_number}, датой {body.session_date} и записью в расписании преподавателя {body.teacher_in_plan} уже существует")
+                    # Получаем группу из плана
+                    teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_id(body.teacher_in_plan)
+                    group = teacher_in_plan.group_name
+
+                    # Получаем все пары на текущую дату для текущей группы
+                    today_sessions = await session_dal.get_sessions_by_date_and_group(body.session_date, group)
+                    # Получаем список номеров пар группы
+                    today_sessions_numbers = [session.session_number for session in today_sessions]
+
+                    # Проверяем, есть ли у группы пара с таким номером
+                    if body.session_number in today_sessions_numbers:
+                        raise HTTPException(status_code=400, detail=f"У группы: {group} уже есть {body.session_number} пара")
+
+                    # # Проверяем, занят ли кабинет
+                    # is_cabinet_busy = await session_dal.get_session_by_cabinet_and_time(body.cabinet_number, body.building_number, body.session_date, body.session_number)
+                    # if is_cabinet_busy is not None:
+                    #     raise HTTPException(status_code=400, detail=f"В кабинете: {body.building_number}-{body.cabinet_number} уже есть пара")
 
                     session_obj = await session_dal.create_session(
                         session_number=body.session_number,
@@ -48,6 +62,7 @@ class SessionService:
                     teacher_in_plan_id = session_obj.teacher_in_plan
                     
                     session_dict = {
+                        "id": session_obj.id,
                         "session_number": session_obj.session_number,
                         "session_date": session_obj.date,
                         "teacher_in_plan": session_obj.teacher_in_plan,
@@ -93,6 +108,7 @@ class SessionService:
                         raise HTTPException(status_code=404, detail=f"Занятие с номером {session_number}, датой {session_date} и записью в расписании преподавателя {teacher_in_plan} не найдено")
 
                     session_dict = {
+                        "id": session_obj.id,
                         "session_number": session_obj.session_number,
                         "session_date": session_obj.date,
                         "teacher_in_plan": session_obj.teacher_in_plan,
@@ -126,6 +142,84 @@ class SessionService:
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
+    async def _get_sessions_by_teacher_and_date(self,
+                                                teacher_id: int,
+                                                start_period_date,
+                                                end_period_date,
+                                                request: Request,
+                                                db):
+        async with db as session:
+            async with session.begin():
+                session_dal = SessionDAL(session)
+                teacher_in_plan_dal = TeacherInPlanDAL(session)
+                try:
+                    # Get all teacher_in_plan_id from teacher
+                    teachers_in_plan = await teacher_in_plan_dal.get_teachers_in_plans_by_teacher(teacher_id)
+                    teachers_in_plan_ids = [teacher.teacher_id for teacher in teachers_in_plan]
+
+                    # If not teachers in plans
+                    if not teachers_in_plan_ids:
+                        raise HTTPException(status_code=404,
+                                            detail=f"Не найдено планов для преподавателя с id: {teacher_id}")
+
+                    sessions = await session_dal.get_sessions_by_teacher_in_plan_and_date(teachers_in_plan_ids,
+                                                                                    start_period_date,
+                                                                                    end_period_date
+                                                                                    )
+
+                    if not session:
+                        raise HTTPException(status_code=404,
+                                            detail=f"Не найдено занятий на неделю в периоде: с {start_period_date}"
+                                                   f"по {end_period_date} для данного учителя")
+
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+
+                    sessions_with_hateoas = []
+                    for session_obj in sessions:
+                        session_dict = {
+                            "id": session_obj.id,
+                            "session_number": session_obj.session_number,
+                            "session_date": session_obj.date,
+                            "teacher_in_plan": session_obj.teacher_in_plan,
+                            "session_type": session_obj.session_type,
+                            "cabinet_number": session_obj.cabinet_number,
+                            "building_number": session_obj.building_number,
+                        }
+                        session_pydantic = ShowSession.model_validate(session_dict)
+                        session_number = session_obj.session_number
+                        session_date = session_obj.date
+                        plan_id = session_obj.teacher_in_plan
+                        session_links = {
+                            "self": f'{api_base_url}/sessions/search/by_composite_key/{session_number}/{session_date}/{plan_id}',
+                            "update": f'{api_base_url}/sessions/update',
+                            "delete": f'{api_base_url}/sessions/delete/{session_number}/{session_date}/{plan_id}',
+                            "sessions": f'{api_base_url}/sessions',
+                            "plan": f'{api_base_url}/teachers_in_plans/search/by_id/{plan_id}',
+                            "type": f'{api_base_url}/session-types/search/by_name/{session_obj.session_type}',
+                            "cabinet": f'{api_base_url}/cabinets/search/by_building_and_number/{session_obj.building_number}/{session_obj.cabinet_number}' if session_obj.cabinet_number and session_obj.building_number else None
+                        }
+                        session_links = {k: v for k, v in session_links.items() if v is not None}
+                        session_with_links = ShowSessionWithHATEOAS(session=session_pydantic, links=session_links)
+                        sessions_with_hateoas.append(session_with_links)
+
+                    collection_links = {
+                        "self": f'{api_base_url}/sessions/search/by_teacher_id/{teacher_id}/{start_period_date}/{end_period_date}',
+                        "create": f'{api_base_url}/sessions/create'
+                    }
+                    collection_links = {k: v for k, v in collection_links.items() if v is not None}
+
+                    return ShowSessionListWithHATEOAS(sessions=sessions_with_hateoas, links=collection_links)
+
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение занятий для в периоде: с {start_period_date} о {end_period_date} отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
     async def _get_sessions_by_plan(self, teacher_in_plan_id: int, page: int, limit: int, request: Request, db) -> ShowSessionListWithHATEOAS:
         async with db as session:
             async with session.begin():
@@ -143,6 +237,7 @@ class SessionService:
                     sessions_with_hateoas = []
                     for session_obj in sessions:
                         session_dict = {
+                            "id": session_obj.id,
                             "session_number": session_obj.session_number,
                             "session_date": session_obj.date,
                             "teacher_in_plan": session_obj.teacher_in_plan,
@@ -196,6 +291,7 @@ class SessionService:
                     sessions_with_hateoas = []
                     for session_obj in sessions:
                         session_dict = {
+                            "id": session_obj.id,
                             "session_number": session_obj.session_number,
                             "session_date": session_obj.date,
                             "teacher_in_plan": session_obj.teacher_in_plan,
@@ -251,6 +347,7 @@ class SessionService:
                     sessions_with_hateoas = []
                     for session_obj in sessions:
                         session_dict = {
+                            "id": session_obj.id,
                             "session_number": session_obj.session_number,
                             "session_date": session_obj.date,
                             "teacher_in_plan": session_obj.teacher_in_plan,
@@ -308,6 +405,7 @@ class SessionService:
                     sessions_with_hateoas = []
                     for session_obj in sessions:
                         session_dict = {
+                            "id": session_obj.id,
                             "session_number": session_obj.session_number,
                             "session_date": session_obj.date,
                             "teacher_in_plan": session_obj.teacher_in_plan,
@@ -360,6 +458,7 @@ class SessionService:
                     sessions_with_hateoas = []
                     for session_obj in sessions:
                         session_dict = {
+                            "id": session_obj.id,
                             "session_number": session_obj.session_number,
                             "session_date": session_obj.date,
                             "teacher_in_plan": session_obj.teacher_in_plan,
@@ -414,6 +513,7 @@ class SessionService:
                         raise HTTPException(status_code=404, detail=f"Занятие с номером {session_number}, датой {session_date} и записью в расписании преподавателя {teacher_in_plan} не найдено")
 
                     session_dict = {
+                        "id": session_obj.id,
                         "session_number": deleted_session_obj.session_number,
                         "session_date": deleted_session_obj.date,
                         "teacher_in_plan": deleted_session_obj.teacher_in_plan,
@@ -504,6 +604,7 @@ class SessionService:
                     teacher_in_plan_id = updated_session_obj.teacher_in_plan
                     
                     session_dict = {
+                        "id": updated_session_obj.id,
                         "session_number": updated_session_obj.session_number,
                         "session_date": updated_session_obj.date,
                         "teacher_in_plan": updated_session_obj.teacher_in_plan,

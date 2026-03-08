@@ -26,6 +26,15 @@ async def get_sessions_by_plan(teacher_in_plan_id: int, query_param: Annotated[Q
     return await session_service._get_sessions_by_plan(teacher_in_plan_id, query_param.page, query_param.limit, request, db)
 
 
+@session_router.get("/search/by_teacher_id/{teacher_id}/{start_period_date}/{end_period_date}", response_model=ShowSessionListWithHATEOAS, responses={404: {"description": "Занятия не найдены"}})
+async def get_sessions_by_teacher_and_date(teacher_id: int,
+                                                    start_period_date: date,
+                                                    end_period_date: date,
+                                                    request: Request,
+                                                    db: AsyncSession = Depends(get_db)):
+    return await session_service._get_sessions_by_teacher_and_date(teacher_id, start_period_date,end_period_date, request, db)
+
+
 @session_router.get("/search/by_date/{session_date}", response_model=ShowSessionListWithHATEOAS, responses={404: {"description": "Занятия не найдены"}})
 async def get_sessions_by_date(session_date: date, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
     return await session_service._get_sessions_by_date(session_date, query_param.page, query_param.limit, request, db)

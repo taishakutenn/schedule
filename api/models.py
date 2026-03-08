@@ -13,7 +13,6 @@ class TunedModel(BaseModel):
         Tells pydantic to convert even non dict obj to json.
         We'll get fed up with this class
         """
-        orm_mode = True
         from_attributes = True
 
 

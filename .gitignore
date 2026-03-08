@@ -4,3 +4,6 @@ loggs/schedule.log
 .vscode/
 *.code-workspace
 /data/
+.env
+*.pyc
+*.idea

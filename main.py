@@ -27,6 +27,9 @@ from api.certification.certification_handlers import certification_router
 from api.stream.stream_handlers import stream_router
 from api.teacher_building.teacher_building_handlers import teacher_building_router
 from api.payment.payment_handlers import payment_form_router
+from api.schedule.schedule_handler import schedule_router
+from api.user.user_handlers import user_router
+from api.auth.auth_handlers import auth_router
 
 # Create fastapi app
 app = FastAPI(title="OGTIScheduleApi")
@@ -55,6 +58,9 @@ main_api_router.include_router(semester_router, prefix="/semesters", tags=["seme
 main_api_router.include_router(certification_router, prefix="/certifications", tags=["certifications"])
 main_api_router.include_router(stream_router, prefix="/streams", tags=["streams"])
 main_api_router.include_router(teacher_building_router, prefix="/teachers_buildings", tags=["teachers-buildings"])
+main_api_router.include_router(schedule_router, prefix="/schedule", tags=["schedule"])
+main_api_router.include_router(user_router, prefix="/user", tags=["user"])
+main_api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 from api.parser.parser_handler import parser_router
 main_api_router.include_router(parser_router, prefix="/parser", tags=["Parser"])

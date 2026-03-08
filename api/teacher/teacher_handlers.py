@@ -5,6 +5,8 @@ from api.teacher.teacher_pydantic import *
 from api.models import QueryParams
 from db.session import get_db
 from api.teacher.teacher_services import TeacherService
+from db.models import User
+from security.deps import require_role
 
 teacher_router = APIRouter()
 
@@ -27,7 +29,12 @@ async def get_teachers_by_ids( query_param: Annotated[QueryParams, Depends()], r
 
 
 @teacher_router.get("/search", response_model=ShowTeacherListWithHATEOAS, responses={404: {"description": "Преподаватели не найдены"}})
-async def get_all_teachers(query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
+async def get_all_teachers(
+    query_param: Annotated[QueryParams, Depends()],
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    # current_user: User = Depends(require_role(["admin", "string"]))
     return await teacher_service._get_all_teachers(query_param.page, query_param.limit, request, db)
 
 

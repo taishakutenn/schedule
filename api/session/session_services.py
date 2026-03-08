@@ -31,9 +31,23 @@ class SessionService:
                         if not cabinet_exists:
                             raise HTTPException(status_code=404, detail=f"Кабинет {body.cabinet_number} в здании {body.building_number} не найден")
 
-                    existing_session = await session_dal.get_session_by_composite_key(body.session_number, body.session_date, body.teacher_in_plan)
-                    if existing_session:
-                        raise HTTPException(status_code=400, detail=f"Занятие с номером {body.session_number}, датой {body.session_date} и записью в расписании преподавателя {body.teacher_in_plan} уже существует")
+                    # Получаем группу из плана
+                    teacher_in_plan = await teacher_in_plan_dal.get_teacher_in_plan_by_id(body.teacher_in_plan)
+                    group = teacher_in_plan.group_name
+
+                    # Получаем все пары на текущую дату для текущей группы
+                    today_sessions = await session_dal.get_sessions_by_date_and_group(body.session_date, group)
+                    # Получаем список номеров пар группы
+                    today_sessions_numbers = [session.session_number for session in today_sessions]
+
+                    # Проверяем, есть ли у группы пара с таким номером
+                    if body.session_number in today_sessions_numbers:
+                        raise HTTPException(status_code=400, detail=f"У группы: {group} уже есть {body.session_number} пара")
+
+                    # # Проверяем, занят ли кабинет
+                    # is_cabinet_busy = await session_dal.get_session_by_cabinet_and_time(body.cabinet_number, body.building_number, body.session_date, body.session_number)
+                    # if is_cabinet_busy is not None:
+                    #     raise HTTPException(status_code=400, detail=f"В кабинете: {body.building_number}-{body.cabinet_number} уже есть пара")
 
                     session_obj = await session_dal.create_session(
                         session_number=body.session_number,
@@ -48,6 +62,7 @@ class SessionService:
                     teacher_in_plan_id = session_obj.teacher_in_plan
                     
                     session_dict = {
+                        "id": session_obj.id,
                         "session_number": session_obj.session_number,
                         "session_date": session_obj.date,
                         "teacher_in_plan": session_obj.teacher_in_plan,

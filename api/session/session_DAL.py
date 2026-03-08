@@ -1,7 +1,7 @@
 from sqlalchemy import Date, select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Session
+from db.models import Session, TeacherInPlan
 from config.decorators import log_exceptions
 
 from datetime import date, timedelta
@@ -77,11 +77,47 @@ class SessionDAL:
         return sessions if sessions is not None else []
 
     @log_exceptions
-    async def get_sessions_by_date(self, session_date: Date, page: int, limit: int) -> list[Session]: 
+    async def get_sessions_by_date(self, session_date: Date, page: int = 0, limit: int = 1000) -> list[Session]: 
         if page == 0:
             query = select(Session).where(Session.date == session_date).order_by(Session.session_number.asc()) 
         else:
             query = select(Session).where(Session.date == session_date).offset((page - 1) * limit).limit(limit) 
+        result = await self.db_session.execute(query)
+        sessions = list(result.scalars().all())
+        return sessions if sessions is not None else []
+    
+    @log_exceptions
+    async def get_sessions_by_date_and_group(
+        self, 
+        session_date: Date, 
+        group_name: str,
+        page: int = 0, 
+        limit: int = 1000
+    ) -> list[Session]:
+        """
+        Получить все сессии на дату для указанной группы
+        """
+        if page == 0:
+            query = (
+                select(Session)
+                .join(Session.plan)
+                .where(
+                    (Session.date == session_date) &
+                    (TeacherInPlan.group_name == group_name)
+                )
+                .order_by(Session.session_number.asc())
+            )
+        else:
+            query = (
+                select(Session)
+                .join(Session.plan)
+                .where(
+                    (Session.date == session_date) &
+                    (TeacherInPlan.group_name == group_name)
+                )
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
         result = await self.db_session.execute(query)
         sessions = list(result.scalars().all())
         return sessions if sessions is not None else []

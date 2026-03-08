@@ -4,6 +4,12 @@ from sqlalchemy import (Column, String, Boolean, Integer, Numeric, ForeignKey, D
                         and_, Table, Double)
 from sqlalchemy.orm import relationship, DeclarativeBase, foreign
 
+# Новый стиль sqlalchemy 
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+
+from uuid import UUID, uuid4
+
 
 class Base(DeclarativeBase):
     """
@@ -301,7 +307,7 @@ class Session(Base):
     """
     __tablename__ = "sessions"
 
-    id = Column(Integer, primary_key=True, autoincrement=True, nullable=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     session_number = Column(Integer, nullable=False)
     date = Column(Date, nullable=False)
 
@@ -753,3 +759,13 @@ class Token(Base):
     def set_token(self, access_token, refresh_token):
         """Function which set the tokens"""
         pass
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    uuid: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    username: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="Schedule Manager") # Schedule Manager, Admin, Chief Admin

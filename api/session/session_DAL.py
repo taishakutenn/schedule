@@ -176,6 +176,23 @@ class SessionDAL:
         return sessions if sessions is not None else []
 
     @log_exceptions
+    async def get_sessions_by_date_range(
+        self,
+        start_period_date: date,
+        end_period_date: date
+    ) -> list[Session]:
+        """
+        Получить все сессии за диапазон дат
+        """
+        query = select(Session).where(
+            Session.date.between(start_period_date, end_period_date)
+        ).order_by(Session.date.asc(), Session.session_number.asc())
+
+        result = await self.db_session.execute(query)
+        sessions = list(result.scalars().all())
+        return sessions if sessions is not None else []
+
+    @log_exceptions
     async def update_session(self, target_session_number: int, target_session_date: Date, target_teacher_in_plan: int, **kwargs) -> Session | None: 
         query = update(Session).where(
             (Session.session_number == target_session_number) &

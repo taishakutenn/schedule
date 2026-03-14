@@ -393,7 +393,7 @@ class GroupService:
                     
                     # Преобразуем в pydantic модели
                     subjects_list = [
-                        ShowSubject(code=subject.code, title=subject.title)
+                        ShowSubject(id=subject.id, code=subject.code, title=subject.title)
                         for subject in subjects
                     ]
 

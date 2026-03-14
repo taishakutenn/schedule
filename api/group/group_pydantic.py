@@ -40,6 +40,7 @@ class ShowGroupListWithHATEOAS(TunedModel):
 
 class ShowSubject(TunedModel):
     """Предмет учебного плана"""
+    id: int
     code: str
     title: str
 

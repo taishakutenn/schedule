@@ -1,7 +1,7 @@
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete, update, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Group
+from db.models import Group, TeacherInPlan, SubjectsInCycleHours, SubjectsInCycle
 from config.decorators import log_exceptions
 
 
@@ -80,4 +80,24 @@ class GroupDAL:
         res = await self.db_session.execute(query)
         updated_group = res.scalar_one_or_none()
         return updated_group
+
+    @log_exceptions
+    async def get_subjects_with_lectures_by_group(self, group_name: str) -> list[SubjectsInCycle]:
+        """
+        Получить все предметы группы, у которых есть часы лекций.
+        
+        Связь: Group -> TeacherInPlan -> SubjectsInCycleHours -> SubjectsInCycle
+        """
+        query = (
+            select(SubjectsInCycle)
+            .join(SubjectsInCycleHours, SubjectsInCycle.id == SubjectsInCycleHours.subject_in_cycle_id)
+            .join(TeacherInPlan, SubjectsInCycleHours.id == TeacherInPlan.subject_in_cycle_hours_id)
+            .where(TeacherInPlan.group_name == group_name)
+            .where(SubjectsInCycleHours.lectures_hours > 0)
+            .distinct()
+            .order_by(SubjectsInCycle.code)
+        )
+        result = await self.db_session.execute(query)
+        subjects = list(result.scalars().all())
+        return subjects if subjects is not None else []
     

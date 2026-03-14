@@ -36,3 +36,15 @@ class ShowGroupWithHATEOAS(TunedModel):
 class ShowGroupListWithHATEOAS(TunedModel):
     groups: List[ShowGroupWithHATEOAS]
     links: dict[str, str] = {}
+
+
+class ShowSubject(TunedModel):
+    """Предмет учебного плана"""
+    code: str
+    title: str
+
+
+class ShowSubjectList(TunedModel):
+    """Список предметов группы"""
+    subjects: List[ShowSubject]
+    links: dict[str, str] = {}

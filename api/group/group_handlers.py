@@ -49,3 +49,9 @@ async def delete_group(group_name: str, request: Request, db: AsyncSession = Dep
 @group_router.put("/update", response_model=ShowGroupWithHATEOAS, responses={404: {"description": "Группа не найдена"}})
 async def update_group(body: UpdateGroup, request: Request, db: AsyncSession = Depends(get_db)):
     return await group_service._update_group(body, request, db)
+
+
+@group_router.get("/{group_name}/subjects", response_model=ShowSubjectList, responses={404: {"description": "Группа не найдена"}})
+async def get_subjects_by_group(group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Получить все предметы группы, у которых есть часы лекций."""
+    return await group_service._get_subjects_by_group(group_name, request, db)

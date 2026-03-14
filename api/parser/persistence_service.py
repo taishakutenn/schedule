@@ -1,6 +1,7 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, List
+from fastapi import HTTPException
 
 from api.certification.certification_DAL import CertificationDAL
 from api.chapter.chapter_DAL import ChapterDAL
@@ -8,6 +9,7 @@ from api.cycle.cycle_DAL import CycleDAL
 from api.module.module_DAL import ModuleDAL
 from api.plan.plan_DAL import PlanDAL
 from api.semester.semester_DAL import SemesterDAL
+from api.speciality.speciality_DAL import SpecialityDAL
 from api.subject_in_cycle.subject_in_cycle_DAL import SubjectsInCycleDAL
 from api.subject_in_cycle_hours.subject_in_cycle_hours_DAL import SubjectsInCycleHoursDAL
 
@@ -25,6 +27,7 @@ class PersistenceService:
         self.db_session = db_session
         # Инициализируем DAL'ы
         self.plan_dal = PlanDAL(db_session)
+        self.speciality_dal = SpecialityDAL(db_session)
         self.chapter_dal = ChapterDAL(db_session)
         self.cycle_dal = CycleDAL(db_session)
         self.module_dal = ModuleDAL(db_session)
@@ -36,9 +39,20 @@ class PersistenceService:
     async def save_parsed_data(self, parsed_data: Dict[str, Any]) -> int:
         logger.info("Начинается сохранение спарсенных данных в БД.")
 
+        # Проверяем существование специальности перед созданием плана
+        speciality_code = parsed_data['speciality_code']
+        speciality = await self.speciality_dal.get_speciality(speciality_code)
+        if not speciality:
+            logger.error(f"Специальность '{speciality_code}' не найдена в базе данных.")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Специальность '{speciality_code}' не найдена в базе данных. Сначала создайте специальность через API /specialities/create"
+            )
+        logger.info(f"Специальность '{speciality_code}' найдена в базе данных.")
+
         plan = await self.plan_dal.create_plan(
             year=parsed_data['year'],
-            speciality_code=parsed_data['speciality_code']
+            speciality_code=speciality_code
         )
         plan_id = plan.id
         logger.info(f"Создан план с ID: {plan_id}")

@@ -21,7 +21,7 @@ async def get_group_by_name(group_name: str, request: Request, db: AsyncSession 
     return await group_service._get_group_by_name(group_name, request, db)
 
 
-@group_router.get("/search/by_advisor/{advisor_id}", response_model=ShowGroupWithHATEOAS, responses={404: {"description": "Группа не найдена"}})
+@group_router.get("/search/by_advisor/{advisor_id}", response_model=ShowGroupListWithHATEOAS, responses={404: {"description": "Группы не найдены"}})
 async def get_group_by_advisor(advisor_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     return await group_service._get_group_by_advisor(advisor_id, request, db)
 

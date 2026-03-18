@@ -30,6 +30,7 @@ from api.payment.payment_handlers import payment_form_router
 from api.schedule.schedule_handler import schedule_router
 from api.user.user_handlers import user_router
 from api.auth.auth_handlers import auth_router
+from api.backup.backup_handlers import backup_router
 
 # Create fastapi app
 app = FastAPI(title="OGTIScheduleApi")
@@ -64,6 +65,9 @@ main_api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 from api.parser.parser_handler import parser_router
 main_api_router.include_router(parser_router, prefix="/parser", tags=["Parser"])
+
+# Backup/Restore endpoints
+main_api_router.include_router(backup_router, tags=["database"])
 
 # Add main api router into fastapi app
 app.include_router(main_api_router)

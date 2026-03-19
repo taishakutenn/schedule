@@ -24,9 +24,7 @@ class CreateSession(TunedModel):
 
 
 class UpdateSession(TunedModel):
-    session_number: int
-    session_date: date
-    teacher_in_plan: int
+    session_id: int
     new_session_number: int | None = None
     new_session_date: date | None = None
     new_teacher_in_plan: int | None = None

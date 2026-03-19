@@ -60,6 +60,11 @@ async def delete_session(session_number: int, session_date: date, teacher_in_pla
     return await session_service._delete_session(session_number, session_date, teacher_in_plan, request, db)
 
 
+@session_router.delete("/delete/by_id/{session_id}", response_model=ShowSession, responses={404: {"description": "Занятие не найдено"}})
+async def delete_session_by_id(session_id: int, db: AsyncSession = Depends(get_db)):
+    return await session_service._delete_session_by_id(session_id, db)
+
+
 @session_router.put("/update", response_model=ShowSessionWithHATEOAS, responses={404: {"description": "Занятие не найдено"}})
 async def update_session(body: UpdateSession, request: Request, db: AsyncSession = Depends(get_db)):
     return await session_service._update_session(body, request, db)

@@ -730,9 +730,6 @@ class Stream(Base):
     # Relationships
     group = relationship("Group", back_populates="streams")
     subject = relationship("SubjectsInCycle", back_populates="streams")
-
-
-class Token(Base):
     """
     Represents a token for using api
     More information about the tokens read in the habr: https://habr.com/ru/articles/533868/

@@ -544,15 +544,60 @@ class SessionService:
                 raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении занятия.")
 
 
+    async def _delete_session_by_id(self, session_id: int, db) -> ShowSession:
+        async with db as session:
+            try:
+                async with session.begin():
+                    session_dal = SessionDAL(session)
+                    session_obj = await session_dal.get_session_by_id(session_id)
+                    if not session_obj:
+                        raise HTTPException(status_code=404, detail=f"Занятие с таким id: {session_id} не существует")
+
+                    deleted_session_obj = await session_dal.delete_session_by_id(session_id)
+                    
+                    if not deleted_session_obj:
+                        raise HTTPException(status_code=400, detail=f"Не удалось удалить занятие с id: {session_id}")
+
+                    session_dict = {
+                        "id": session_obj.id,
+                        "session_number": deleted_session_obj.session_number,
+                        "session_date": deleted_session_obj.date,
+                        "teacher_in_plan": deleted_session_obj.teacher_in_plan,
+                        "session_type": deleted_session_obj.session_type,
+                        "cabinet_number": deleted_session_obj.cabinet_number,
+                        "building_number": deleted_session_obj.building_number,
+                    }
+                    session = ShowSession.model_validate(session_dict)
+                    
+                    return session
+
+            except HTTPException:
+                await session.rollback()
+                raise
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Неожиданная ошибка при удалении занятия с id: {session_id} :{e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при удалении занятия.")
+
+
     async def _update_session(self, body: UpdateSession, request: Request, db) -> ShowSessionWithHATEOAS:
         async with db as session:
             try:
                 async with session.begin():
-                    update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["session_number", "session_date", "teacher_in_plan", "new_session_number", "new_session_date", "new_teacher_in_plan", "new_cabinet_number", "new_building_number"]}
+                    update_data = {key: value for key, value in body.dict().items() if value is not None and key not in ["session_id", "session_number", "session_date", "teacher_in_plan", "new_session_number", "new_session_date", "new_teacher_in_plan", "new_cabinet_number", "new_building_number", "new_session_type"]}
+                    
+                    if body.new_session_type is not None:
+                        update_data["session_type"] = body.new_session_type
 
-                    target_session_number = body.session_number
-                    target_session_date = body.session_date
-                    target_teacher_in_plan = body.teacher_in_plan
+                    session_dal = SessionDAL(session)
+
+                    session_obj = await session_dal.get_session_by_id(body.session_id)
+                    if not session_obj:
+                        raise HTTPException(status_code=404, detail=f"Занятие с номером {body.session_number}, датой {body.session_date} и записью в расписании преподавателя {body.teacher_in_plan} не найдено")
+                    
+                    target_session_number = session_obj.session_number
+                    target_session_date = session_obj.date
+                    target_teacher_in_plan = session_obj.teacher_in_plan
                     if body.new_session_number is not None:
                         update_data["session_number"] = body.new_session_number
                         target_session_number = body.new_session_number
@@ -584,20 +629,14 @@ class SessionService:
                             if not cabinet_exists:
                                 raise HTTPException(status_code=404, detail=f"Кабинет {cabinet_number_to_check} в здании {building_number_to_check} не найден")
 
-                    session_dal = SessionDAL(session)
-
-                    session_obj = await session_dal.get_session_by_composite_key(body.session_number, body.session_date, body.teacher_in_plan)
-                    if not session_obj:
-                        raise HTTPException(status_code=404, detail=f"Занятие с номером {body.session_number}, датой {body.session_date} и записью в расписании преподавателя {body.teacher_in_plan} не найдено")
-
-                    if (target_session_number, target_session_date, target_teacher_in_plan) != (body.session_number, body.session_date, body.teacher_in_plan):
+                    if (target_session_number, target_session_date, target_teacher_in_plan) != (body.new_session_number, body.new_session_date, body.new_teacher_in_plan):
                         existing_new_session = await session_dal.get_session_by_composite_key(target_session_number, target_session_date, target_teacher_in_plan)
                         if existing_new_session:
                             raise HTTPException(status_code=400, detail=f"Занятие с номером {target_session_number}, датой {target_session_date} и записью в расписании преподавателя {target_teacher_in_plan} уже существует")
 
-                    updated_session_obj = await session_dal.update_session(target_session_number=body.session_number, target_session_date=body.session_date, target_teacher_in_plan=body.teacher_in_plan, **update_data)
+                    updated_session_obj = await session_dal.update_session(body.session_id, **update_data)
                     if not updated_session_obj:
-                        raise HTTPException(status_code=404, detail=f"Занятие с номером {body.session_number}, датой {body.session_date} и записью в расписании преподавателя {body.teacher_in_plan} не найдено")
+                        raise HTTPException(status_code=404, detail=f"Занятие с номером {body.new_session_number}, датой {body.new_session_date} и записью в расписании преподавателя {body.new_teacher_in_plan} не найдено")
 
                     session_number = updated_session_obj.session_number
                     session_date = updated_session_obj.date

@@ -46,6 +46,13 @@ class SessionDAL:
         return deleted_session
 
     @log_exceptions
+    async def delete_session_by_id(self, session_id) -> Session | None:
+        query = delete(Session).where((Session.id == session_id)).returning(Session)
+        res = await self.db_session.execute(query)
+        deleted_session = res.scalar_one_or_none()
+        return deleted_session
+
+    @log_exceptions
     async def get_all_sessions(self, page: int, limit: int) -> list[Session]:
         if page == 0:
             query = select(Session).order_by(Session.date.asc(), Session.session_number.asc()) 
@@ -62,6 +69,13 @@ class SessionDAL:
             (Session.date == session_date) & 
             (Session.teacher_in_plan == teacher_in_plan)
         )
+        res = await self.db_session.execute(query)
+        session_row = res.scalar_one_or_none()
+        return session_row
+
+    @log_exceptions
+    async def get_session_by_id(self, session_id: int) -> Session | None:
+        query = select(Session).where(Session.id == session_id)
         res = await self.db_session.execute(query)
         session_row = res.scalar_one_or_none()
         return session_row
@@ -193,12 +207,8 @@ class SessionDAL:
         return sessions if sessions is not None else []
 
     @log_exceptions
-    async def update_session(self, target_session_number: int, target_session_date: Date, target_teacher_in_plan: int, **kwargs) -> Session | None: 
-        query = update(Session).where(
-            (Session.session_number == target_session_number) &
-            (Session.date == target_session_date) &
-            (Session.teacher_in_plan == target_teacher_in_plan)
-        ).values(**kwargs).returning(Session)
+    async def update_session(self, session_id: int, **kwargs) -> Session | None: 
+        query = update(Session).where(Session.id == session_id).values(**kwargs).returning(Session)
         res = await self.db_session.execute(query)
         updated_session = res.scalar_one_or_none()
         return updated_session

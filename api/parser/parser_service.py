@@ -113,29 +113,107 @@ class ParserService:
         with open(self.reference_file_path, 'w', encoding='utf-8') as f:
             json.dump(refs, f, ensure_ascii=False, indent=2)
     
+    def parse_title_sheet(self, file_path: str) -> Tuple[Optional[int], Optional[str]]:
+        """
+        Извлекает год и код специальности из титульного листа (первый лист).
+        
+        Возвращает:
+            Tuple[Optional[int], Optional[str]]: (year, speciality_code)
+        """
+        try:
+            excel_file = pd.ExcelFile(file_path)
+            # Используем первый лист (титульный)
+            title_sheet = excel_file.sheet_names[0]
+            df = pd.read_excel(file_path, header=None, sheet_name=title_sheet)
+            
+            year = None
+            speciality_code = None
+            
+            # Поиск кода специальности (ищем паттерн XX.XX.XX)
+            speciality_pattern = re.compile(r'\b(\d{2}\.\d{2}\.\d{2})\b')
+            
+            for row_idx in range(len(df)):
+                for col_idx in range(len(df.columns)):
+                    cell_value = df.iloc[row_idx, col_idx]
+                    
+                    if pd.notna(cell_value):
+                        cell_str = str(cell_value).strip()
+                        
+                        # Поиск кода специальности в формате XX.XX.XX
+                        if not speciality_code:
+                            match = speciality_pattern.search(cell_str)
+                            if match:
+                                speciality_code = match.group(1)
+                                print(f"Найден код специальности '{speciality_code}' в ({row_idx}, {col_idx})")
+                        
+                        # Поиск года начала подготовки
+                        # Ищем ячейку с текстом "год начала" или "год начала подготовки"
+                        if 'год начала' in cell_str.lower():
+                            # Год может быть в этой же ячейке или в соседних
+                            year_match = re.search(r'(20\d{2})', cell_str)
+                            if year_match:
+                                year = int(year_match.group(1))
+                                print(f"Найден год '{year}' в метке ({row_idx}, {col_idx}): {cell_str}")
+                            else:
+                                # Проверяем следующие ячейки в этой строке
+                                for next_col in range(col_idx + 1, min(col_idx + 10, len(df.columns))):
+                                    next_value = df.iloc[row_idx, next_col]
+                                    if pd.notna(next_value):
+                                        next_str = str(next_value)
+                                        year_match = re.search(r'(20\d{2})', next_str)
+                                        if year_match:
+                                            year = int(year_match.group(1))
+                                            print(f"Найден год '{year}' в ({row_idx}, {next_col}): {next_str}")
+                                            break
+                        
+                        # Прямой поиск года в формате 20XX (отдельное 4-значное число)
+                        if year is None and re.match(r'^20\d{2}\.?0*$', cell_str):
+                            year = int(float(cell_str))
+                            print(f"Найден год '{year}' в ({row_idx}, {col_idx}): {cell_str}")
+            
+            # Если год не найден, пробуем извлечь из названия файла
+            if year is None:
+                file_name_match = re.search(r'(20\d{2})\s*год', os.path.basename(file_path))
+                if file_name_match:
+                    year = int(file_name_match.group(1))
+                    print(f"Год '{year}' извлечён из имени файла")
+            
+            # Если специальность не найдена, пробуем извлечь из названия файла
+            if not speciality_code:
+                file_spec_match = re.search(r'(\d{2}\.\d{2}\.\d{2})', os.path.basename(file_path))
+                if file_spec_match:
+                    speciality_code = file_spec_match.group(1)
+                    print(f"Код специальности '{speciality_code}' извлечён из имени файла")
+            
+            return year, speciality_code
+            
+        except Exception as e:
+            print(f"Ошибка при парсинге титульного листа: {e}")
+            return None, None
+
     def debug_print_file_structure(self, file_path: str):
         print("=== ОТЛАДКА ФАЙЛА ===")
-        
+
         try:
             excel_file = pd.ExcelFile(file_path)
             print(f"Доступные листы: {excel_file.sheet_names}")
-            
+
             if self.sheet_name in excel_file.sheet_names:
                 print(f"Используем лист: {self.sheet_name}")
                 df = pd.read_excel(file_path, header=None, sheet_name=self.sheet_name)
             else:
                 print(f"Лист '{self.sheet_name}' не найден, используем первый лист: {excel_file.sheet_names[0]}")
                 df = pd.read_excel(file_path, header=None, sheet_name=excel_file.sheet_names[0])
-            
+
             print(f"Размерность DataFrame: {df.shape}")
             print(f"Первые 10 строк:")
             print(df.head(10))
             print(f"Последние 10 строк:")
             print(df.tail(10))
-            
+
             found_keywords = []
-            for row_idx in range(min(30, len(df))):  
-                for col_idx in range(min(30, len(df.columns))):  
+            for row_idx in range(min(30, len(df))):
+                for col_idx in range(min(30, len(df.columns))):
                     cell_value = df.iloc[row_idx, col_idx]
                     if pd.notna(cell_value) and isinstance(cell_value, str):
                         cell_lower = cell_value.lower()
@@ -145,14 +223,14 @@ class ParserService:
                             found_keywords.append(f"Объём ОП в ({row_idx}, {col_idx}): {cell_value}")
                         elif any(cat in cell_lower for cat in [ch.lower() for ch in self.chapters + self.cycles + self.modules]):
                             found_keywords.append(f"Категория в ({row_idx}, {col_idx}): {cell_value}")
-            
+
             if found_keywords:
                 print("Найденные ключевые слова:")
                 for kw in found_keywords:
                     print(f"  {kw}")
             else:
                 print("Ключевые слова не найдены в первых 30 строках/колонках")
-                
+
         except Exception as e:
             print(f"Ошибка при отладке файла: {e}")
         print("=== КОНЕЦ ОТЛАДКИ ===")
@@ -699,7 +777,21 @@ class ParserService:
         """Парсинг Excel файла"""
         # Отладочная печать структуры файла
         self.debug_print_file_structure(file_path)
+
+        # Парсим титульный лист для извлечения года и специальности
+        print("Запуск парсера титульного листа (год и специальность)...")
+        year, speciality_code = self.parse_title_sheet(file_path)
         
+        # Значения по умолчанию, если не найдены
+        if year is None:
+            year = 2023
+            print("Год не найден, используем значение по умолчанию: 2023")
+        if not speciality_code:
+            speciality_code = "09.02.07"
+            print("Код специальности не найден, используем значение по умолчанию: 09.02.07")
+        
+        print(f"Извлечены данные: год={year}, специальность={speciality_code}")
+
         try:
             # Загружаем Excel файл с указанным листом
             excel_file = pd.ExcelFile(file_path)
@@ -718,30 +810,30 @@ class ParserService:
             except:
                 df = pd.read_excel(file_path, header=None, engine='xlrd')
                 print(f"Успешно загружен с движком xlrd, первый лист")
-        
+
         print(f"Файл загружен, размер: {df.shape}")
-        
+
         print("Запуск парсера недель по семестрам...")
         semester_weeks = self.parse_semester_weeks(df)
         print(f"Получено {len(semester_weeks)} записей о неделях")
-        
+
         print("Запуск парсера структуры учебного плана...")
         structured_curriculum = self.parse_structure(df)
         print(f"Получена структура с {len(structured_curriculum)} разделами")
-        
+
         print("Запуск парсера информации по семестрам для предметов...")
         subjects_with_hours = self.parse_subject_hours(df, structured_curriculum)
         print(f"Получено {len(subjects_with_hours)} предметов с информацией о часах")
-        
+
         print("Запуск парсера оценок по семестрам...")
         subjects_with_assessments = self.parse_subject_assessments(df, structured_curriculum)
         print(f"Получено {len(subjects_with_assessments)} предметов с информацией об оценках")
-        
+
         # Собираем всё в одну структуру
         complete_structure = {
             'id': 1,  # условный ID плана
-            'year': 2023,  # условный год
-            'speciality_code': "09.02.07",  # условный код специальности
+            'year': year,  # год из титульного листа
+            'speciality_code': speciality_code,  # код специальности из титульного листа
             'semesters': [
                 {
                     'semester': semester.semester,
@@ -804,12 +896,12 @@ class ParserService:
                 for chapter_idx, chapter in enumerate(structured_curriculum)
             ]
         }
-        
+
         print(f"Полная структура построена: {len(complete_structure['chapters'])} разделов, {len(complete_structure['semesters'])} семестров")
-        
+
         # Очищаем структуру от NaN значений перед возвратом
         cleaned_structure = self.clean_nan_values(complete_structure)
-        
+
         return cleaned_structure
     
     def _get_subject_hours(self, code: str, name: str, subjects_with_hours: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

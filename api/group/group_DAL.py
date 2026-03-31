@@ -48,11 +48,11 @@ class GroupDAL:
         return group_row
 
     @log_exceptions
-    async def get_group_by_advisor_id(self, group_advisor_id: int) -> Group | None:
-        query = select(Group).where(Group.group_advisor_id == group_advisor_id)
+    async def get_groups_by_advisor_id(self, group_advisor_id: int) -> list[Group]:
+        query = select(Group).where(Group.group_advisor_id == group_advisor_id).order_by(Group.group_name.asc())
         res = await self.db_session.execute(query)
-        group_row = res.scalar_one_or_none()
-        return group_row
+        groups = list(res.scalars().all())
+        return groups
     
     @log_exceptions
     async def get_groups_by_speciality(self, speciality_code: str, page: int, limit: int) -> list[Group]:

@@ -50,8 +50,19 @@ class PersistenceService:
             )
         logger.info(f"Специальность '{speciality_code}' найдена в базе данных.")
 
+        # Проверяем, существует ли уже план с таким годом и специальностью
+        year = parsed_data['year']
+        existing_plan = await self.plan_dal.get_plan_by_year_and_speciality(year, speciality_code)
+        if existing_plan:
+            logger.error(f"План для {year} года и специальности '{speciality_code}' уже существует (ID: {existing_plan.id}).")
+            raise HTTPException(
+                status_code=409,
+                detail=f"План для {year} года и специальности '{speciality_code}' уже существует. Удалите существующий план или загрузите данные для другого года/специальности."
+            )
+        logger.info(f"План для {year} года и специальности '{speciality_code}' не найден. Создаём новый.")
+
         plan = await self.plan_dal.create_plan(
-            year=parsed_data['year'],
+            year=year,
             speciality_code=speciality_code
         )
         plan_id = plan.id

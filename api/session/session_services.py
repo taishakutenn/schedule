@@ -42,7 +42,7 @@ class SessionService:
 
                     # Проверяем, есть ли у группы пара с таким номером
                     if body.session_number in today_sessions_numbers:
-                        raise HTTPException(status_code=400, detail=f"У группы: {group} уже есть {body.session_number} пара")
+                        raise HTTPException(status_code=404, detail=f"У группы: {group} уже есть {body.session_number} пара")
 
                     # # Проверяем, занят ли кабинет
                     # is_cabinet_busy = await session_dal.get_session_by_cabinet_and_time(body.cabinet_number, body.building_number, body.session_date, body.session_number)
@@ -155,7 +155,7 @@ class SessionService:
                 try:
                     # Get all teacher_in_plan_id from teacher
                     teachers_in_plan = await teacher_in_plan_dal.get_teachers_in_plans_by_teacher(teacher_id)
-                    teachers_in_plan_ids = [teacher.teacher_id for teacher in teachers_in_plan]
+                    teachers_in_plan_ids = [teacher.id for teacher in teachers_in_plan]
 
                     # If not teachers in plans
                     if not teachers_in_plan_ids:

@@ -106,6 +106,40 @@ class StreamService:
                     logger.warning(f"Получение потока {stream_id} для группы {group_name} и предмета {subject_id} отменено (Ошибка: {e})")
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
+    
+    async def _get_streams_related_to_stream_by_group_and_subject(self, group_name: str, subject_id: int, db) -> ShowStream | dict:
+        """Найдет по группе и предмету - номер потока, и подгрузит все потоки с этим номером"""
+        async with db as session:
+            async with session.begin():
+                stream_dal = StreamDAL(session)
+                try:
+                    # Находим id потока
+                    based_stream = await stream_dal.get_stream_by_group_and_subject_id(group_name, subject_id)
+                    if not based_stream:
+                        # Если у группы нет потока, то просто вернём пустой объект
+                        return {"streams": []}
+                    
+                    stream_id = based_stream.stream_id
+
+                    # Получаем все потоки с таким id
+                    streams = await stream_dal.get_streams_by_stream_id(stream_id)
+                    streams_list = [
+                    ShowStream.model_validate({
+                        "stream_id": stream.stream_id,
+                        "group_name": stream.group_name,
+                        "subject_id": stream.subject_id,
+                    })
+                        for stream in streams
+                    ]
+                
+                    return ShowStreamsList(streams=streams_list)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Получение потоков, связанных для группы {group_name} и предмета {subject_id} отменено (Ошибка: {e})")
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
 
     async def _get_streams_by_group(self, group_name: str, page: int, limit: int, request: Request, db) -> ShowStreamListWithHATEOAS:
         async with db as session:

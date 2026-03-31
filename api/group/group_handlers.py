@@ -55,3 +55,9 @@ async def update_group(body: UpdateGroup, request: Request, db: AsyncSession = D
 async def get_subjects_by_group(group_name: str, request: Request, db: AsyncSession = Depends(get_db)):
     """Получить все предметы группы, у которых есть часы лекций."""
     return await group_service._get_subjects_by_group(group_name, request, db)
+
+
+@group_router.get("/{group_name}/{teacher_id}/subjects", response_model=ShowSubjectList, responses={404: {"description": "Группа не найдена"}})
+async def get_subjects_by_group_and_teacher(group_name: str, teacher_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Получить все предметы группы, которые ведёт конкретный преподаватель, у которых есть часы лекций"""
+    return await group_service._get_subjects_by_group_and_teacher_id(group_name, teacher_id, request, db)

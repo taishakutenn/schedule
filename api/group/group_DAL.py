@@ -100,4 +100,24 @@ class GroupDAL:
         result = await self.db_session.execute(query)
         subjects = list(result.scalars().all())
         return subjects if subjects is not None else []
+
+    @log_exceptions
+    async def get_subjects_by_group_and_teacher_id(self, group_name: str, teacher_id: int) -> list[SubjectsInCycle]:
+        """
+        Получить все предметы группы, которые ведёт конкретный преподаватель.
+        
+        Связь: Group -> TeacherInPlan -> SubjectsInCycleHours -> SubjectsInCycle
+        """
+        query = (
+            select(SubjectsInCycle)
+            .join(SubjectsInCycleHours, SubjectsInCycle.id == SubjectsInCycleHours.subject_in_cycle_id)
+            .join(TeacherInPlan, SubjectsInCycleHours.id == TeacherInPlan.subject_in_cycle_hours_id)
+            .where(TeacherInPlan.group_name == group_name)
+            .where(TeacherInPlan.teacher_id == teacher_id)
+            .distinct()
+            .order_by(SubjectsInCycle.code)
+        )
+        result = await self.db_session.execute(query)
+        subjects = list(result.scalars().all())
+        return subjects if subjects is not None else []
     

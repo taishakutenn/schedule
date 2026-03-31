@@ -54,6 +54,23 @@ class StreamDAL:
         return stream_row
 
     @log_exceptions
+    async def get_stream_by_group_and_subject_id(self, group_name: str, subject_id: int) -> Stream | None:
+        query = select(Stream).where(
+            (Stream.group_name == group_name) &
+            (Stream.subject_id == subject_id)
+        )
+        res = await self.db_session.execute(query)
+        stream_row = res.scalar_one_or_none()
+        return stream_row
+
+    @log_exceptions
+    async def get_streams_by_stream_id(self, stream_id) -> list[Stream]:
+        query = select(Stream).where(Stream.stream_id == stream_id).order_by(Stream.stream_id.asc())
+        result = await self.db_session.execute(query)
+        streams = list(result.scalars().all())
+        return streams if streams is not None else []
+
+    @log_exceptions
     async def get_streams_by_group(self, group_name: str, page: int, limit: int) -> list[Stream]:
         if page == 0:
             query = select(Stream).where(Stream.group_name == group_name).order_by(Stream.stream_id.asc())
@@ -62,6 +79,7 @@ class StreamDAL:
         result = await self.db_session.execute(query)
         streams = list(result.scalars().all())
         return streams if streams is not None else []
+        
 
     @log_exceptions
     async def get_streams_by_subject(self, subject_id: int, page: int, limit: int) -> list[Stream]:

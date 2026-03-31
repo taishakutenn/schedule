@@ -9,6 +9,10 @@ class ShowStream(TunedModel):
     subject_id: int
 
 
+class ShowStreamsList(TunedModel):
+    streams: list[ShowStream]
+
+
 class CreateStream(TunedModel):
     stream_id: int
     group_name: str

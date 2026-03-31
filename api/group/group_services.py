@@ -415,4 +415,48 @@ class GroupService:
                 except Exception as e:
                     logger.error(f"Неожиданная ошибка при получении предметов группы {group_name}: {e}", exc_info=True)
                     raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении предметов.")
+
+    async def _get_subjects_by_group_and_teacher_id(self, group_name: str, teacher_id: int, request: Request, db) -> ShowSubjectList:
+        """Получить все предметы группы, которые ведёт конкретный преподаватель"""
+        async with db as session:
+            async with session.begin():
+                group_dal = GroupDAL(session)
+                teacher_dal = TeacherDAL(session)
+                try:
+                    # Проверяем существование группы
+                    group = await group_dal.get_group_by_name(group_name)
+                    if not group:
+                        raise HTTPException(status_code=404, detail=f"Группа с названием: {group_name} не найдена")
+
+                    # Проверяем существование преподавателя
+                    if not await ensure_teacher_exists(teacher_dal, teacher_id):
+                        raise HTTPException(status_code=404, detail=f"Преподаватель с id {teacher_id} не найден")
+
+                    # Получаем предметы с лекциями
+                    subjects = await group_dal.get_subjects_by_group_and_teacher_id(group_name, teacher_id)
+                    
+                    # Преобразуем в pydantic модели
+                    subjects_list = [
+                        ShowSubject(id=subject.id, code=subject.code, title=subject.title)
+                        for subject in subjects
+                    ]
+
+                    base_url = str(request.base_url).rstrip('/')
+                    api_prefix = ''
+                    api_base_url = f'{base_url}{api_prefix}'
+
+                    hateoas_links = {
+                        "self": f'{api_base_url}/groups/{group_name}/subjects',
+                        "group": f'{api_base_url}/groups/search/by_group_name/{group_name}',
+                        "sessions": f'{api_base_url}/sessions/search/by_group/{group_name}',
+                        "teachers_in_plans": f'{api_base_url}/teachers_in_plans/search/by_group/{group_name}'
+                    }
+
+                    return ShowSubjectList(subjects=subjects_list, links=hateoas_links)
+
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.error(f"Неожиданная ошибка при получении предметов группы {group_name}: {e}", exc_info=True)
+                    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера при получении предметов.")
                 

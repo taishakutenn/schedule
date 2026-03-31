@@ -21,6 +21,11 @@ async def get_stream_by_composite_key(stream_id: int, group_name: str, subject_i
     return await stream_service._get_stream_by_composite_key(stream_id, group_name, subject_id, request, db)
 
 
+@stream_router.get("/search/streams/related/to_stream/by_group/subject/{group_name}/{subject_id}", response_model=ShowStreamsList)
+async def get_streams_related_to_stream_by_group_and_subject(group_name: str, subject_id: int, db: AsyncSession = Depends(get_db)):
+    return await stream_service._get_streams_related_to_stream_by_group_and_subject(group_name, subject_id, db)
+
+
 @stream_router.get("/search/by_group/{group_name}", response_model=ShowStreamListWithHATEOAS, responses={404: {"description": "Потоки не найдены"}})
 async def get_streams_by_group(group_name: str, query_param: Annotated[QueryParams, Depends()], request: Request, db: AsyncSession = Depends(get_db)):
     return await stream_service._get_streams_by_group(group_name, query_param.page, query_param.limit, request, db)

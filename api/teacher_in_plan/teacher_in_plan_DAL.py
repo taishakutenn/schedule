@@ -69,7 +69,7 @@ class TeacherInPlanDAL:
         return teachers_in_plans if teachers_in_plans is not None else []
 
     @log_exceptions
-    async def get_teachers_in_plans_by_group(self, group_name: str, page: int, limit: int) -> list[TeacherInPlan]:
+    async def get_teachers_in_plans_by_group(self, group_name: str, page: int = 0, limit: int = 0) -> list[TeacherInPlan]:
         if page == 0:
             query = select(TeacherInPlan).where(TeacherInPlan.group_name == group_name).order_by(TeacherInPlan.id.asc())
         else:

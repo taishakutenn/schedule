@@ -36,16 +36,20 @@ class ScheduleService:
                         raise HTTPException(status_code=404, detail=f"Группа с таким названием: {group_name} не существует")
 
                     # Get all teacher_in_plan_id from group_name
-                    teachers_in_plan = await teacher_in_plan_dal.get_teachers_in_plans_by_group(group_name, page=0, limit=10)
-                    teachers_in_plan_ids = [teacher.teacher_id for teacher in teachers_in_plan]
+                    teachers_in_plan = await teacher_in_plan_dal.get_teachers_in_plans_by_group(group_name)
+                    print("Планы ", teachers_in_plan)
+                    teachers_in_plan_ids = [teacher.id for teacher in teachers_in_plan]
+                    print("teachers_in_plan_ids ", teachers_in_plan_ids)
 
                     # Give end range days
                     end_period_date = calculate_end_period_date(start_period_date, 6)
+                    print(end_period_date)
 
                     # Get session
                     sessions = await session_dal.get_sessions_by_teacher_in_plan_and_date(teachers_in_plan_ids,
                                                                                           start_period_date,
                                                                                           end_period_date)
+                    print(sessions)
                     if not sessions:
                         raise HTTPException(status_code=404,
                                             detail=f"Для группы: {group_name} на неделю с начала даты: {start_period_date} не найдено учебных занятий")

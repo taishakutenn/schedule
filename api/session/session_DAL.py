@@ -179,6 +179,9 @@ class SessionDAL:
                                                        teacher_in_plan_ids: list[int],
                                                        start_period_date: date,
                                                        end_period_date: date) -> list[Session]:
+        print(teacher_in_plan_ids)
+        print(start_period_date)
+        print(end_period_date)
 
         query = select(Session).where(
             (Session.teacher_in_plan.in_(teacher_in_plan_ids)) &
